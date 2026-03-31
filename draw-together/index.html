@@ -1,0 +1,4087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>P2P Drawing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a2e; --text: #e0e0e0; --muted: #9ca3af;
+    --toolbar-bg: rgba(30,30,50,0.95); --border: #2a2a4a; --border-light: #3a3a5a;
+    --grid-color: rgba(255,255,255,0.08); --welcome-bg: rgba(26,26,46,0.92);
+  }
+  :root.light {
+    --bg: #f5f5f5; --text: #1a1a2e; --muted: #6b7280;
+    --toolbar-bg: rgba(255,255,255,0.95); --border: #d1d5db; --border-light: #e5e7eb;
+    --grid-color: rgba(0,0,0,0.08); --welcome-bg: rgba(245,245,245,0.92);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: system-ui, sans-serif; color: var(--text); }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+  canvas.select-mode { cursor: default; }
+  canvas.panning { cursor: grab; }
+  canvas.eraser-mode { cursor: crosshair; }
+  canvas.drag-over { outline: 3px dashed #7c5cfc; outline-offset: -3px; opacity: 0.8; }
+
+  /* Floating Toolbar */
+  #toolbar {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    background: var(--toolbar-bg); border-radius: 14px;
+    backdrop-filter: blur(6px); border: 1px solid var(--border);
+    z-index: 10;
+    animation: slideDown 0.25s ease;
+  }
+  #toolbar.hidden { display: none; }
+  .hidden { display: none !important; }
+
+  .tb-sep {
+    width: 1px; height: 24px; background: var(--border-light); margin: 0 2px; flex-shrink: 0;
+  }
+
+  #status {
+    font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  #status .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+  }
+  .dot-waiting { background: #f59e0b; }
+  .dot-connected { background: #22c55e; }
+  .dot-disconnected { background: #ef4444; }
+
+  button {
+    padding: 6px 14px; border: 1px solid var(--border-light); border-radius: 12px;
+    background: var(--border); color: var(--text); font-size: 13px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: var(--border-light); }
+  button.primary { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+  button.primary:hover { background: #2563eb; }
+
+  /* Icon tool buttons */
+  .tool-btn {
+    width: 34px; height: 34px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid transparent; border-radius: 10px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .tool-btn:hover { background: var(--border); color: var(--text); }
+  .tool-btn.tool-active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+  .tool-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  /* Tooltips */
+  .tool-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    margin-top: 6px; padding: 4px 8px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border-light);
+    border-radius: 6px; font-size: 11px; white-space: nowrap;
+    pointer-events: none; z-index: 100;
+  }
+
+  .color-picker {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .swatch {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .swatch:hover { opacity: 0.8; }
+  .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
+
+  .fill-picker-wrap {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .fill-swatch { position: relative; }
+  .fill-swatch.no-fill {
+    background: transparent !important;
+    border: 2px dashed var(--text);
+  }
+  .fill-swatch.no-fill::after {
+    content: ''; position: absolute; top: 2px; left: 9px;
+    width: 2px; height: 14px; background: var(--text);
+    transform: rotate(45deg);
+  }
+  .fill-swatch.no-fill.active { border-color: #fff; }
+  .opacity-btn {
+    padding: 2px 5px; font-size: 10px; border-radius: 4px;
+    background: var(--border-light); color: var(--text); border: 1px solid transparent;
+    cursor: pointer; line-height: 1.2;
+  }
+  .opacity-btn:hover { opacity: 0.8; }
+  .opacity-btn.active { border-color: #fff; }
+
+  .text-overlay {
+    position: fixed; z-index: 20;
+    background: transparent; border: 2px dashed;
+    resize: none; outline: none; border-radius: 10px;
+    font-family: system-ui, sans-serif; font-size: 14px;
+    padding: 4px 6px; overflow: hidden;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+  /* Dropdown menus — rendered in body via JS to avoid toolbar clipping */
+  .dropdown {
+    position: fixed; padding: 4px 0;
+    background: var(--toolbar-bg); border: 1px solid var(--border-light);
+    border-radius: 8px; z-index: 100; display: none;
+  }
+  .dropdown.open { display: block; }
+  .dropdown button {
+    width: 100%; padding: 6px 14px;
+    background: transparent; border: none; color: var(--text);
+    font-size: 13px; text-align: left; cursor: pointer; border-radius: 0;
+  }
+  .dropdown button:hover { background: var(--border-light); }
+
+  .export-dropdown { min-width: 100px; }
+  .export-dropdown button { display: block; }
+
+  /* Subtool dropdown */
+  .subtool-indicator {
+    position: absolute; bottom: 1px; right: 1px;
+    font-size: 7px; line-height: 1; opacity: 0.6; pointer-events: none;
+  }
+  .subtool-dropdown { min-width: 140px; }
+  .subtool-dropdown button { display: flex; align-items: center; gap: 8px; }
+  .subtool-dropdown button.active { background: rgba(59,130,246,0.2); color: #3b82f6; }
+  .subtool-dropdown button svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  /* Undo/redo disabled state */
+  .tool-btn.disabled { opacity: 0.35; pointer-events: none; }
+
+  .width-picker { display: flex; gap: 6px; align-items: center; }
+  .width-dot {
+    border-radius: 50%; background: var(--muted); cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .width-dot:hover { background: var(--text); }
+  .width-dot.active { background: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.4); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .dot-reconnecting { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+
+  #connectionBanner {
+    position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+    padding: 8px 16px; background: rgba(239,68,68,0.9); color: #fff;
+    border-radius: 8px; font-size: 13px; z-index: 15; display: none;
+  }
+  #connectionBanner.visible { display: block; }
+
+  #shortcutOverlay {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 50;
+  }
+  #shortcutOverlay.visible { display: flex; }
+  .shortcut-content {
+    background: var(--toolbar-bg); border: 1px solid var(--border-light);
+    border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; max-height: 80vh; overflow-y: auto;
+  }
+  .shortcut-content h2 { margin-bottom: 16px; font-size: 18px; }
+  .shortcut-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+  .shortcut-row:last-child { border-bottom: none; }
+  .shortcut-row kbd { background: var(--border); padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+
+  @media (max-width: 600px) {
+    #toolbar { flex-wrap: wrap; max-width: calc(100vw - 16px); justify-content: center; top: 8px; padding: 6px 8px; gap: 4px; }
+    .tb-sep { display: none; }
+    .tool-btn { width: 32px; height: 32px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="toolbar" class="hidden">
+  <div id="status"><span class="dot dot-waiting"></span><span id="statusText">Not connected</span></div>
+  <button class="tool-btn hidden" id="copyLinkBtn" title="Copy Link">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 12l4-4M6.5 10.5l-1 1a2.83 2.83 0 004 4l1-1M13.5 9.5l1-1a2.83 2.83 0 00-4-4l-1 1"/>
+    </svg>
+  </button>
+  <div class="tb-sep"></div>
+
+  <button class="tool-btn tool-active" data-tool="pen" title="Pen (D)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.5 3.5l4 4L7 17H3v-4L12.5 3.5z"/>
+    </svg>
+  </button>
+  <button class="tool-btn" data-tool="select" title="Select (S)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 2l10 7-4.5 1.2L12 15l-2.5 1-2.5-4.8L3 14z"/>
+    </svg>
+  </button>
+  <button class="tool-btn" data-tool="hand" title="Hand / Pan (H) &mdash; or hold Space">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 17v-6M10 5V3M10 5c0-1 .8-2 2-2s2 1 2 2v5M10 5c0-1-.8-2-2-2s-2 1-2 2v4M6 9c0-1-.8-2-2-2s-2 1-2 2v3c0 3.3 2.7 6 6 6h4c3.3 0 6-2.7 6-6V7c0-1-.8-2-2-2s-2 1-2 2"/>
+    </svg>
+  </button>
+  <button class="tool-btn" data-tool="rectangle" id="rectangleBtn" title="Rectangle (R)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="14" height="12" rx="1.5"/>
+    </svg>
+    <span class="subtool-indicator">&#9662;</span>
+  </button>
+  <button class="tool-btn" data-tool="arrow" id="arrowBtn" title="Arrow (A)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 16L16 4M16 4v5M16 4h-5"/>
+    </svg>
+    <span class="subtool-indicator">&#9662;</span>
+  </button>
+  <button class="tool-btn" data-tool="text-rect" title="Text (T)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 4h10M10 4v12M7 16h6"/>
+    </svg>
+  </button>
+  <button class="tool-btn" data-tool="eraser" title="Eraser (E)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8.5 17H17M3.5 13.5L10 7l4 4-4.5 4.5a2 2 0 01-1.4.6H6a2 2 0 01-1.4-.6l-1.1-1.1a1 1 0 010-1.4z"/>
+    </svg>
+  </button>
+
+  <div class="tb-sep"></div>
+  <div class="color-picker" id="colorPicker"></div>
+  <div class="tb-sep"></div>
+  <div class="fill-picker-wrap" id="fillPicker"></div>
+  <div class="tb-sep"></div>
+  <div class="width-picker" id="widthPicker"></div>
+
+  <div class="tb-sep"></div>
+  <button class="tool-btn" id="themeBtn" title="Light Mode">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/>
+    </svg>
+  </button>
+  <button class="tool-btn tool-active" id="sketchBtn" title="Sketch Mode (K)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 17l3-1.5L15.5 6a1.4 1.4 0 00-2-2L4.5 13.5zM12.5 5l2 2"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="gridBtn" title="Grid (G)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <path d="M3 7h14M3 13h14M7 3v14M13 3v14"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="fitBtn" title="Fit All (F)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="clearBtn" title="Clear">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 6h10M8 6V4h4v2M6 6v10a1 1 0 001 1h6a1 1 0 001-1V6"/>
+    </svg>
+  </button>
+  <button class="tool-btn disabled" id="undoBtn" title="Undo (Ctrl+Z)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 8l4-4M4 8l4 4M5 8h8a4 4 0 010 8H9"/>
+    </svg>
+  </button>
+  <button class="tool-btn disabled" id="redoBtn" title="Redo (Ctrl+Shift+Z)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 8l-4-4M16 8l-4 4M15 8H7a4 4 0 000 8h4"/>
+    </svg>
+  </button>
+  <div class="tb-sep"></div>
+  <button class="tool-btn" id="exportBtn" title="Export">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 3v10M6 9l4 4 4-4M4 15v2h12v-2"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="importBtn" title="Import">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 13V3M6 7l4-4 4 4M4 15v2h12v-2"/>
+    </svg>
+  </button>
+</div>
+
+<div class="dropdown export-dropdown" id="exportDropdown">
+  <button id="exportJsonBtn">JSON</button>
+  <button id="exportPngBtn">PNG</button>
+</div>
+
+<div class="dropdown subtool-dropdown" id="rectangleDropdown">
+  <button data-subtype="rectangle" class="active"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="1.5"/></svg>Rectangle</button>
+  <button data-subtype="ellipse"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="10" rx="7" ry="5"/></svg>Ellipse</button>
+  <button data-subtype="diamond"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L17 10L10 17L3 10Z"/></svg>Diamond</button>
+  <button data-subtype="container"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="1.5"/><line x1="3" y1="7" x2="17" y2="7"/></svg>Container</button>
+</div>
+
+<div class="dropdown subtool-dropdown" id="arrowDropdown">
+  <button data-subtype="arrow" data-linestyle="solid" class="active"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4M16 4v5M16 4h-5"/></svg>Arrow</button>
+  <button data-subtype="arrow-double" data-linestyle="solid"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4M16 4v5M16 4h-5M4 16v-5M4 16h5"/></svg>Double Arrow</button>
+  <button data-subtype="line" data-linestyle="solid"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4"/></svg>Line</button>
+  <button data-subtype="line" data-linestyle="dashed"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 2.5"><path d="M4 16L16 4"/></svg>Dashed</button>
+  <button data-subtype="line" data-linestyle="dotted"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="0.5 3"><path d="M4 16L16 4"/></svg>Dotted</button>
+</div>
+
+<div id="connectionBanner"></div>
+
+<div id="shortcutOverlay">
+  <div class="shortcut-content">
+    <h2>Keyboard Shortcuts</h2>
+    <div class="shortcut-row"><span>Pen</span><kbd>D</kbd></div>
+    <div class="shortcut-row"><span>Select</span><kbd>S</kbd></div>
+    <div class="shortcut-row"><span>Hand / Pan</span><kbd>H</kbd></div>
+    <div class="shortcut-row"><span>Rectangle / Ellipse / Diamond / Container</span><kbd>R</kbd></div>
+    <div class="shortcut-row"><span>Arrow / Double Arrow / Line</span><kbd>A</kbd></div>
+    <div class="shortcut-row"><span>Text</span><kbd>T</kbd></div>
+    <div class="shortcut-row"><span>Eraser</span><kbd>E</kbd></div>
+    <div class="shortcut-row"><span>Sketch / Clean</span><kbd>K</kbd></div>
+    <div class="shortcut-row"><span>Grid Toggle</span><kbd>G</kbd></div>
+    <div class="shortcut-row"><span>Fit All</span><kbd>F</kbd></div>
+    <div class="shortcut-row"><span>Undo</span><kbd>Ctrl+Z</kbd></div>
+    <div class="shortcut-row"><span>Redo</span><kbd>Ctrl+Shift+Z</kbd></div>
+    <div class="shortcut-row"><span>Select All</span><kbd>Ctrl+A</kbd></div>
+    <div class="shortcut-row"><span>Copy</span><kbd>Ctrl+C</kbd></div>
+    <div class="shortcut-row"><span>Paste</span><kbd>Ctrl+V</kbd></div>
+    <div class="shortcut-row"><span>Delete</span><kbd>Del / Backspace</kbd></div>
+    <div class="shortcut-row"><span>Bring to Front</span><kbd>]</kbd></div>
+    <div class="shortcut-row"><span>Send to Back</span><kbd>[</kbd></div>
+    <div class="shortcut-row"><span>Pan</span><kbd>Space + Drag</kbd></div>
+    <div class="shortcut-row"><span>This Help</span><kbd>?</kbd></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
+<script>
+(function() {
+  const GREY_DARK_THEME = '#e0e0e0';
+  const GREY_LIGHT_THEME = '#404040';
+  const PICKER_COLORS = [GREY_DARK_THEME, '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
+  const MAX_USERS = 10;
+  const GRID_SIZE = 15;
+  const STROKE_WIDTHS = [2, 4, 7, 12];
+  const THEMES = { dark: { bg: '#1a1a2e' }, light: { bg: '#f5f5f5' } };
+
+  let currentLineWidth = 4;
+  let currentTheme = localStorage.getItem('draw-together-theme') || 'dark';
+  let BG_COLOR = THEMES[currentTheme].bg;
+
+  // --- App State ---
+  let appState = 'room';
+
+  // --- State ---
+  let isHost = false;
+  let myId = null;
+  let myColor = PICKER_COLORS[0];
+  let myFillColor = null; // null = no fill, or hex color string
+  let fillOpacity = 0.25; // default fill opacity
+  let activeTool = 'pen';
+  let rectangleSubtype = 'rectangle'; // 'rectangle' | 'ellipse' | 'diamond'
+  let arrowSubtype = 'arrow';         // 'arrow' | 'arrow-double' | 'line'
+  let arrowLineStyle = 'solid';       // 'solid' | 'dashed' | 'dotted'
+  let shapeStart = null;
+  let shapePreview = null;
+  let showGrid = false;
+  let sketchMode = true;
+  let selectedStrokes = new Set();
+  let isDragging = false;
+  let lastDragPos = null;
+  let dragTotalDx = 0;
+  let dragTotalDy = 0;
+  let drawStartPos = null;
+  let selectionRect = null;
+  let activeHandle = null;
+  let clipboard = [];
+  let isErasing = false;
+  let dragContainerChildren = new Map();
+  let eraserDeleteItems = [];
+  let remoteCursors = {};
+  let lastCursorBroadcast = 0;
+  let msgBuffer = [];
+  let msgFlushTimer = null;
+  let longPressTimer = null;
+  let longPressStartPos = null;
+  let guestPeer = null;
+  let guestRoomId = null;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT = 5;
+
+  // --- Viewport (infinite canvas) ---
+  let viewportX = 0, viewportY = 0; // world coord at center of screen
+  let viewportScale = 1;
+  const MIN_SCALE = 0.05, MAX_SCALE = 20;
+  let isPanning = false, panStartX = 0, panStartY = 0;
+  let spaceHeld = false;
+  let lastPinchDist = 0, lastPinchMid = null;
+
+  function worldToScreen(wx, wy) {
+    return {
+      x: (wx - viewportX) * viewportScale + canvas.width / 2,
+      y: (wy - viewportY) * viewportScale + canvas.height / 2
+    };
+  }
+  function screenToWorld(sx, sy) {
+    return {
+      x: (sx - canvas.width / 2) / viewportScale + viewportX,
+      y: (sy - canvas.height / 2) / viewportScale + viewportY
+    };
+  }
+
+  // Host state
+  let connections = [];
+
+  // Guest state
+  let hostConn = null;
+  let userCount = 1;
+
+  // --- Canvas setup ---
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 3; // will be scaled by viewportScale in redraw()
+
+  let strokes = [];
+  let currentStroke = null;
+
+  // --- Undo / Redo ---
+  const MAX_HISTORY = 100;
+  let undoStack = [];
+  let redoStack = [];
+
+  function deepCloneStroke(s) { return JSON.parse(JSON.stringify(s)); }
+
+  function isBoxType(type) {
+    return type === 'rectangle' || type === 'text-rect' || type === 'container';
+  }
+  function isShapeType(type) {
+    return isBoxType(type) || type === 'ellipse' || type === 'diamond';
+  }
+
+  function pushAction(action) {
+    undoStack.push(action);
+    if (undoStack.length > MAX_HISTORY) undoStack.shift();
+    redoStack = [];
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    const ub = document.getElementById('undoBtn');
+    const rb = document.getElementById('redoBtn');
+    if (ub) ub.classList.toggle('disabled', undoStack.length === 0);
+    if (rb) rb.classList.toggle('disabled', redoStack.length === 0);
+  }
+
+  function performUndo() {
+    if (undoStack.length === 0) return;
+    const act = undoStack.pop();
+    redoStack.push(act);
+    applyUndo(act);
+    updateUndoRedoButtons();
+    redraw();
+  }
+
+  function performRedo() {
+    if (redoStack.length === 0) return;
+    const act = redoStack.pop();
+    undoStack.push(act);
+    applyRedo(act);
+    updateUndoRedoButtons();
+    redraw();
+  }
+
+  function applyUndo(act) {
+    if (act.action === 'add-stroke') {
+      const idx = strokes.findIndex(s => s.strokeId === act.strokeId);
+      if (idx !== -1) strokes.splice(idx, 1);
+      broadcast({ type: 'delete', strokeId: act.strokeId, participantId: myId });
+    } else if (act.action === 'delete-batch') {
+      for (const item of act.items) {
+        strokes.splice(item.index, 0, item.stroke);
+        broadcastStrokeAdd(item.stroke);
+      }
+    } else if (act.action === 'move') {
+      for (const id of act.strokeIds) {
+        const s = findStrokeById(id);
+        if (s) {
+          moveStroke(s, -act.dx, -act.dy);
+          updateAttachedArrows(s);
+          broadcast({ type: 'move', strokeId: id, dx: -act.dx, dy: -act.dy, participantId: myId });
+        }
+      }
+    } else if (act.action === 'resize') {
+      const s = findStrokeById(act.strokeId);
+      if (s) {
+        s.start = { x: act.prevStart.x, y: act.prevStart.y };
+        s.end = { x: act.prevEnd.x, y: act.prevEnd.y };
+        if (s.type === 'arrow') {
+          s.startAttach = act.prevStartAttach;
+          s.endAttach = act.prevEndAttach;
+          s.controlPoint = act.prevControlPoint || null;
+        }
+        updateAttachedArrows(s);
+        broadcast({ type: 'resize', strokeId: s.strokeId, startX: s.start.x, startY: s.start.y, endX: s.end.x, endY: s.end.y, controlPointX: s.controlPoint ? s.controlPoint.x : null, controlPointY: s.controlPoint ? s.controlPoint.y : null, startAttach: s.startAttach || null, endAttach: s.endAttach || null, participantId: myId });
+      }
+    } else if (act.action === 'recolor') {
+      for (const item of act.items) {
+        const s = findStrokeById(item.strokeId);
+        if (s) {
+          s.color = item.prevColor;
+          broadcast({ type: 'recolor', strokeId: item.strokeId, color: item.prevColor, participantId: myId });
+        }
+      }
+    } else if (act.action === 'fill-color') {
+      for (const item of act.items) {
+        const s = findStrokeById(item.strokeId);
+        if (s) {
+          s.fillColor = item.prevFillColor;
+          broadcast({ type: 'fill-color', strokeId: item.strokeId, fillColor: item.prevFillColor, participantId: myId });
+        }
+      }
+    } else if (act.action === 'line-style') {
+      for (const item of act.items) {
+        const s = findStrokeById(item.strokeId);
+        if (s) {
+          s.lineStyle = item.prevLineStyle;
+          broadcast({ type: 'line-style', strokeId: item.strokeId, lineStyle: item.prevLineStyle, participantId: myId });
+        }
+      }
+    } else if (act.action === 'z-order') {
+      // Restore previous ordering
+      const orderMap = new Map();
+      act.prevOrder.forEach((id, idx) => orderMap.set(id, idx));
+      strokes.sort((a, b) => (orderMap.get(a.strokeId) || 0) - (orderMap.get(b.strokeId) || 0));
+      broadcast({ type: 'sync-state', strokes: strokes });
+    } else if (act.action === 'container-label') {
+      const s = findStrokeById(act.strokeId);
+      if (s) {
+        s.label = act.prevLabel;
+        broadcast({ type: 'container-label', strokeId: act.strokeId, label: act.prevLabel, participantId: myId });
+      }
+    } else if (act.action === 'text-fill') {
+      const s = findStrokeById(act.strokeId);
+      if (s) {
+        s.text = act.prevText;
+        broadcast({ type: 'text-fill', strokeId: act.strokeId, text: act.prevText, participantId: myId });
+      }
+    } else if (act.action === 'clear') {
+      strokes = act.snapshot.map(deepCloneStroke);
+      broadcast({ type: 'sync-state', strokes: strokes });
+    } else if (act.action === 'paste') {
+      for (const item of act.items) {
+        const idx = strokes.findIndex(s => s.strokeId === item.strokeId);
+        if (idx !== -1) strokes.splice(idx, 1);
+        broadcast({ type: 'delete', strokeId: item.strokeId, participantId: myId });
+      }
+    }
+    selectedStrokes.clear();
+  }
+
+  function applyRedo(act) {
+    if (act.action === 'add-stroke') {
+      const s = deepCloneStroke(act.strokeData);
+      strokes.push(s);
+      broadcastStrokeAdd(s);
+    } else if (act.action === 'delete-batch') {
+      for (const item of act.items) {
+        const idx = strokes.findIndex(s => s.strokeId === item.stroke.strokeId);
+        if (idx !== -1) strokes.splice(idx, 1);
+        clearArrowAttachments(item.stroke.strokeId);
+        broadcast({ type: 'delete', strokeId: item.stroke.strokeId, participantId: myId });
+      }
+    } else if (act.action === 'move') {
+      for (const id of act.strokeIds) {
+        const s = findStrokeById(id);
+        if (s) {
+          moveStroke(s, act.dx, act.dy);
+          updateAttachedArrows(s);
+          broadcast({ type: 'move', strokeId: id, dx: act.dx, dy: act.dy, participantId: myId });
+        }
+      }
+    } else if (act.action === 'resize') {
+      const s = findStrokeById(act.strokeId);
+      if (s) {
+        s.start = { x: act.newStart.x, y: act.newStart.y };
+        s.end = { x: act.newEnd.x, y: act.newEnd.y };
+        if (s.type === 'arrow') {
+          s.startAttach = act.newStartAttach;
+          s.endAttach = act.newEndAttach;
+          s.controlPoint = act.newControlPoint || null;
+        }
+        updateAttachedArrows(s);
+        broadcast({ type: 'resize', strokeId: s.strokeId, startX: s.start.x, startY: s.start.y, endX: s.end.x, endY: s.end.y, controlPointX: s.controlPoint ? s.controlPoint.x : null, controlPointY: s.controlPoint ? s.controlPoint.y : null, startAttach: s.startAttach || null, endAttach: s.endAttach || null, participantId: myId });
+      }
+    } else if (act.action === 'recolor') {
+      for (const item of act.items) {
+        const s = findStrokeById(item.strokeId);
+        if (s) {
+          s.color = item.newColor;
+          broadcast({ type: 'recolor', strokeId: item.strokeId, color: item.newColor, participantId: myId });
+        }
+      }
+    } else if (act.action === 'fill-color') {
+      for (const item of act.items) {
+        const s = findStrokeById(item.strokeId);
+        if (s) {
+          s.fillColor = item.newFillColor;
+          broadcast({ type: 'fill-color', strokeId: item.strokeId, fillColor: item.newFillColor, participantId: myId });
+        }
+      }
+    } else if (act.action === 'line-style') {
+      for (const item of act.items) {
+        const s = findStrokeById(item.strokeId);
+        if (s) {
+          s.lineStyle = item.newLineStyle;
+          broadcast({ type: 'line-style', strokeId: item.strokeId, lineStyle: item.newLineStyle, participantId: myId });
+        }
+      }
+    } else if (act.action === 'z-order') {
+      applyZOrder(act.strokeIds, act.direction);
+      broadcast({ type: 'z-order', strokeIds: act.strokeIds, direction: act.direction, participantId: myId });
+    } else if (act.action === 'container-label') {
+      const s = findStrokeById(act.strokeId);
+      if (s) {
+        s.label = act.newLabel;
+        broadcast({ type: 'container-label', strokeId: act.strokeId, label: act.newLabel, participantId: myId });
+      }
+    } else if (act.action === 'text-fill') {
+      const s = findStrokeById(act.strokeId);
+      if (s) {
+        s.text = act.newText;
+        broadcast({ type: 'text-fill', strokeId: act.strokeId, text: act.newText, participantId: myId });
+      }
+    } else if (act.action === 'clear') {
+      strokes = [];
+      currentStroke = null;
+      remoteStrokes = {};
+      broadcast({ type: 'clear' });
+    } else if (act.action === 'paste') {
+      for (const item of act.items) {
+        const s = deepCloneStroke(item.strokeData);
+        strokes.push(s);
+        broadcastStrokeAdd(s);
+      }
+    }
+    selectedStrokes.clear();
+  }
+
+  function broadcastStrokeAdd(s) {
+    if (s.type === 'freehand') {
+      broadcast({ type: 'start', x: s.points[0].x, y: s.points[0].y, color: s.color, participantId: myId, strokeId: s.strokeId, lineWidth: s.lineWidth || 4 });
+      for (let i = 1; i < s.points.length; i++) {
+        broadcast({ type: 'draw', x: s.points[i].x, y: s.points[i].y, color: s.color, participantId: myId });
+      }
+      broadcast({ type: 'end', participantId: myId });
+    } else {
+      const msg = { type: 'shape', tool: s.type, startX: s.start.x, startY: s.start.y, endX: s.end.x, endY: s.end.y, color: s.color, participantId: myId, strokeId: s.strokeId, lineWidth: s.lineWidth || 4, subtype: s.subtype, fillColor: s.fillColor || null, lineStyle: s.lineStyle || 'solid' };
+      if (s.type === 'arrow') { msg.startAttach = s.startAttach; msg.endAttach = s.endAttach; if (s.controlPoint) { msg.controlPointX = s.controlPoint.x; msg.controlPointY = s.controlPoint.y; } }
+      if (s.type === 'container') { msg.label = s.label || ''; }
+      broadcast(msg);
+      if (s.text) broadcast({ type: 'text-fill', strokeId: s.strokeId, text: s.text, participantId: myId });
+      if (s.textFormat && s.textFormat !== 'plain') broadcast({ type: 'text-format', strokeId: s.strokeId, textFormat: s.textFormat, participantId: myId });
+    }
+  }
+
+  function bboxIntersectsViewport(bb, vr) {
+    return bb.x2 >= vr.x1 && bb.x1 <= vr.x2 && bb.y2 >= vr.y1 && bb.y1 <= vr.y2;
+  }
+
+  function getStrokesBBox(strokeList) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const s of strokeList) {
+      const bb = getStrokeBBox(s);
+      minX = Math.min(minX, bb.x1); minY = Math.min(minY, bb.y1);
+      maxX = Math.max(maxX, bb.x2); maxY = Math.max(maxY, bb.y2);
+    }
+    return { x1: minX, y1: minY, x2: maxX, y2: maxY };
+  }
+
+  // --- UI references ---
+  const toolbar = document.getElementById('toolbar');
+  const statusDot = document.querySelector('#status .dot');
+  const statusText = document.getElementById('statusText');
+  const copyLinkBtn = document.getElementById('copyLinkBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const gridBtn = document.getElementById('gridBtn');
+  const sketchBtn = document.getElementById('sketchBtn');
+
+  function setStatus(text, state) {
+    statusText.textContent = text;
+    statusDot.className = 'dot dot-' + state;
+  }
+
+  function updateStatus() {
+    const count = isHost ? connections.length + 1 : userCount;
+    setStatus('Connected (' + count + (count === 1 ? ' user)' : ' users)'), 'connected');
+  }
+
+  function showToolbar() {
+    toolbar.classList.remove('hidden');
+  }
+
+  // --- Color Picker ---
+  const colorPicker = document.getElementById('colorPicker');
+  PICKER_COLORS.forEach((color, i) => {
+    const swatch = document.createElement('div');
+    swatch.className = 'swatch color-swatch' + (i === 0 ? ' active' : '');
+    swatch.style.background = color;
+    swatch.addEventListener('click', () => {
+      myColor = color;
+      colorPicker.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      if (selectedStrokes.size > 0) {
+        const recolorItems = [];
+        for (const sel of selectedStrokes) {
+          if (!strokes.includes(sel)) continue;
+          recolorItems.push({ strokeId: sel.strokeId, prevColor: sel.color, newColor: color });
+          sel.color = color;
+          broadcast({ type: 'recolor', strokeId: sel.strokeId, color: color, participantId: myId });
+        }
+        if (recolorItems.length > 0) pushAction({ action: 'recolor', items: recolorItems });
+        redraw();
+      }
+    });
+    colorPicker.appendChild(swatch);
+  });
+
+  // --- Fill Color Picker ---
+  function hexToRgba(hex, alpha) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+
+  function computeFillColor(baseHex, opacity) {
+    if (!baseHex) return null;
+    if (opacity >= 1) return baseHex;
+    return hexToRgba(baseHex, opacity);
+  }
+
+  const fillPicker = document.getElementById('fillPicker');
+  let fillBaseColor = null; // the hex color before opacity is applied
+
+  // "No fill" swatch
+  const noFillSwatch = document.createElement('div');
+  noFillSwatch.className = 'swatch fill-swatch no-fill active';
+  noFillSwatch.title = 'No fill';
+  noFillSwatch.addEventListener('click', () => {
+    fillBaseColor = null;
+    myFillColor = null;
+    fillPicker.querySelectorAll('.fill-swatch').forEach(s => s.classList.remove('active'));
+    noFillSwatch.classList.add('active');
+    applyFillToSelection();
+  });
+  fillPicker.appendChild(noFillSwatch);
+
+  PICKER_COLORS.forEach(color => {
+    const swatch = document.createElement('div');
+    swatch.className = 'swatch fill-swatch';
+    swatch.style.background = color;
+    swatch.style.opacity = '0.6';
+    swatch.addEventListener('click', () => {
+      fillBaseColor = color;
+      myFillColor = computeFillColor(color, fillOpacity);
+      fillPicker.querySelectorAll('.fill-swatch').forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      applyFillToSelection();
+    });
+    fillPicker.appendChild(swatch);
+  });
+
+  // Opacity presets
+  [0.25, 0.5, 1].forEach(op => {
+    const btn = document.createElement('button');
+    btn.className = 'opacity-btn' + (op === fillOpacity ? ' active' : '');
+    btn.textContent = Math.round(op * 100) + '%';
+    btn.title = 'Fill opacity ' + Math.round(op * 100) + '%';
+    btn.addEventListener('click', () => {
+      fillOpacity = op;
+      fillPicker.querySelectorAll('.opacity-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (fillBaseColor) {
+        myFillColor = computeFillColor(fillBaseColor, fillOpacity);
+        applyFillToSelection();
+      }
+    });
+    fillPicker.appendChild(btn);
+  });
+
+  function applyFillToSelection() {
+    if (selectedStrokes.size > 0) {
+      const items = [];
+      for (const sel of selectedStrokes) {
+        if (!strokes.includes(sel)) continue;
+        if (sel.type === 'freehand' || sel.type === 'arrow') continue;
+        items.push({ strokeId: sel.strokeId, prevFillColor: sel.fillColor || null, newFillColor: myFillColor });
+        sel.fillColor = myFillColor;
+        broadcast({ type: 'fill-color', strokeId: sel.strokeId, fillColor: myFillColor, participantId: myId });
+      }
+      if (items.length > 0) pushAction({ action: 'fill-color', items: items });
+      redraw();
+    }
+  }
+
+  // --- Tool Picker ---
+  function getToolCursor() {
+    if (activeTool === 'hand') return 'grab';
+    if (activeTool === 'select') return 'default';
+    return 'crosshair';
+  }
+
+  function switchTool(toolName) {
+    activeTool = toolName;
+    isErasing = false;
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('tool-active'));
+    const btn = document.querySelector('.tool-btn[data-tool="' + toolName + '"]');
+    if (btn) btn.classList.add('tool-active');
+    canvas.classList.toggle('select-mode', toolName === 'select');
+    canvas.classList.toggle('eraser-mode', toolName === 'eraser');
+    canvas.style.cursor = getToolCursor();
+    if (toolName !== 'select') { selectedStrokes.clear(); redraw(); }
+  }
+
+  document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+    if (btn.dataset.tool === 'rectangle' || btn.dataset.tool === 'arrow') return; // handled separately
+    btn.addEventListener('click', () => switchTool(btn.dataset.tool));
+  });
+
+  // --- Sketch Mode Toggle ---
+  sketchBtn.addEventListener('click', () => {
+    sketchMode = !sketchMode;
+    sketchBtn.classList.toggle('tool-active', sketchMode);
+    redraw();
+  });
+
+  // --- Grid Toggle ---
+  gridBtn.addEventListener('click', () => {
+    showGrid = !showGrid;
+    gridBtn.classList.toggle('tool-active', showGrid);
+    redraw();
+  });
+
+  // --- Zoom to Fit ---
+  const fitBtn = document.getElementById('fitBtn');
+  function zoomToFit() {
+    if (strokes.length === 0) {
+      viewportX = 0; viewportY = 0; viewportScale = 1;
+      redraw();
+      return;
+    }
+    const { x1: minX, y1: minY, x2: maxX, y2: maxY } = getStrokesBBox(strokes);
+    const bw = maxX - minX, bh = maxY - minY;
+    if (bw === 0 && bh === 0) {
+      viewportX = minX; viewportY = minY; viewportScale = 1;
+    } else {
+      viewportX = (minX + maxX) / 2;
+      viewportY = (minY + maxY) / 2;
+      viewportScale = Math.min((canvas.width * 0.85) / Math.max(bw, 1), (canvas.height * 0.85) / Math.max(bh, 1));
+      viewportScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, viewportScale));
+    }
+    closeTextEditors();
+    redraw();
+  }
+  fitBtn.addEventListener('click', zoomToFit);
+
+  // --- Copy / Paste / Delete / Enter on selected strokes ---
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+    if (appState === 'welcome') return;
+
+    // Escape closes shortcut overlay
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('shortcutOverlay');
+      if (overlay.classList.contains('visible')) {
+        overlay.classList.remove('visible');
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // If a single object is selected and user types a printable char, start text/label editing
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && selectedStrokes.size === 1 && e.key.length === 1) {
+      const stroke = [...selectedStrokes][0];
+      if (stroke.type === 'container') {
+        e.preventDefault();
+        openContainerLabelEditor(stroke);
+        return;
+      }
+      e.preventDefault();
+      openTextEditor(stroke, e.key);
+      return;
+    }
+
+    // Keyboard shortcuts for tools (no modifiers)
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key === '?') { e.preventDefault(); document.getElementById('shortcutOverlay').classList.toggle('visible'); return; }
+      const key = e.key.toLowerCase();
+      if (key === 's') { e.preventDefault(); switchTool('select'); return; }
+      if (key === 'h') { e.preventDefault(); switchTool('hand'); return; }
+      if (key === 'd') { e.preventDefault(); switchTool('pen'); return; }
+      if (key === 'r') { e.preventDefault(); switchTool('rectangle'); return; }
+      if (key === 'a') { e.preventDefault(); switchTool('arrow'); return; }
+      if (key === 't') { e.preventDefault(); switchTool('text-rect'); return; }
+      if (key === 'e') { e.preventDefault(); switchTool('eraser'); return; }
+      if (key === 'k') { e.preventDefault(); sketchMode = !sketchMode; sketchBtn.classList.toggle('tool-active', sketchMode); redraw(); return; }
+      if (key === 'g') { e.preventDefault(); showGrid = !showGrid; gridBtn.classList.toggle('tool-active', showGrid); redraw(); return; }
+      if (key === 'f') { e.preventDefault(); zoomToFit(); return; }
+      if (e.key === ']' && selectedStrokes.size > 0) { e.preventDefault(); performZOrder('front'); return; }
+      if (e.key === '[' && selectedStrokes.size > 0) { e.preventDefault(); performZOrder('back'); return; }
+    }
+
+    // Ctrl+Shift+Z or Ctrl+Y: redo
+    if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && e.key === 'Z') || e.key === 'y')) {
+      e.preventDefault();
+      performRedo();
+      return;
+    }
+    // Ctrl+Z: undo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault();
+      performUndo();
+      return;
+    }
+
+    // Ctrl+A: select all
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      e.preventDefault();
+      switchTool('select');
+      selectedStrokes.clear();
+      for (const s of strokes) selectedStrokes.add(s);
+      redraw();
+      return;
+    }
+
+    // Ctrl+C: copy selected strokes
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedStrokes.size > 0) {
+      e.preventDefault();
+      clipboard = [...selectedStrokes].filter(s => strokes.includes(s)).map(deepCloneStroke);
+      return;
+    }
+
+    // Ctrl+V: paste clipboard
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard.length > 0) {
+      e.preventDefault();
+      const offset = Math.max(20 / viewportScale, 30);
+      const idMap = new Map();
+      const pasted = clipboard.map(src => {
+        const s = deepCloneStroke(src);
+        const newId = makeStrokeId();
+        idMap.set(src.strokeId, newId);
+        s.strokeId = newId;
+        s.participantId = myId;
+        return s;
+      });
+      for (const s of pasted) {
+        if (s.type !== 'arrow') continue;
+        if (s.startAttach) {
+          s.startAttach = idMap.has(s.startAttach.strokeId) ? { strokeId: idMap.get(s.startAttach.strokeId) } : null;
+        }
+        if (s.endAttach) {
+          s.endAttach = idMap.has(s.endAttach.strokeId) ? { strokeId: idMap.get(s.endAttach.strokeId) } : null;
+        }
+      }
+      for (const s of pasted) {
+        if (s.type === 'freehand') {
+          for (const p of s.points) { p.x += offset; p.y += offset; }
+        } else {
+          s.start.x += offset; s.start.y += offset;
+          s.end.x += offset; s.end.y += offset;
+        }
+        strokes.push(s);
+        broadcastStrokeAdd(s);
+      }
+      pushAction({ action: 'paste', items: pasted.map(s => ({ strokeId: s.strokeId, strokeData: deepCloneStroke(s) })) });
+      clipboard = pasted.map(deepCloneStroke);
+      switchTool('select');
+      selectedStrokes.clear();
+      for (const s of pasted) selectedStrokes.add(s);
+      redraw();
+      return;
+    }
+
+    if (selectedStrokes.size === 0) return;
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      deleteSelectedStrokes();
+    } else if (e.key === 'Enter' && selectedStrokes.size === 1) {
+      e.preventDefault();
+      const sel = [...selectedStrokes][0];
+      if (sel.type === 'container') openContainerLabelEditor(sel);
+      else openTextEditor(sel);
+    }
+  });
+
+  // --- Seeded PRNG & rough drawing helpers ---
+  function seededRandom(seed) {
+    seed = (seed * 16807) % 2147483647;
+    return { value: (seed - 1) / 2147483646, seed: seed };
+  }
+
+  function hashCoords() {
+    let h = 0;
+    for (let i = 0; i < arguments.length; i++) {
+      h = h ^ Math.floor(arguments[i] * 10000);
+      h = (h * 16807) % 2147483647;
+    }
+    return Math.abs(h) || 1;
+  }
+
+  function roughLine(x1, y1, x2, y2, seed) {
+    if (!sketchMode) {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      return;
+    }
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const perpX = len > 0 ? -dy / len : 0;
+    const perpY = len > 0 ? dx / len : 0;
+    const lengthFactor = Math.min(1, Math.max(0.2, len / 100));
+    const savedAlpha = ctx.globalAlpha;
+
+    for (let pass = 0; pass < 2; pass++) {
+      const s = seed + pass * 10000;
+      ctx.globalAlpha = pass === 0 ? savedAlpha : savedAlpha * 0.5;
+      const r1 = seededRandom(s + 1), r2 = seededRandom(r1.seed);
+      const r3 = seededRandom(r2.seed), r4 = seededRandom(r3.seed);
+      const endJitter = 1.0 * lengthFactor;
+      const sx = x1 + perpX * (r1.value - 0.5) * endJitter * 2;
+      const sy = y1 + perpY * (r1.value - 0.5) * endJitter * 2;
+      const ex = x2 + perpX * (r2.value - 0.5) * endJitter * 2;
+      const ey = y2 + perpY * (r2.value - 0.5) * endJitter * 2;
+      const bowAmount = len * 0.02 * lengthFactor;
+      const mx1 = sx + dx * 0.5 + perpX * (r3.value - 0.5) * bowAmount * 2;
+      const my1 = sy + dy * 0.5 + perpY * (r3.value - 0.5) * bowAmount * 2;
+      const mx2 = sx + dx * 0.75 + perpX * (r4.value - 0.5) * bowAmount * 2;
+      const my2 = sy + dy * 0.75 + perpY * (r4.value - 0.5) * bowAmount * 2;
+
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.bezierCurveTo(mx1, my1, mx2, my2, ex, ey);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = savedAlpha;
+  }
+
+  function roughQuadratic(x1, y1, cx, cy, x2, y2, seed) {
+    if (!sketchMode) {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(cx, cy, x2, y2); ctx.stroke();
+      return;
+    }
+    // Convert quadratic to cubic: cp1 = start + 2/3*(ctrl-start), cp2 = end + 2/3*(ctrl-end)
+    const cubCx1 = x1 + 2/3 * (cx - x1), cubCy1 = y1 + 2/3 * (cy - y1);
+    const cubCx2 = x2 + 2/3 * (cx - x2), cubCy2 = y2 + 2/3 * (cy - y2);
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const perpX = len > 0 ? -dy / len : 0;
+    const perpY = len > 0 ? dx / len : 0;
+    const lengthFactor = Math.min(1, Math.max(0.2, len / 100));
+    const savedAlpha = ctx.globalAlpha;
+
+    for (let pass = 0; pass < 2; pass++) {
+      const s = seed + pass * 10000;
+      ctx.globalAlpha = pass === 0 ? savedAlpha : savedAlpha * 0.5;
+      const r1 = seededRandom(s + 1), r2 = seededRandom(r1.seed);
+      const r3 = seededRandom(r2.seed), r4 = seededRandom(r3.seed);
+      const endJitter = 1.0 * lengthFactor;
+      const sx = x1 + perpX * (r1.value - 0.5) * endJitter * 2;
+      const sy = y1 + perpY * (r1.value - 0.5) * endJitter * 2;
+      const ex = x2 + perpX * (r2.value - 0.5) * endJitter * 2;
+      const ey = y2 + perpY * (r2.value - 0.5) * endJitter * 2;
+      const bowAmount = len * 0.01 * lengthFactor;
+      const jcx1 = cubCx1 + perpX * (r3.value - 0.5) * bowAmount * 2;
+      const jcy1 = cubCy1 + perpY * (r3.value - 0.5) * bowAmount * 2;
+      const jcx2 = cubCx2 + perpX * (r4.value - 0.5) * bowAmount * 2;
+      const jcy2 = cubCy2 + perpY * (r4.value - 0.5) * bowAmount * 2;
+
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.bezierCurveTo(jcx1, jcy1, jcx2, jcy2, ex, ey);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = savedAlpha;
+  }
+
+  function distToQuadraticBezier(px, py, x1, y1, cx, cy, x2, y2) {
+    let minDist = Infinity;
+    const steps = 20;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const u = 1 - t;
+      const bx = u * u * x1 + 2 * u * t * cx + t * t * x2;
+      const by = u * u * y1 + 2 * u * t * cy + t * t * y2;
+      const d = Math.hypot(px - bx, py - by);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
+  function quadraticTangentAngle(t, x1, y1, cx, cy, x2, y2) {
+    const tdx = 2 * (1 - t) * (cx - x1) + 2 * t * (x2 - cx);
+    const tdy = 2 * (1 - t) * (cy - y1) + 2 * t * (y2 - cy);
+    return Math.atan2(tdy, tdx);
+  }
+
+  function getEffectiveControlPoint(stroke) {
+    if (stroke.controlPoint) return stroke.controlPoint;
+    return { x: (stroke.start.x + stroke.end.x) / 2, y: (stroke.start.y + stroke.end.y) / 2 };
+  }
+
+  // Convert on-curve pass-through point to actual quadratic bezier control point
+  // so the curve intersects the handle. B(0.5) = M => C = 2*M - (P0+P2)/2
+  function toBezierControlPoint(stroke) {
+    const m = getEffectiveControlPoint(stroke);
+    const midX = (stroke.start.x + stroke.end.x) / 2;
+    const midY = (stroke.start.y + stroke.end.y) / 2;
+    return { x: 2 * m.x - midX, y: 2 * m.y - midY };
+  }
+
+  // --- Drawing helpers ---
+  function drawFreehand(stroke) {
+    const pts = stroke.points;
+    if (!pts || pts.length < 2) return;
+    ctx.strokeStyle = themeColor(stroke.color);
+    ctx.lineWidth = (stroke.lineWidth || 4) * viewportScale;
+    const seed = hashCoords(pts[0].x, pts[0].y);
+    const p0 = worldToScreen(pts[0].x, pts[0].y);
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    if (pts.length === 2) {
+      const p1 = worldToScreen(pts[1].x, pts[1].y);
+      ctx.lineTo(p1.x, p1.y);
+    } else {
+      for (let i = 1; i < pts.length - 1; i++) {
+        const r = seededRandom(seed + i);
+        const jOx = (r.value - 0.5) * 1.0;
+        const r2 = seededRandom(r.seed);
+        const jOy = (r2.value - 0.5) * 1.0;
+        const sp = worldToScreen(pts[i].x, pts[i].y);
+        const cx = sp.x + jOx;
+        const cy = sp.y + jOy;
+        const np = worldToScreen(pts[i + 1].x, pts[i + 1].y);
+        const midX = (cx + np.x) / 2;
+        const midY = (cy + np.y) / 2;
+        ctx.quadraticCurveTo(cx, cy, midX, midY);
+      }
+      const last = pts[pts.length - 1];
+      const lp = worldToScreen(last.x, last.y);
+      ctx.lineTo(lp.x, lp.y);
+    }
+    ctx.stroke();
+    if (stroke.text) {
+      const bb = getStrokeBBox(stroke);
+      const sc = worldToScreen((bb.x1+bb.x2)/2, (bb.y1+bb.y2)/2);
+      drawTextOnStroke(stroke, sc.x, sc.y);
+    }
+  }
+
+  function shapeSetup(stroke) {
+    ctx.strokeStyle = themeColor(stroke.color);
+    ctx.lineWidth = (stroke.lineWidth || 4) * viewportScale;
+    return {
+      s1: worldToScreen(stroke.start.x, stroke.start.y),
+      s2: worldToScreen(stroke.end.x, stroke.end.y)
+    };
+  }
+
+  function drawRectangle(stroke) {
+    const { s1, s2 } = shapeSetup(stroke);
+    const r = Math.min(8 * viewportScale, Math.abs(s2.x - s1.x) / 4, Math.abs(s2.y - s1.y) / 4);
+    const x = Math.min(s1.x, s2.x), y = Math.min(s1.y, s2.y);
+    const w = Math.abs(s2.x - s1.x), h = Math.abs(s2.y - s1.y);
+
+    // Fill background
+    if (stroke.fillColor) {
+      ctx.fillStyle = stroke.fillColor;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+      ctx.fill();
+    }
+
+    if (!sketchMode) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+      ctx.stroke();
+      if (stroke.text) {
+        const cx = (s1.x + s2.x) / 2, cy = (s1.y + s2.y) / 2;
+        drawTextOnStroke(stroke, cx, cy);
+      }
+      return;
+    }
+
+    const seed = hashCoords(stroke.start.x, stroke.start.y, stroke.end.x, stroke.end.y);
+    const left = x, right = x + w, top = y, bottom = y + h;
+    // Top edge (inset by r from corners)
+    roughLine(left + r, top, right - r, top, seed);
+    // Right edge
+    roughLine(right, top + r, right, bottom - r, seed + 1000);
+    // Bottom edge
+    roughLine(right - r, bottom, left + r, bottom, seed + 2000);
+    // Left edge
+    roughLine(left, bottom - r, left, top + r, seed + 3000);
+    // Corner arcs
+    ctx.beginPath();
+    ctx.arc(left + r, top + r, r, Math.PI, Math.PI * 1.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(right - r, top + r, r, Math.PI * 1.5, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(right - r, bottom - r, r, 0, Math.PI * 0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(left + r, bottom - r, r, Math.PI * 0.5, Math.PI);
+    ctx.stroke();
+
+    if (stroke.text) {
+      const cx = (s1.x + s2.x) / 2, cy = (s1.y + s2.y) / 2;
+      drawTextOnStroke(stroke, cx, cy);
+    }
+  }
+
+  function drawEllipse(stroke) {
+    const { s1, s2 } = shapeSetup(stroke);
+    const cx = (s1.x + s2.x) / 2, cy = (s1.y + s2.y) / 2;
+    const rx = Math.abs(s2.x - s1.x) / 2, ry = Math.abs(s2.y - s1.y) / 2;
+    let seed = hashCoords(stroke.start.x, stroke.start.y, stroke.end.x, stroke.end.y);
+
+    // Fill background
+    if (stroke.fillColor) {
+      ctx.fillStyle = stroke.fillColor;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (!sketchMode) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      if (stroke.text) drawTextOnStroke(stroke, cx, cy);
+      return;
+    }
+
+    const perimeter = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
+    const segments = Math.max(16, Math.round(perimeter / 8));
+    const savedAlpha = ctx.globalAlpha;
+
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.globalAlpha = pass === 0 ? savedAlpha : savedAlpha * 0.5;
+      let s = seed + pass * 5000;
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const a = (i / segments) * Math.PI * 2;
+        let px = cx + rx * Math.cos(a);
+        let py = cy + ry * Math.sin(a);
+        if (i > 0 && i < segments) {
+          const r1 = seededRandom(s + i);
+          const r2 = seededRandom(r1.seed);
+          s = r2.seed;
+          const jitter = Math.max(1, Math.min(3, perimeter * 0.003));
+          px += (r1.value - 0.5) * jitter * 2;
+          py += (r2.value - 0.5) * jitter * 2;
+        }
+        pts.push({ x: px, y: py });
+      }
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length - 1; i++) {
+        const midX = (pts[i].x + pts[i + 1].x) / 2;
+        const midY = (pts[i].y + pts[i + 1].y) / 2;
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+      }
+      ctx.quadraticCurveTo(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[1].x, pts[1].y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = savedAlpha;
+    if (stroke.text) {
+      drawTextOnStroke(stroke, cx, cy);
+    }
+  }
+
+  function drawDiamond(stroke) {
+    const { s1, s2 } = shapeSetup(stroke);
+    const cx = (s1.x + s2.x) / 2, cy = (s1.y + s2.y) / 2;
+    const top = { x: cx, y: s1.y }, right = { x: s2.x, y: cy };
+    const bottom = { x: cx, y: s2.y }, left = { x: s1.x, y: cy };
+
+    // Fill background
+    if (stroke.fillColor) {
+      ctx.fillStyle = stroke.fillColor;
+      ctx.beginPath();
+      ctx.moveTo(top.x, top.y);
+      ctx.lineTo(right.x, right.y);
+      ctx.lineTo(bottom.x, bottom.y);
+      ctx.lineTo(left.x, left.y);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const seed = hashCoords(stroke.start.x, stroke.start.y, stroke.end.x, stroke.end.y);
+    roughLine(top.x, top.y, right.x, right.y, seed);
+    roughLine(right.x, right.y, bottom.x, bottom.y, seed + 1000);
+    roughLine(bottom.x, bottom.y, left.x, left.y, seed + 2000);
+    roughLine(left.x, left.y, top.x, top.y, seed + 3000);
+    if (stroke.text) {
+      drawTextOnStroke(stroke, cx, cy);
+    }
+  }
+
+  function drawArrow(stroke) {
+    const { s1, s2 } = shapeSetup(stroke);
+    const seed = hashCoords(stroke.start.x, stroke.start.y, stroke.end.x, stroke.end.y);
+
+    if (stroke.controlPoint) {
+      const bc = toBezierControlPoint(stroke);
+      const sc = worldToScreen(bc.x, bc.y);
+      roughQuadratic(s1.x, s1.y, sc.x, sc.y, s2.x, s2.y, seed);
+
+      const sub = stroke.subtype || 'arrow';
+      if (sub !== 'line') {
+        const angle = quadraticTangentAngle(1, s1.x, s1.y, sc.x, sc.y, s2.x, s2.y);
+        const headLen = 15;
+        roughLine(s2.x, s2.y, s2.x - headLen * Math.cos(angle - Math.PI / 6), s2.y - headLen * Math.sin(angle - Math.PI / 6), seed + 5000);
+        roughLine(s2.x, s2.y, s2.x - headLen * Math.cos(angle + Math.PI / 6), s2.y - headLen * Math.sin(angle + Math.PI / 6), seed + 6000);
+        if (sub === 'arrow-double') {
+          const rAngle = quadraticTangentAngle(0, s1.x, s1.y, sc.x, sc.y, s2.x, s2.y) + Math.PI;
+          roughLine(s1.x, s1.y, s1.x - headLen * Math.cos(rAngle - Math.PI / 6), s1.y - headLen * Math.sin(rAngle - Math.PI / 6), seed + 7000);
+          roughLine(s1.x, s1.y, s1.x - headLen * Math.cos(rAngle + Math.PI / 6), s1.y - headLen * Math.sin(rAngle + Math.PI / 6), seed + 8000);
+        }
+      }
+      if (stroke.text) {
+        // On-curve midpoint = the stored controlPoint (pass-through point)
+        const ts = worldToScreen(stroke.controlPoint.x, stroke.controlPoint.y);
+        drawTextOnStroke(stroke, ts.x, ts.y);
+      }
+    } else {
+      roughLine(s1.x, s1.y, s2.x, s2.y, seed);
+
+      const sub = stroke.subtype || 'arrow';
+      if (sub !== 'line') {
+        const angle = Math.atan2(s2.y - s1.y, s2.x - s1.x);
+        const headLen = 15;
+        roughLine(s2.x, s2.y, s2.x - headLen * Math.cos(angle - Math.PI / 6), s2.y - headLen * Math.sin(angle - Math.PI / 6), seed + 5000);
+        roughLine(s2.x, s2.y, s2.x - headLen * Math.cos(angle + Math.PI / 6), s2.y - headLen * Math.sin(angle + Math.PI / 6), seed + 6000);
+        if (sub === 'arrow-double') {
+          const rAngle = angle + Math.PI;
+          roughLine(s1.x, s1.y, s1.x - headLen * Math.cos(rAngle - Math.PI / 6), s1.y - headLen * Math.sin(rAngle - Math.PI / 6), seed + 7000);
+          roughLine(s1.x, s1.y, s1.x - headLen * Math.cos(rAngle + Math.PI / 6), s1.y - headLen * Math.sin(rAngle + Math.PI / 6), seed + 8000);
+        }
+      }
+      if (stroke.text) {
+        const cx = (s1.x + s2.x) / 2, cy = (s1.y + s2.y) / 2;
+        drawTextOnStroke(stroke, cx, cy);
+      }
+    }
+  }
+
+  function drawTextRect(stroke) {
+    const s1 = worldToScreen(stroke.start.x, stroke.start.y);
+    const s2 = worldToScreen(stroke.end.x, stroke.end.y);
+    const rr = Math.min(8 * viewportScale, Math.abs(s2.x - s1.x) / 4, Math.abs(s2.y - s1.y) / 4);
+
+    // Fill background
+    if (stroke.fillColor) {
+      ctx.fillStyle = stroke.fillColor;
+      ctx.beginPath();
+      ctx.roundRect(Math.min(s1.x, s2.x), Math.min(s1.y, s2.y), Math.abs(s2.x - s1.x), Math.abs(s2.y - s1.y), rr);
+      ctx.fill();
+    }
+
+    // Draw dashed border only during editing or before text is set
+    if (stroke._editing || !stroke.text) {
+      ctx.save();
+      ctx.strokeStyle = themeColor(stroke.color);
+      ctx.lineWidth = 2 * viewportScale;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.roundRect(Math.min(s1.x, s2.x), Math.min(s1.y, s2.y), Math.abs(s2.x - s1.x), Math.abs(s2.y - s1.y), rr);
+      ctx.stroke();
+      ctx.restore();
+    }
+    // Draw text
+    const sc = worldToScreen((stroke.start.x + stroke.end.x) / 2, (stroke.start.y + stroke.end.y) / 2);
+    drawTextOnStroke(stroke, sc.x, sc.y);
+  }
+
+  function drawContainer(stroke) {
+    const s1 = worldToScreen(stroke.start.x, stroke.start.y);
+    const s2 = worldToScreen(stroke.end.x, stroke.end.y);
+    const x = Math.min(s1.x, s2.x), y = Math.min(s1.y, s2.y);
+    const w = Math.abs(s2.x - s1.x), h = Math.abs(s2.y - s1.y);
+    const r = Math.min(8 * viewportScale, w / 4, h / 4);
+    const headerH = Math.min(30 * viewportScale, h * 0.4);
+
+    // Fill background
+    const fill = stroke.fillColor || (currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)');
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fill();
+
+    // Header bar
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, headerH, [r, r, 0, 0]);
+    ctx.fillStyle = currentTheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+    ctx.fill();
+    ctx.restore();
+
+    // Border
+    ctx.strokeStyle = themeColor(stroke.color);
+    ctx.lineWidth = (stroke.lineWidth || 4) * viewportScale;
+
+    if (!sketchMode) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+      ctx.stroke();
+      // Header separator line
+      ctx.beginPath();
+      ctx.moveTo(x, y + headerH);
+      ctx.lineTo(x + w, y + headerH);
+      ctx.stroke();
+    } else {
+      const seed = hashCoords(stroke.start.x, stroke.start.y, stroke.end.x, stroke.end.y);
+      const left = x, right = x + w, top = y, bottom = y + h;
+      roughLine(left + r, top, right - r, top, seed);
+      roughLine(right, top + r, right, bottom - r, seed + 1000);
+      roughLine(right - r, bottom, left + r, bottom, seed + 2000);
+      roughLine(left, bottom - r, left, top + r, seed + 3000);
+      ctx.beginPath();
+      ctx.arc(left + r, top + r, r, Math.PI, Math.PI * 1.5); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(right - r, top + r, r, Math.PI * 1.5, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(right - r, bottom - r, r, 0, Math.PI * 0.5); ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(left + r, bottom - r, r, Math.PI * 0.5, Math.PI); ctx.stroke();
+      // Header separator
+      roughLine(left, y + headerH, right, y + headerH, seed + 4000);
+    }
+
+    // Label text
+    if (stroke.label) {
+      const fontSize = Math.max(10, Math.min(16, headerH * 0.55));
+      ctx.save();
+      ctx.font = (sketchMode ? '' : '600 ') + fontSize + 'px ' + (sketchMode ? 'Caveat, cursive' : 'system-ui, sans-serif');
+      ctx.fillStyle = themeColor(stroke.color);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(stroke.label, x + 8 * viewportScale, y + headerH / 2, w - 16 * viewportScale);
+      ctx.restore();
+    }
+  }
+
+  function getContainedStrokes(containerStroke) {
+    const cbb = getStrokeBBox(containerStroke);
+    return strokes.filter(s => {
+      if (s === containerStroke) return false;
+      const sbb = getStrokeBBox(s);
+      return sbb.x1 >= cbb.x1 && sbb.y1 >= cbb.y1 && sbb.x2 <= cbb.x2 && sbb.y2 <= cbb.y2;
+    });
+  }
+
+  function getObjectMaxFontSize(objStroke) {
+    const bb = getStrokeBBox(objStroke);
+    const sub = objStroke.subtype || objStroke.type;
+    let availW, availH;
+    if (sub === 'diamond') {
+      availW = (bb.x2 - bb.x1) * viewportScale / 2 - 12;
+      availH = (bb.y2 - bb.y1) * viewportScale / 2 - 8;
+    } else if (sub === 'ellipse') {
+      availW = (bb.x2 - bb.x1) * viewportScale * 0.707 - 12;
+      availH = (bb.y2 - bb.y1) * viewportScale * 0.707 - 8;
+    } else {
+      availW = (bb.x2 - bb.x1) * viewportScale - 12;
+      availH = (bb.y2 - bb.y1) * viewportScale - 8;
+    }
+    if (availW <= 0 || availH <= 0) return Infinity;
+    return Math.floor(availH / 1.3);
+  }
+
+  // --- Markdown parser for canvas text ---
+  function parseMarkdownLine(text) {
+    // Returns array of segments: { text, bold, italic, strikethrough, code }
+    const segments = [];
+    let i = 0;
+    let bold = false, italic = false, strike = false, code = false;
+
+    while (i < text.length) {
+      // Inline code
+      if (text[i] === '`' && !code) {
+        const end = text.indexOf('`', i + 1);
+        if (end !== -1) {
+          segments.push({ text: text.slice(i + 1, end), bold, italic, strikethrough: strike, code: true });
+          i = end + 1; continue;
+        }
+      }
+      // Bold **text** or __text__
+      if ((text.slice(i, i + 2) === '**' || text.slice(i, i + 2) === '__') && !code) {
+        const marker = text.slice(i, i + 2);
+        const end = text.indexOf(marker, i + 2);
+        if (end !== -1) {
+          segments.push({ text: text.slice(i + 2, end), bold: true, italic, strikethrough: strike, code: false });
+          i = end + 2; continue;
+        }
+      }
+      // Strikethrough ~~text~~
+      if (text.slice(i, i + 2) === '~~' && !code) {
+        const end = text.indexOf('~~', i + 2);
+        if (end !== -1) {
+          segments.push({ text: text.slice(i + 2, end), bold, italic, strikethrough: true, code: false });
+          i = end + 2; continue;
+        }
+      }
+      // Italic *text* or _text_
+      if ((text[i] === '*' || text[i] === '_') && !code) {
+        const marker = text[i];
+        const end = text.indexOf(marker, i + 1);
+        if (end !== -1 && end > i + 1) {
+          segments.push({ text: text.slice(i + 1, end), bold, italic: true, strikethrough: strike, code: false });
+          i = end + 1; continue;
+        }
+      }
+      // Plain text — accumulate until next special char
+      let j = i + 1;
+      while (j < text.length && !'*_~`'.includes(text[j])) j++;
+      segments.push({ text: text.slice(i, j), bold: false, italic: false, strikethrough: false, code: false });
+      i = j;
+    }
+    return segments;
+  }
+
+  function parseMarkdownLines(text) {
+    // Returns array of { segments, headerLevel, isBullet }
+    const rawLines = text.split('\n');
+    return rawLines.map(line => {
+      let headerLevel = 0;
+      let isBullet = false;
+      let content = line;
+
+      // Headers
+      const headerMatch = line.match(/^(#{1,3})\s+(.*)/);
+      if (headerMatch) {
+        headerLevel = headerMatch[1].length;
+        content = headerMatch[2];
+      }
+      // Bullet lists
+      else if (/^\s*[-*+]\s+/.test(line)) {
+        isBullet = true;
+        content = line.replace(/^\s*[-*+]\s+/, '');
+      }
+
+      return { segments: parseMarkdownLine(content), headerLevel, isBullet };
+    });
+  }
+
+  function measureMarkdownLineWidth(segments, fontSize, fontFamily) {
+    let totalW = 0;
+    for (const seg of segments) {
+      const weight = seg.bold ? 'bold ' : '';
+      const style = seg.italic ? 'italic ' : '';
+      const family = seg.code ? 'monospace' : fontFamily;
+      ctx.font = style + weight + fontSize + 'px ' + family;
+      totalW += ctx.measureText(seg.text).width;
+    }
+    return totalW;
+  }
+
+  function drawMarkdownSegments(segments, x, y, fontSize, fontFamily, color, leftX) {
+    // Draw segments left-aligned from leftX
+    let drawX = leftX;
+
+    for (const seg of segments) {
+      const weight = seg.bold ? 'bold ' : '';
+      const style = seg.italic ? 'italic ' : '';
+      const family = seg.code ? 'monospace' : fontFamily;
+      ctx.font = style + weight + fontSize + 'px ' + family;
+
+      if (seg.code) {
+        const w = ctx.measureText(seg.text).width;
+        ctx.fillStyle = currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+        ctx.fillRect(drawX - 2, y - fontSize * 0.45, w + 4, fontSize * 0.9);
+        ctx.fillStyle = color;
+      }
+
+      ctx.textAlign = 'left';
+      ctx.fillText(seg.text, drawX, y);
+
+      const segW = ctx.measureText(seg.text).width;
+
+      if (seg.strikethrough) {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(1, fontSize / 14);
+        ctx.moveTo(drawX, y);
+        ctx.lineTo(drawX + segW, y);
+        ctx.stroke();
+      }
+
+      drawX += segW;
+    }
+    ctx.textAlign = 'center';
+  }
+
+  function drawTextOnStroke(stroke, cx, cy) {
+    if (!stroke.text || stroke._editing) return;
+    ctx.fillStyle = themeColor(stroke.color);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const fontFamily = sketchMode ? 'Caveat, cursive' : 'system-ui, sans-serif';
+    const useMarkdown = stroke.textFormat === 'markdown';
+    const rawLines = stroke.text.split('\n');
+    const mdLines = useMarkdown ? parseMarkdownLines(stroke.text) : null;
+    const lines = rawLines;
+    let availW, availH;
+    if (stroke.type === 'arrow') {
+      const dx = (stroke.end.x - stroke.start.x) * viewportScale;
+      const dy = (stroke.end.y - stroke.start.y) * viewportScale;
+      availW = (Math.sqrt(dx * dx + dy * dy) - 12) / 3;
+      availH = Infinity;
+    } else {
+      const bb = getStrokeBBox(stroke);
+      const sub = stroke.subtype || stroke.type;
+      if (sub === 'diamond') {
+        availW = (bb.x2 - bb.x1) * viewportScale / 2 - 12;
+        availH = (bb.y2 - bb.y1) * viewportScale / 2 - 8;
+      } else if (sub === 'ellipse') {
+        availW = (bb.x2 - bb.x1) * viewportScale * 0.707 - 12;
+        availH = (bb.y2 - bb.y1) * viewportScale * 0.707 - 8;
+      } else {
+        availW = (bb.x2 - bb.x1) * viewportScale - 12;
+        availH = (bb.y2 - bb.y1) * viewportScale - 8;
+      }
+    }
+    let fontSize = 14;
+    if (availW > 0 && availH > 0) {
+      let lo = 8, hi = 200;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        ctx.font = mid + 'px ' + fontFamily;
+        let fits = true;
+        if (useMarkdown && mdLines) {
+          for (const ml of mdLines) {
+            const scale = ml.headerLevel > 0 ? (1 + (4 - ml.headerLevel) * 0.2) : 1;
+            const w = measureMarkdownLineWidth(ml.segments, Math.round(mid * scale), fontFamily);
+            const bulletW = ml.isBullet ? ctx.measureText('\u2022 ').width : 0;
+            if (w + bulletW > availW) { fits = false; break; }
+          }
+        } else {
+          for (const line of lines) {
+            if (ctx.measureText(line).width > availW) { fits = false; break; }
+          }
+        }
+        if (fits && lines.length * mid * 1.3 <= availH) lo = mid;
+        else hi = mid - 1;
+      }
+      fontSize = lo;
+      if (stroke.type === 'arrow') {
+        fontSize = Math.max(8, Math.round(fontSize / 2));
+        let cap = Infinity;
+        if (stroke.startAttach) {
+          const obj = findStrokeById(stroke.startAttach.strokeId);
+          if (obj) cap = Math.min(cap, getObjectMaxFontSize(obj));
+        }
+        if (stroke.endAttach) {
+          const obj = findStrokeById(stroke.endAttach.strokeId);
+          if (obj) cap = Math.min(cap, getObjectMaxFontSize(obj));
+        }
+        if (cap < Infinity) {
+          const minFromObj = Math.max(8, Math.round(cap * 0.3));
+          const maxFromObj = Math.max(8, Math.round(cap * 0.75));
+          fontSize = Math.max(minFromObj, Math.min(fontSize, maxFromObj));
+        }
+      }
+    }
+    ctx.font = fontSize + 'px ' + fontFamily;
+    const lineHeight = fontSize * 1.3;
+    const totalTextH = lines.length * lineHeight;
+    const startY = cy - ((lines.length - 1) * lineHeight) / 2;
+    if (stroke.type === 'arrow') {
+      let maxW = 0;
+      for (const line of lines) maxW = Math.max(maxW, ctx.measureText(line).width);
+      const pad = 4;
+      const angle = Math.atan2(stroke.end.y - stroke.start.y, stroke.end.x - stroke.start.x);
+      const hw = maxW / 2 + pad;
+      const hh = totalTextH / 2 + pad;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.fillStyle = BG_COLOR;
+      ctx.fillRect(-hw, -hh, hw * 2, hh * 2);
+      ctx.restore();
+      ctx.fillStyle = themeColor(stroke.color);
+    }
+    if (useMarkdown && mdLines) {
+      const color = themeColor(stroke.color);
+      const leftX = cx - availW / 2;
+      for (let i = 0; i < mdLines.length; i++) {
+        const ml = mdLines[i];
+        const scale = ml.headerLevel > 0 ? (1 + (4 - ml.headerLevel) * 0.2) : 1;
+        const lineFontSize = Math.round(fontSize * scale);
+        const lineY = startY + i * lineHeight;
+        let segs = ml.segments;
+        if (ml.headerLevel > 0) {
+          segs = segs.map(s => ({ ...s, bold: true }));
+        }
+        if (ml.isBullet) {
+          segs = [{ text: '\u2022 ', bold: false, italic: false, strikethrough: false, code: false }, ...segs];
+        }
+        ctx.fillStyle = color;
+        drawMarkdownSegments(segs, cx, lineY, lineFontSize, fontFamily, color, leftX);
+      }
+    } else {
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], cx, startY + i * lineHeight);
+      }
+    }
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // --- Hit testing ---
+  function distToSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+  }
+
+  function getStrokeBBox(stroke) {
+    if (stroke.type === 'freehand') {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of stroke.points) {
+        minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+      }
+      return { x1: minX, y1: minY, x2: maxX, y2: maxY };
+    }
+    if (stroke.type === 'arrow' && stroke.controlPoint) {
+      return {
+        x1: Math.min(stroke.start.x, stroke.end.x, stroke.controlPoint.x),
+        y1: Math.min(stroke.start.y, stroke.end.y, stroke.controlPoint.y),
+        x2: Math.max(stroke.start.x, stroke.end.x, stroke.controlPoint.x),
+        y2: Math.max(stroke.start.y, stroke.end.y, stroke.controlPoint.y)
+      };
+    }
+    return {
+      x1: Math.min(stroke.start.x, stroke.end.x),
+      y1: Math.min(stroke.start.y, stroke.end.y),
+      x2: Math.max(stroke.start.x, stroke.end.x),
+      y2: Math.max(stroke.start.y, stroke.end.y)
+    };
+  }
+
+  function hitTest(pos) {
+    const threshold = 8 / viewportScale;
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i];
+      if (isShapeType(s.type)) {
+        const bb = getStrokeBBox(s);
+        if (s.type === 'container') {
+          // For containers, prioritize border/header; interior is a fallback (checked below)
+          const headerH = Math.min(30 / viewportScale, (bb.y2 - bb.y1) * 0.4);
+          const onHeader = pos.y >= bb.y1 - threshold && pos.y <= bb.y1 + headerH + threshold && pos.x >= bb.x1 - threshold && pos.x <= bb.x2 + threshold;
+          const onBorder = (pos.x >= bb.x1 - threshold && pos.x <= bb.x2 + threshold && pos.y >= bb.y1 - threshold && pos.y <= bb.y2 + threshold) &&
+                           (pos.x <= bb.x1 + threshold || pos.x >= bb.x2 - threshold || pos.y <= bb.y1 + threshold || pos.y >= bb.y2 - threshold);
+          if (onHeader || onBorder) return s;
+        } else if (pos.x >= bb.x1 - threshold && pos.x <= bb.x2 + threshold &&
+            pos.y >= bb.y1 - threshold && pos.y <= bb.y2 + threshold) return s;
+      } else if (s.type === 'arrow') {
+        let d;
+        if (s.controlPoint) {
+          const bc = toBezierControlPoint(s);
+          d = distToQuadraticBezier(pos.x, pos.y, s.start.x, s.start.y, bc.x, bc.y, s.end.x, s.end.y);
+        } else {
+          d = distToSegment(pos.x, pos.y, s.start.x, s.start.y, s.end.x, s.end.y);
+        }
+        if (d < threshold) return s;
+      } else if (s.type === 'freehand' && s.points.length >= 2) {
+        for (let j = 0; j < s.points.length - 1; j++) {
+          const d = distToSegment(pos.x, pos.y, s.points[j].x, s.points[j].y, s.points[j+1].x, s.points[j+1].y);
+          if (d < threshold) return s;
+        }
+      }
+    }
+    // Fallback: if no object was hit, check if click is inside any container's interior
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i];
+      if (s.type === 'container') {
+        const bb = getStrokeBBox(s);
+        if (pos.x >= bb.x1 - threshold && pos.x <= bb.x2 + threshold &&
+            pos.y >= bb.y1 - threshold && pos.y <= bb.y2 + threshold) return s;
+      }
+    }
+    return null;
+  }
+
+  // --- Selection highlight ---
+  function drawSelectionHighlight(stroke) {
+    const bb = getStrokeBBox(stroke);
+    const pad = 6; // screen pixels
+    const tl = worldToScreen(bb.x1, bb.y1);
+    const br = worldToScreen(bb.x2, bb.y2);
+    ctx.save();
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(tl.x - pad, tl.y - pad, br.x - tl.x + 2 * pad, br.y - tl.y + 2 * pad);
+    ctx.restore();
+  }
+
+  // --- Resize handles ---
+  function getHandlePositions(stroke) {
+    if (isBoxType(stroke.type)) {
+      const bb = getStrokeBBox(stroke);
+      return [
+        { name: 'nw', x: bb.x1, y: bb.y1 },
+        { name: 'ne', x: bb.x2, y: bb.y1 },
+        { name: 'sw', x: bb.x1, y: bb.y2 },
+        { name: 'se', x: bb.x2, y: bb.y2 }
+      ];
+    } else if (stroke.type === 'arrow') {
+      const cp = getEffectiveControlPoint(stroke);
+      return [
+        { name: 'start', x: stroke.start.x, y: stroke.start.y },
+        { name: 'control', x: cp.x, y: cp.y },
+        { name: 'end', x: stroke.end.x, y: stroke.end.y }
+      ];
+    }
+    return [];
+  }
+
+  function hitTestHandles(pos) {
+    if (selectedStrokes.size !== 1) return null;
+    const stroke = [...selectedStrokes][0];
+    if (!strokes.includes(stroke)) return null;
+    const handles = getHandlePositions(stroke);
+    const threshold = 8 / viewportScale;
+    for (const h of handles) {
+      const dx = pos.x - h.x, dy = pos.y - h.y;
+      if (Math.sqrt(dx * dx + dy * dy) < threshold) {
+        if (isBoxType(stroke.type)) {
+          const xKey = (h.x === Math.min(stroke.start.x, stroke.end.x))
+            ? (stroke.start.x <= stroke.end.x ? 'start' : 'end')
+            : (stroke.start.x > stroke.end.x ? 'start' : 'end');
+          const yKey = (h.y === Math.min(stroke.start.y, stroke.end.y))
+            ? (stroke.start.y <= stroke.end.y ? 'start' : 'end')
+            : (stroke.start.y > stroke.end.y ? 'start' : 'end');
+          return { stroke, handle: h.name, xKey, yKey };
+        }
+        return { stroke, handle: h.name, xKey: null, yKey: null };
+      }
+    }
+    return null;
+  }
+
+  function drawHandles(stroke) {
+    const handles = getHandlePositions(stroke);
+    for (const h of handles) {
+      const sp = worldToScreen(h.x, h.y);
+      ctx.save();
+      if (h.name === 'control') {
+        ctx.beginPath();
+        ctx.moveTo(sp.x, sp.y - 7);
+        ctx.lineTo(sp.x + 7, sp.y);
+        ctx.lineTo(sp.x, sp.y + 7);
+        ctx.lineTo(sp.x - 7, sp.y);
+        ctx.closePath();
+      } else {
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, 7, 0, Math.PI * 2);
+      }
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // --- Delete button overlay ---
+  let deleteButtonRect = null; // { x, y, w, h } in screen coords
+
+  function drawDeleteButton(stroke) {
+    const bb = getStrokeBBox(stroke);
+    const tr = worldToScreen(bb.x2, bb.y1);
+    const size = 28;
+    const bx = tr.x + 10;
+    const by = tr.y - size - 4;
+    deleteButtonRect = { x: bx, y: by, w: size, h: size };
+
+    ctx.save();
+    // Button background
+    ctx.beginPath();
+    ctx.roundRect(bx, by, size, size, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.strokeStyle = '#e53e3e';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Trash icon
+    const cx = bx + size / 2;
+    const cy = by + size / 2;
+    ctx.strokeStyle = '#e53e3e';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    // Lid
+    ctx.beginPath();
+    ctx.moveTo(cx - 7, cy - 5);
+    ctx.lineTo(cx + 7, cy - 5);
+    ctx.stroke();
+    // Lid handle
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, cy - 5);
+    ctx.lineTo(cx - 3, cy - 7);
+    ctx.lineTo(cx + 3, cy - 7);
+    ctx.lineTo(cx + 3, cy - 5);
+    ctx.stroke();
+    // Body
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, cy - 4);
+    ctx.lineTo(cx - 5, cy + 7);
+    ctx.lineTo(cx + 5, cy + 7);
+    ctx.lineTo(cx + 6, cy - 4);
+    ctx.stroke();
+    // Lines inside
+    ctx.beginPath();
+    ctx.moveTo(cx - 2, cy - 2);
+    ctx.lineTo(cx - 2, cy + 5);
+    ctx.moveTo(cx + 2, cy - 2);
+    ctx.lineTo(cx + 2, cy + 5);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function hitTestDeleteButton(screenX, screenY) {
+    if (!deleteButtonRect) return false;
+    const r = deleteButtonRect;
+    return screenX >= r.x && screenX <= r.x + r.w && screenY >= r.y && screenY <= r.y + r.h;
+  }
+
+  // --- Z-Order overlay buttons ---
+  let zFrontButtonRect = null;
+  let zBackButtonRect = null;
+
+  function drawZOrderButtons(stroke) {
+    const bb = getStrokeBBox(stroke);
+    const tr = worldToScreen(bb.x2, bb.y1);
+    const size = 28;
+    const baseX = tr.x + 10;
+    const baseY = tr.y - size - 4;
+    // Position after the delete button
+    const frontX = baseX + size + 6;
+    const backX = frontX + size + 4;
+    zFrontButtonRect = { x: frontX, y: baseY, w: size, h: size };
+    zBackButtonRect = { x: backX, y: baseY, w: size, h: size };
+
+    // Bring to front button
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(frontX, baseY, size, size, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Up-arrow icon (bring to front)
+    const fcx = frontX + size / 2, fcy = baseY + size / 2;
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(fcx, fcy + 5);
+    ctx.lineTo(fcx, fcy - 5);
+    ctx.moveTo(fcx - 4, fcy - 1);
+    ctx.lineTo(fcx, fcy - 5);
+    ctx.lineTo(fcx + 4, fcy - 1);
+    ctx.stroke();
+    ctx.restore();
+
+    // Send to back button
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(backX, baseY, size, size, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Down-arrow icon (send to back)
+    const bcx = backX + size / 2, bcy = baseY + size / 2;
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bcx, bcy - 5);
+    ctx.lineTo(bcx, bcy + 5);
+    ctx.moveTo(bcx - 4, bcy + 1);
+    ctx.lineTo(bcx, bcy + 5);
+    ctx.lineTo(bcx + 4, bcy + 1);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function hitTestZFrontButton(screenX, screenY) {
+    if (!zFrontButtonRect) return false;
+    const r = zFrontButtonRect;
+    return screenX >= r.x && screenX <= r.x + r.w && screenY >= r.y && screenY <= r.y + r.h;
+  }
+
+  function hitTestZBackButton(screenX, screenY) {
+    if (!zBackButtonRect) return false;
+    const r = zBackButtonRect;
+    return screenX >= r.x && screenX <= r.x + r.w && screenY >= r.y && screenY <= r.y + r.h;
+  }
+
+  function applyZOrder(strokeIds, direction) {
+    const idSet = new Set(strokeIds);
+    const moved = [];
+    const remaining = [];
+    for (const s of strokes) {
+      if (idSet.has(s.strokeId)) moved.push(s);
+      else remaining.push(s);
+    }
+    if (direction === 'front') {
+      strokes.length = 0;
+      strokes.push(...remaining, ...moved);
+    } else {
+      strokes.length = 0;
+      strokes.push(...moved, ...remaining);
+    }
+  }
+
+  function performZOrder(direction) {
+    if (selectedStrokes.size === 0) return;
+    const strokeIds = [...selectedStrokes].filter(s => strokes.includes(s)).map(s => s.strokeId);
+    if (strokeIds.length === 0) return;
+    const prevOrder = strokes.map(s => s.strokeId);
+    applyZOrder(strokeIds, direction);
+    pushAction({ action: 'z-order', prevOrder: prevOrder, strokeIds: strokeIds, direction: direction });
+    broadcast({ type: 'z-order', strokeIds: strokeIds, direction: direction, participantId: myId });
+    redraw();
+  }
+
+  function clearArrowAttachments(strokeId) {
+    for (const s of strokes) {
+      if (s.type !== 'arrow') continue;
+      if (s.startAttach && s.startAttach.strokeId === strokeId) s.startAttach = null;
+      if (s.endAttach && s.endAttach.strokeId === strokeId) s.endAttach = null;
+    }
+  }
+
+  function deleteSelectedStrokes() {
+    const deleteItems = [];
+    for (const sel of selectedStrokes) {
+      const idx = strokes.indexOf(sel);
+      if (idx !== -1) {
+        deleteItems.push({ index: idx, stroke: deepCloneStroke(sel) });
+      }
+    }
+    // Sort by index descending so undo re-inserts in correct order
+    deleteItems.sort((a, b) => b.index - a.index);
+    if (deleteItems.length > 0) pushAction({ action: 'delete-batch', items: deleteItems });
+    for (const sel of selectedStrokes) {
+      const idx = strokes.indexOf(sel);
+      if (idx !== -1) strokes.splice(idx, 1);
+      clearArrowAttachments(sel.strokeId);
+      broadcast({ type: 'delete', strokeId: sel.strokeId, participantId: myId });
+    }
+    selectedStrokes.clear();
+    deleteButtonRect = null;
+    redraw();
+  }
+
+  // --- Move stroke ---
+  function moveStroke(stroke, dx, dy) {
+    if (stroke.type === 'freehand') {
+      for (const p of stroke.points) { p.x += dx; p.y += dy; }
+    } else {
+      stroke.start = { x: stroke.start.x + dx, y: stroke.start.y + dy };
+      stroke.end = { x: stroke.end.x + dx, y: stroke.end.y + dy };
+      if (stroke.controlPoint) {
+        stroke.controlPoint = { x: stroke.controlPoint.x + dx, y: stroke.controlPoint.y + dy };
+      }
+    }
+  }
+
+  // --- Snap stroke to grid ---
+  function snapStrokeToGrid(stroke) {
+    const snap = v => Math.round(v / GRID_SIZE) * GRID_SIZE;
+    if (stroke.type === 'freehand') {
+      const minX = Math.min(...stroke.points.map(p => p.x));
+      const minY = Math.min(...stroke.points.map(p => p.y));
+      const dx = snap(minX) - minX;
+      const dy = snap(minY) - minY;
+      for (const p of stroke.points) { p.x += dx; p.y += dy; }
+    } else {
+      stroke.start = { x: snap(stroke.start.x), y: snap(stroke.start.y) };
+      stroke.end = { x: snap(stroke.end.x), y: snap(stroke.end.y) };
+      if (stroke.controlPoint) {
+        stroke.controlPoint = { x: snap(stroke.controlPoint.x), y: snap(stroke.controlPoint.y) };
+      }
+    }
+  }
+
+  function shouldSnapToGrid() {
+    return showGrid || activeTool === 'rectangle' || activeTool === 'text-rect';
+  }
+
+  // --- Arrow attachment ---
+  function findAttachment(pos) {
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i];
+      if (!isBoxType(s.type)) continue;
+      const bb = getStrokeBBox(s);
+      if (pos.x >= bb.x1 && pos.x <= bb.x2 && pos.y >= bb.y1 && pos.y <= bb.y2) {
+        return { strokeId: s.strokeId };
+      }
+    }
+    return null;
+  }
+
+  // For curved arrows, the "from" direction should follow the curve tangent,
+  // which points toward the bezier control point, not the opposite endpoint.
+  function arrowFromPoint(arrow, whichEnd) {
+    if (!arrow.controlPoint) return whichEnd === 'start' ? arrow.end : arrow.start;
+    const bc = toBezierControlPoint(arrow);
+    return bc;
+  }
+
+  function computeEdgePoint(targetStroke, fromPoint) {
+    const bb = getStrokeBBox(targetStroke);
+    const cx = (bb.x1 + bb.x2) / 2, cy = (bb.y1 + bb.y2) / 2;
+    const hw = (bb.x2 - bb.x1) / 2, hh = (bb.y2 - bb.y1) / 2;
+    if (hw === 0 && hh === 0) return { x: cx, y: cy };
+    const dx = fromPoint.x - cx, dy = fromPoint.y - cy;
+    if (dx === 0 && dy === 0) return { x: cx + hw, y: cy };
+    const sub = targetStroke.subtype || targetStroke.type;
+    let ex, ey;
+    if (sub === 'diamond') {
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      const sum = adx / hw + ady / hh;
+      if (sum === 0) return { x: cx + hw, y: cy };
+      ex = cx + dx / sum; ey = cy + dy / sum;
+    } else if (sub === 'ellipse') {
+      const angle = Math.atan2(dy * hw, dx * hh);
+      ex = cx + hw * Math.cos(angle); ey = cy + hh * Math.sin(angle);
+    } else {
+      const scaleX = hw > 0 ? Math.abs(dx) / hw : Infinity;
+      const scaleY = hh > 0 ? Math.abs(dy) / hh : Infinity;
+      const scale = Math.max(scaleX, scaleY);
+      if (scale === 0) return { x: cx + hw, y: cy };
+      ex = cx + dx / scale; ey = cy + dy / scale;
+    }
+    // Add a small gap so the arrow doesn't touch the shape
+    const gap = 12;
+    const gx = ex - cx, gy = ey - cy;
+    const dist = Math.sqrt(gx * gx + gy * gy);
+    if (dist > 0) { ex += gx / dist * gap; ey += gy / dist * gap; }
+    return { x: ex, y: ey };
+  }
+
+  function findStrokeById(id) {
+    return strokes.find(s => s.strokeId === id) || null;
+  }
+
+  function updateAttachedArrows(movedStroke) {
+    if (!movedStroke.strokeId) return;
+    for (const s of strokes) {
+      if (s.type !== 'arrow') continue;
+      let changed = false;
+      const oldMidX = (s.start.x + s.end.x) / 2;
+      const oldMidY = (s.start.y + s.end.y) / 2;
+      if (s.startAttach && s.startAttach.strokeId === movedStroke.strokeId) {
+        s.start = computeEdgePoint(movedStroke, arrowFromPoint(s, 'start'));
+        changed = true;
+      }
+      if (s.endAttach && s.endAttach.strokeId === movedStroke.strokeId) {
+        s.end = computeEdgePoint(movedStroke, arrowFromPoint(s, 'end'));
+        changed = true;
+      }
+      if (changed && s.controlPoint) {
+        const newMidX = (s.start.x + s.end.x) / 2;
+        const newMidY = (s.start.y + s.end.y) / 2;
+        s.controlPoint = { x: s.controlPoint.x + (newMidX - oldMidX), y: s.controlPoint.y + (newMidY - oldMidY) };
+      }
+      if (changed && s.startAttach && s.endAttach) {
+        const startTarget = findStrokeById(s.startAttach.strokeId);
+        const endTarget = findStrokeById(s.endAttach.strokeId);
+        if (startTarget && endTarget) {
+          if (s.controlPoint) {
+            s.start = computeEdgePoint(startTarget, arrowFromPoint(s, 'start'));
+            s.end = computeEdgePoint(endTarget, arrowFromPoint(s, 'end'));
+          } else {
+            const sBB = getStrokeBBox(startTarget), eBB = getStrokeBBox(endTarget);
+            const sCx = (sBB.x1+sBB.x2)/2, sCy = (sBB.y1+sBB.y2)/2;
+            const eCx = (eBB.x1+eBB.x2)/2, eCy = (eBB.y1+eBB.y2)/2;
+            s.start = computeEdgePoint(startTarget, {x: eCx, y: eCy});
+            s.end = computeEdgePoint(endTarget, {x: sCx, y: sCy});
+          }
+        }
+      }
+    }
+  }
+
+  function applyLineDash(stroke) {
+    const style = stroke.lineStyle || 'solid';
+    const s = viewportScale;
+    if (style === 'dashed') ctx.setLineDash([10 * s, 5 * s]);
+    else if (style === 'dotted') ctx.setLineDash([2 * s, 4 * s]);
+    else ctx.setLineDash([]);
+  }
+
+  function drawStroke(stroke) {
+    applyLineDash(stroke);
+    if (stroke.type === 'rectangle') {
+      const sub = stroke.subtype || 'rectangle';
+      if (sub === 'ellipse') drawEllipse(stroke);
+      else if (sub === 'diamond') drawDiamond(stroke);
+      else drawRectangle(stroke);
+    }
+    else if (stroke.type === 'ellipse') drawEllipse(stroke);
+    else if (stroke.type === 'diamond') drawDiamond(stroke);
+    else if (stroke.type === 'arrow') drawArrow(stroke);
+    else if (stroke.type === 'text-rect') drawTextRect(stroke);
+    else if (stroke.type === 'container') drawContainer(stroke);
+    else drawFreehand(stroke);
+    ctx.setLineDash([]);
+  }
+
+  function drawGrid() {
+    const screenStep = GRID_SIZE * viewportScale;
+    if (screenStep < 4) return; // too dense
+    ctx.save();
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-color');
+    ctx.lineWidth = 1;
+    const tl = screenToWorld(0, 0);
+    const br = screenToWorld(canvas.width, canvas.height);
+    const startX = Math.floor(tl.x / GRID_SIZE) * GRID_SIZE;
+    const startY = Math.floor(tl.y / GRID_SIZE) * GRID_SIZE;
+    ctx.beginPath();
+    for (let wx = startX; wx <= br.x; wx += GRID_SIZE) {
+      const sp = worldToScreen(wx, 0);
+      ctx.moveTo(sp.x, 0);
+      ctx.lineTo(sp.x, canvas.height);
+    }
+    for (let wy = startY; wy <= br.y; wy += GRID_SIZE) {
+      const sp = worldToScreen(0, wy);
+      ctx.moveTo(0, sp.y);
+      ctx.lineTo(canvas.width, sp.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawRemoteCursors() {
+    const now = Date.now();
+    for (const [pid, cursor] of Object.entries(remoteCursors)) {
+      if (now - cursor.time > 5000) { delete remoteCursors[pid]; continue; }
+      const sp = worldToScreen(cursor.x, cursor.y);
+      ctx.save();
+      ctx.fillStyle = cursor.color;
+      ctx.beginPath();
+      ctx.moveTo(sp.x, sp.y);
+      ctx.lineTo(sp.x, sp.y + 14);
+      ctx.lineTo(sp.x + 4, sp.y + 11);
+      ctx.lineTo(sp.x + 8, sp.y + 16);
+      ctx.lineTo(sp.x + 10, sp.y + 14);
+      ctx.lineTo(sp.x + 6, sp.y + 9);
+      ctx.lineTo(sp.x + 10, sp.y + 9);
+      ctx.closePath();
+      ctx.fill();
+      const label = pid.substring(0, 5);
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.fillText(label, sp.x + 12, sp.y + 12);
+      ctx.restore();
+    }
+  }
+
+  function redraw() {
+    ctx.fillStyle = BG_COLOR;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (showGrid) drawGrid();
+    const tlW = screenToWorld(0, 0);
+    const brW = screenToWorld(canvas.width, canvas.height);
+    const vr = { x1: Math.min(tlW.x, brW.x), y1: Math.min(tlW.y, brW.y), x2: Math.max(tlW.x, brW.x), y2: Math.max(tlW.y, brW.y) };
+    for (const stroke of strokes) {
+      const bb = getStrokeBBox(stroke);
+      if (!bboxIntersectsViewport(bb, vr)) continue;
+      drawStroke(stroke);
+    }
+    if (shapePreview) drawStroke(shapePreview);
+    for (const sel of selectedStrokes) {
+      if (strokes.includes(sel)) drawSelectionHighlight(sel);
+    }
+    if (selectedStrokes.size === 1) {
+      const sel = [...selectedStrokes][0];
+      if (strokes.includes(sel)) {
+        drawHandles(sel);
+        drawDeleteButton(sel);
+        drawZOrderButtons(sel);
+      } else {
+        deleteButtonRect = null;
+        zFrontButtonRect = null;
+        zBackButtonRect = null;
+      }
+    } else if (selectedStrokes.size > 1) {
+      // Show delete button at top-right of combined bounding box
+      const validSelected = [...selectedStrokes].filter(s => strokes.includes(s));
+      if (validSelected.length > 0) {
+        const { x1: minX, y1: minY, x2: maxX, y2: maxY } = getStrokesBBox(validSelected);
+        const fakeBBox = { start: { x: minX, y: minY }, end: { x: maxX, y: maxY }, type: 'rectangle' };
+        drawDeleteButton(fakeBBox);
+        drawZOrderButtons(fakeBBox);
+      } else {
+        deleteButtonRect = null;
+        zFrontButtonRect = null;
+        zBackButtonRect = null;
+      }
+    } else {
+      deleteButtonRect = null;
+      zFrontButtonRect = null;
+      zBackButtonRect = null;
+    }
+    if (selectionRect) {
+      const tl = worldToScreen(selectionRect.start.x, selectionRect.start.y);
+      const br = worldToScreen(selectionRect.end.x, selectionRect.end.y);
+      ctx.save();
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.08)';
+      ctx.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+      ctx.restore();
+    }
+    drawRemoteCursors();
+  }
+
+  window.addEventListener('resize', redraw);
+
+  // --- Drawing input ---
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches && e.touches.length > 0 ? e.touches[0] : (e.changedTouches ? e.changedTouches[0] : null);
+    const clientX = touch ? touch.clientX : e.clientX;
+    const clientY = touch ? touch.clientY : e.clientY;
+    const sx = clientX - rect.left;
+    const sy = clientY - rect.top;
+    const world = screenToWorld(sx, sy);
+    if (activeTool !== 'pen' && (showGrid || activeTool === 'rectangle' || activeTool === 'text-rect')) {
+      world.x = Math.round(world.x / GRID_SIZE) * GRID_SIZE;
+      world.y = Math.round(world.y / GRID_SIZE) * GRID_SIZE;
+    }
+    return world;
+  }
+
+  let strokeIdSeq = 0;
+  function makeStrokeId() {
+    return myId + '_' + Date.now() + '_' + (strokeIdSeq++);
+  }
+
+  function closeTextEditors() {
+    document.querySelectorAll('.text-overlay').forEach(ta => {
+      ta.blur();
+      if (ta.parentNode) ta.remove();
+    });
+  }
+
+  function onStart(e) {
+    if (appState === 'welcome') return;
+    closeTextEditors();
+    e.preventDefault();
+
+    // Middle-click, space+click, or hand tool starts panning
+    if (e.button === 1 || (spaceHeld && !e.touches) || (activeTool === 'hand' && !(e.touches && e.touches.length === 2))) {
+      isPanning = true;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      panStartX = clientX;
+      panStartY = clientY;
+      canvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    // Two-finger touch starts pinch/pan
+    if (e.touches && e.touches.length === 2) {
+      isPanning = true;
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+      lastPinchMid = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+      panStartX = lastPinchMid.x;
+      panStartY = lastPinchMid.y;
+      return;
+    }
+
+    const pos = getPos(e);
+
+    // Eraser tool
+    if (activeTool === 'eraser') {
+      isErasing = true;
+      eraserDeleteItems = [];
+      const hit = hitTest(pos);
+      if (hit) {
+        const idx = strokes.indexOf(hit);
+        if (idx !== -1) {
+          eraserDeleteItems.push({ index: idx, stroke: deepCloneStroke(hit) });
+          strokes.splice(idx, 1);
+          clearArrowAttachments(hit.strokeId);
+          broadcast({ type: 'delete', strokeId: hit.strokeId, participantId: myId });
+          redraw();
+        }
+      }
+      return;
+    }
+
+    // Check delete button hit (screen coords)
+    if (selectedStrokes.size > 0) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches && e.touches.length > 0 ? e.touches[0] : null;
+      const sx = (touch ? touch.clientX : e.clientX) - rect.left;
+      const sy = (touch ? touch.clientY : e.clientY) - rect.top;
+      if (hitTestDeleteButton(sx, sy)) {
+        deleteSelectedStrokes();
+        return;
+      }
+      if (hitTestZFrontButton(sx, sy)) {
+        performZOrder('front');
+        return;
+      }
+      if (hitTestZBackButton(sx, sy)) {
+        performZOrder('back');
+        return;
+      }
+    }
+
+    if (activeTool === 'select') {
+      const handleHit = hitTestHandles(pos);
+      if (handleHit) {
+        if (shouldSnapToGrid()) snapStrokeToGrid(handleHit.stroke);
+        activeHandle = handleHit;
+        activeHandle.prevStart = { x: handleHit.stroke.start.x, y: handleHit.stroke.start.y };
+        activeHandle.prevEnd = { x: handleHit.stroke.end.x, y: handleHit.stroke.end.y };
+        activeHandle.prevStartAttach = handleHit.stroke.startAttach ? { strokeId: handleHit.stroke.startAttach.strokeId } : null;
+        activeHandle.prevEndAttach = handleHit.stroke.endAttach ? { strokeId: handleHit.stroke.endAttach.strokeId } : null;
+        activeHandle.prevControlPoint = handleHit.stroke.controlPoint ? { x: handleHit.stroke.controlPoint.x, y: handleHit.stroke.controlPoint.y } : null;
+        isDragging = true;
+        redraw();
+        return;
+      }
+      const hit = hitTest(pos);
+      const shiftKey = e.shiftKey;
+      if (hit) {
+        if (shiftKey) {
+          if (selectedStrokes.has(hit)) selectedStrokes.delete(hit);
+          else selectedStrokes.add(hit);
+        } else {
+          if (!selectedStrokes.has(hit)) {
+            selectedStrokes.clear();
+            selectedStrokes.add(hit);
+          }
+        }
+        isDragging = true;
+        lastDragPos = pos;
+        dragTotalDx = 0;
+        dragTotalDy = 0;
+        // Cache container children for drag
+        dragContainerChildren = new Map();
+        for (const sel of selectedStrokes) {
+          if (sel.type === 'container') {
+            const children = getContainedStrokes(sel).filter(c => !selectedStrokes.has(c));
+            if (children.length > 0) dragContainerChildren.set(sel.strokeId, children);
+          }
+        }
+        if (shouldSnapToGrid()) {
+          for (const s of selectedStrokes) snapStrokeToGrid(s);
+        }
+      } else {
+        if (!shiftKey) selectedStrokes.clear();
+        selectionRect = { start: pos, end: pos };
+      }
+      redraw();
+      return;
+    }
+
+    drawStartPos = pos;
+
+    if (activeTool === 'pen') {
+      const strokeId = makeStrokeId();
+      currentStroke = { type: 'freehand', color: myColor, points: [pos], participantId: myId, strokeId: strokeId, text: '', lineWidth: currentLineWidth };
+      strokes.push(currentStroke);
+      broadcast({ type: 'start', x: pos.x, y: pos.y, color: myColor, participantId: myId, strokeId: strokeId, lineWidth: currentLineWidth });
+    } else {
+      shapeStart = pos;
+      shapePreview = null;
+    }
+  }
+
+  function onMove(e) {
+    if (appState === 'welcome') return;
+
+    // Handle panning (middle-click, space+drag, two-finger)
+    if (isPanning) {
+      e.preventDefault();
+      if (e.touches && e.touches.length === 2) {
+        // Pinch zoom + pan
+        const dx = e.touches[1].clientX - e.touches[0].clientX;
+        const dy = e.touches[1].clientY - e.touches[0].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const mid = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+
+        if (lastPinchDist > 0) {
+          const factor = dist / lastPinchDist;
+          const rect = canvas.getBoundingClientRect();
+          const sx = mid.x - rect.left;
+          const sy = mid.y - rect.top;
+          const worldBefore = screenToWorld(sx, sy);
+          viewportScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, viewportScale * factor));
+          const worldAfter = screenToWorld(sx, sy);
+          viewportX -= worldAfter.x - worldBefore.x;
+          viewportY -= worldAfter.y - worldBefore.y;
+        }
+        // Pan
+        const panDx = mid.x - panStartX;
+        const panDy = mid.y - panStartY;
+        viewportX -= panDx / viewportScale;
+        viewportY -= panDy / viewportScale;
+        panStartX = mid.x;
+        panStartY = mid.y;
+        lastPinchDist = dist;
+        lastPinchMid = mid;
+        redraw();
+        return;
+      }
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const dx = clientX - panStartX;
+      const dy = clientY - panStartY;
+      viewportX -= dx / viewportScale;
+      viewportY -= dy / viewportScale;
+      panStartX = clientX;
+      panStartY = clientY;
+      redraw();
+      return;
+    }
+
+    // Broadcast cursor position (throttled 20Hz)
+    if (appState === 'room') {
+      const now = Date.now();
+      if (now - lastCursorBroadcast > 50) {
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches && e.touches.length > 0 ? e.touches[0] : null;
+        const cX = touch ? touch.clientX : e.clientX;
+        const cY = touch ? touch.clientY : e.clientY;
+        const world = screenToWorld(cX - rect.left, cY - rect.top);
+        broadcastBuffered({ type: 'cursor', x: world.x, y: world.y, color: myColor, participantId: myId });
+        lastCursorBroadcast = now;
+      }
+    }
+
+    // Transition to two-finger pan during touch
+    if (e.touches && e.touches.length === 2 && !isPanning) {
+      isPanning = true;
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+      lastPinchMid = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+      panStartX = lastPinchMid.x;
+      panStartY = lastPinchMid.y;
+      return;
+    }
+
+    // Eraser drag
+    if (activeTool === 'eraser' && isErasing) {
+      e.preventDefault();
+      const pos = getPos(e);
+      const hit = hitTest(pos);
+      if (hit) {
+        const idx = strokes.indexOf(hit);
+        if (idx !== -1) {
+          eraserDeleteItems.push({ index: idx, stroke: deepCloneStroke(hit) });
+          strokes.splice(idx, 1);
+          clearArrowAttachments(hit.strokeId);
+          broadcast({ type: 'delete', strokeId: hit.strokeId, participantId: myId });
+          redraw();
+        }
+      }
+      return;
+    }
+
+    if (activeTool === 'select' && activeHandle) {
+      e.preventDefault();
+      const pos = getPos(e);
+      const stroke = activeHandle.stroke;
+      if (isBoxType(stroke.type)) {
+        stroke[activeHandle.xKey] = { x: pos.x, y: stroke[activeHandle.xKey].y };
+        stroke[activeHandle.yKey] = { x: stroke[activeHandle.yKey].x, y: pos.y };
+        updateAttachedArrows(stroke);
+      } else if (stroke.type === 'arrow') {
+        if (activeHandle.handle === 'start') stroke.start = pos;
+        else if (activeHandle.handle === 'end') stroke.end = pos;
+        else if (activeHandle.handle === 'control') stroke.controlPoint = pos;
+      }
+      redraw();
+      return;
+    }
+    if (activeTool === 'select') {
+      e.preventDefault();
+      const pos = getPos(e);
+      if (selectionRect) {
+        selectionRect.end = pos;
+        redraw();
+        return;
+      }
+      if (!isDragging || selectedStrokes.size === 0) return;
+      const dx = pos.x - lastDragPos.x, dy = pos.y - lastDragPos.y;
+      const movedSet = new Set();
+      for (const sel of selectedStrokes) {
+        moveStroke(sel, dx, dy);
+        updateAttachedArrows(sel);
+        movedSet.add(sel.strokeId);
+      }
+      // Move container children
+      for (const [, children] of dragContainerChildren) {
+        for (const child of children) {
+          if (!movedSet.has(child.strokeId)) {
+            moveStroke(child, dx, dy);
+            updateAttachedArrows(child);
+            movedSet.add(child.strokeId);
+          }
+        }
+      }
+      lastDragPos = pos;
+      dragTotalDx += dx;
+      dragTotalDy += dy;
+      redraw();
+      return;
+    }
+
+    if (!currentStroke && !shapeStart) return;
+    e.preventDefault();
+    const pos = getPos(e);
+
+    if (activeTool === 'pen') {
+      currentStroke.points.push(pos);
+      const pts = currentStroke.points;
+      const prev = worldToScreen(pts[pts.length - 2].x, pts[pts.length - 2].y);
+      const cur = worldToScreen(pos.x, pos.y);
+      ctx.strokeStyle = themeColor(myColor);
+      ctx.lineWidth = (currentStroke.lineWidth || 4) * viewportScale;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(cur.x, cur.y);
+      ctx.stroke();
+      broadcastBuffered({ type: 'draw', x: pos.x, y: pos.y, color: myColor, participantId: myId });
+    } else if (shapeStart) {
+      const previewType = (activeTool === 'rectangle' && rectangleSubtype === 'container') ? 'container' : activeTool;
+      const previewSubtype = (activeTool === 'rectangle' && rectangleSubtype !== 'container') ? rectangleSubtype : activeTool === 'arrow' ? arrowSubtype : undefined;
+      shapePreview = { type: previewType, color: myColor, start: shapeStart, end: pos, participantId: myId, lineWidth: currentLineWidth, subtype: previewSubtype, fillColor: (activeTool !== 'arrow') ? myFillColor : null, label: previewType === 'container' ? '' : undefined, lineStyle: activeTool === 'arrow' ? arrowLineStyle : undefined };
+      redraw();
+    }
+  }
+
+  function onEnd(e) {
+    if (appState === 'welcome') return;
+    if (activeTool === 'eraser' && isErasing) {
+      isErasing = false;
+      if (eraserDeleteItems.length > 0) {
+        eraserDeleteItems.sort((a, b) => b.index - a.index);
+        pushAction({ action: 'delete-batch', items: eraserDeleteItems });
+      }
+      eraserDeleteItems = [];
+      return;
+    }
+    if (isPanning) {
+      isPanning = false;
+      lastPinchDist = 0;
+      lastPinchMid = null;
+      canvas.style.cursor = (spaceHeld || activeTool === 'hand') ? 'grab' : getToolCursor();
+      return;
+    }
+    if (activeTool === 'select' && activeHandle) {
+      const stroke = activeHandle.stroke;
+      if (stroke.type === 'arrow' && activeHandle.handle !== 'control') {
+        const pos = activeHandle.handle === 'start' ? stroke.start : stroke.end;
+        const attach = findAttachment(pos);
+        if (activeHandle.handle === 'start') {
+          stroke.startAttach = attach;
+          if (attach) {
+            const target = findStrokeById(attach.strokeId);
+            if (target) stroke.start = computeEdgePoint(target, arrowFromPoint(stroke, 'start'));
+          }
+        } else {
+          stroke.endAttach = attach;
+          if (attach) {
+            const target = findStrokeById(attach.strokeId);
+            if (target) stroke.end = computeEdgePoint(target, arrowFromPoint(stroke, 'end'));
+          }
+        }
+      }
+      // After curving an arrow, recalculate attachment edge points
+      if (stroke.type === 'arrow' && activeHandle.handle === 'control') {
+        if (stroke.startAttach) {
+          const target = findStrokeById(stroke.startAttach.strokeId);
+          if (target) stroke.start = computeEdgePoint(target, arrowFromPoint(stroke, 'start'));
+        }
+        if (stroke.endAttach) {
+          const target = findStrokeById(stroke.endAttach.strokeId);
+          if (target) stroke.end = computeEdgePoint(target, arrowFromPoint(stroke, 'end'));
+        }
+      }
+      pushAction({
+        action: 'resize', strokeId: stroke.strokeId,
+        prevStart: activeHandle.prevStart, prevEnd: activeHandle.prevEnd,
+        prevControlPoint: activeHandle.prevControlPoint || null,
+        prevStartAttach: activeHandle.prevStartAttach, prevEndAttach: activeHandle.prevEndAttach,
+        newStart: { x: stroke.start.x, y: stroke.start.y }, newEnd: { x: stroke.end.x, y: stroke.end.y },
+        newControlPoint: stroke.controlPoint ? { x: stroke.controlPoint.x, y: stroke.controlPoint.y } : null,
+        newStartAttach: stroke.startAttach ? { strokeId: stroke.startAttach.strokeId } : null,
+        newEndAttach: stroke.endAttach ? { strokeId: stroke.endAttach.strokeId } : null
+      });
+      broadcast({
+        type: 'resize', strokeId: stroke.strokeId,
+        startX: stroke.start.x, startY: stroke.start.y,
+        endX: stroke.end.x, endY: stroke.end.y,
+        controlPointX: stroke.controlPoint ? stroke.controlPoint.x : null,
+        controlPointY: stroke.controlPoint ? stroke.controlPoint.y : null,
+        startAttach: stroke.startAttach || null,
+        endAttach: stroke.endAttach || null,
+        participantId: myId
+      });
+      activeHandle = null;
+      isDragging = false;
+      redraw();
+      return;
+    }
+    if (activeTool === 'select') {
+      if (selectionRect) {
+        const r = {
+          x1: Math.min(selectionRect.start.x, selectionRect.end.x),
+          y1: Math.min(selectionRect.start.y, selectionRect.end.y),
+          x2: Math.max(selectionRect.start.x, selectionRect.end.x),
+          y2: Math.max(selectionRect.start.y, selectionRect.end.y)
+        };
+        for (const s of strokes) {
+          const bb = getStrokeBBox(s);
+          if (bb.x1 >= r.x1 && bb.x2 <= r.x2 && bb.y1 >= r.y1 && bb.y2 <= r.y2) {
+            selectedStrokes.add(s);
+          }
+        }
+        selectionRect = null;
+        redraw();
+        return;
+      }
+      if (isDragging && selectedStrokes.size > 0 && (dragTotalDx !== 0 || dragTotalDy !== 0)) {
+        // Collect all moved IDs including container children
+        const movedIdSet = new Set();
+        for (const sel of selectedStrokes) {
+          if (strokes.includes(sel)) movedIdSet.add(sel.strokeId);
+        }
+        for (const [, children] of dragContainerChildren) {
+          for (const child of children) movedIdSet.add(child.strokeId);
+        }
+        const movedIds = [...movedIdSet];
+        if (movedIds.length > 0) pushAction({ action: 'move', strokeIds: movedIds, dx: dragTotalDx, dy: dragTotalDy });
+        for (const id of movedIds) {
+          broadcast({ type: 'move', strokeId: id, dx: dragTotalDx, dy: dragTotalDy, participantId: myId });
+        }
+      }
+      isDragging = false;
+      lastDragPos = null;
+      dragContainerChildren = new Map();
+      return;
+    }
+
+    if (!currentStroke && !shapeStart) return;
+
+    // Detect click (no drag) on an existing object — switch to select
+    if (drawStartPos) {
+      const endPos = getPos(e);
+      const dx = Math.abs(endPos.x - drawStartPos.x) * viewportScale;
+      const dy = Math.abs(endPos.y - drawStartPos.y) * viewportScale;
+      if (dx < 5 && dy < 5 && !(currentStroke && currentStroke.points.length > 2)) {
+        const hit = hitTest(drawStartPos);
+        if (hit) {
+          if (activeTool === 'pen' && currentStroke) {
+            const idx = strokes.indexOf(currentStroke);
+            if (idx !== -1) strokes.splice(idx, 1);
+            currentStroke = null;
+            broadcast({ type: 'end', participantId: myId });
+          }
+          shapePreview = null;
+          shapeStart = null;
+          drawStartPos = null;
+          switchTool('select');
+          selectedStrokes.add(hit);
+          redraw();
+          return;
+        }
+      }
+      drawStartPos = null;
+    }
+
+    // Click without drag on arrow/rectangle — switch to select instead of creating tiny shape
+    if (shapeStart && (activeTool === 'arrow' || activeTool === 'rectangle')) {
+      const endPos = shapePreview ? shapePreview.end : shapeStart;
+      const sdx = Math.abs(endPos.x - shapeStart.x) * viewportScale;
+      const sdy = Math.abs(endPos.y - shapeStart.y) * viewportScale;
+      if (sdx < 5 && sdy < 5) {
+        shapePreview = null;
+        shapeStart = null;
+        switchTool('select');
+        redraw();
+        return;
+      }
+    }
+
+    if (activeTool === 'pen') {
+      if (currentStroke) pushAction({ action: 'add-stroke', strokeId: currentStroke.strokeId, strokeData: deepCloneStroke(currentStroke) });
+      currentStroke = null;
+      redraw();
+      flushMessages();
+      broadcast({ type: 'end', participantId: myId });
+    } else if (shapeStart) {
+      let endPos = shapePreview ? shapePreview.end : shapeStart;
+      // If click without drag on text-rect, create a default-sized box
+      if (activeTool === 'text-rect' && Math.abs(endPos.x - shapeStart.x) < 5 && Math.abs(endPos.y - shapeStart.y) < 5) {
+        endPos = { x: shapeStart.x + 160, y: shapeStart.y + 80 };
+      }
+      const strokeId = makeStrokeId();
+      const isContainer = activeTool === 'rectangle' && rectangleSubtype === 'container';
+      const subtype = isContainer ? undefined : (activeTool === 'rectangle' ? rectangleSubtype : activeTool === 'arrow' ? arrowSubtype : undefined);
+      const shapeType = isContainer ? 'container' : activeTool;
+      const shapeFill = (activeTool !== 'arrow') ? myFillColor : null;
+      const stroke = { type: shapeType, color: myColor, start: shapeStart, end: endPos, participantId: myId, strokeId: strokeId, text: '', lineWidth: currentLineWidth, subtype: subtype, fillColor: shapeFill || null, lineStyle: activeTool === 'arrow' ? arrowLineStyle : undefined, controlPoint: null };
+      if (isContainer) stroke.label = '';
+      strokes.push(stroke);
+      shapePreview = null;
+      shapeStart = null;
+
+      const msg = { type: 'shape', tool: stroke.type, startX: stroke.start.x, startY: stroke.start.y, endX: stroke.end.x, endY: stroke.end.y, color: myColor, participantId: myId, strokeId: strokeId, lineWidth: stroke.lineWidth, subtype: subtype, fillColor: stroke.fillColor, lineStyle: stroke.lineStyle };
+      if (isContainer) msg.label = '';
+
+      if (activeTool === 'arrow') {
+        stroke.startAttach = findAttachment(stroke.start);
+        stroke.endAttach = findAttachment(stroke.end);
+        if (stroke.startAttach) {
+          const target = findStrokeById(stroke.startAttach.strokeId);
+          if (target) stroke.start = computeEdgePoint(target, stroke.end);
+        }
+        if (stroke.endAttach) {
+          const target = findStrokeById(stroke.endAttach.strokeId);
+          if (target) stroke.end = computeEdgePoint(target, stroke.start);
+        }
+        msg.startX = stroke.start.x; msg.startY = stroke.start.y;
+        msg.endX = stroke.end.x; msg.endY = stroke.end.y;
+        msg.startAttach = stroke.startAttach;
+        msg.endAttach = stroke.endAttach;
+      }
+
+      pushAction({ action: 'add-stroke', strokeId: stroke.strokeId, strokeData: deepCloneStroke(stroke) });
+
+      // Auto-send container to back so children render on top
+      if (isContainer) {
+        applyZOrder([stroke.strokeId], 'back');
+      }
+
+      redraw();
+      broadcast(msg);
+
+      if (activeTool === 'text-rect') {
+        openTextEditor(stroke);
+      }
+
+      if (isContainer) {
+        openContainerLabelEditor(stroke);
+      }
+    }
+  }
+
+  function openTextEditor(stroke, initialChar) {
+    const ta = document.createElement('textarea');
+    ta.className = 'text-overlay';
+    ta.style.borderColor = themeColor(stroke.color);
+    ta.style.color = themeColor(stroke.color);
+    ta.style.fontFamily = sketchMode ? 'Caveat, cursive' : 'system-ui, sans-serif';
+    const bb = getStrokeBBox(stroke);
+    const tlS = worldToScreen(bb.x1, bb.y1);
+    const brS = worldToScreen(bb.x2, bb.y2);
+    const left = tlS.x, top = tlS.y;
+    const w = brS.x - tlS.x, h = brS.y - tlS.y;
+    const minW = 120, minH = 60;
+    const finalW = Math.max(w, minW), finalH = Math.max(h, minH);
+    const editorLeft = left - (finalW - w) / 2;
+    const editorTop = top - (finalH - h) / 2;
+    ta.style.left = editorLeft + 'px';
+    ta.style.top = editorTop + 'px';
+    ta.style.width = finalW + 'px';
+    ta.style.height = finalH + 'px';
+    const prevText = stroke.text || '';
+    if (stroke.text) ta.value = stroke.text;
+    if (initialChar) ta.value += initialChar;
+    stroke._editing = true;
+    document.body.appendChild(ta);
+
+    // Markdown toggle button
+    const mdBtn = document.createElement('button');
+    mdBtn.textContent = 'Md';
+    mdBtn.title = 'Toggle Markdown';
+    mdBtn.style.cssText = 'position:fixed;z-index:21;padding:2px 6px;font-size:11px;border-radius:4px;cursor:pointer;border:1px solid ' + themeColor(stroke.color) + ';background:' + (stroke.textFormat === 'markdown' ? 'rgba(59,130,246,0.3)' : 'var(--toolbar-bg)') + ';color:' + themeColor(stroke.color) + ';font-weight:' + (stroke.textFormat === 'markdown' ? 'bold' : 'normal');
+    mdBtn.style.left = (editorLeft + finalW - 30) + 'px';
+    mdBtn.style.top = (editorTop - 24) + 'px';
+    mdBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stroke.textFormat = stroke.textFormat === 'markdown' ? 'plain' : 'markdown';
+      mdBtn.style.background = stroke.textFormat === 'markdown' ? 'rgba(59,130,246,0.3)' : 'var(--toolbar-bg)';
+      mdBtn.style.fontWeight = stroke.textFormat === 'markdown' ? 'bold' : 'normal';
+      broadcast({ type: 'text-format', strokeId: stroke.strokeId, textFormat: stroke.textFormat, participantId: myId });
+      redraw();
+    });
+    document.body.appendChild(mdBtn);
+
+    ta.focus();
+    redraw();
+
+    let committed = false;
+    function commit() {
+      if (committed) return;
+      committed = true;
+      delete stroke._editing;
+      const text = ta.value.trim();
+      if (text !== prevText) {
+        pushAction({ action: 'text-fill', strokeId: stroke.strokeId, prevText: prevText, newText: text });
+      }
+      stroke.text = text;
+      ta.remove();
+      mdBtn.remove();
+      redraw();
+      broadcast({ type: 'text-fill', strokeId: stroke.strokeId, text: text, participantId: myId });
+    }
+
+    ta.addEventListener('input', () => {
+      stroke.text = ta.value;
+      redraw();
+    });
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { commit(); }
+    });
+    ta.addEventListener('blur', (e) => {
+      if (e.relatedTarget === mdBtn) return;
+      commit();
+    });
+  }
+
+  function openContainerLabelEditor(stroke) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'text-overlay';
+    input.style.borderColor = themeColor(stroke.color);
+    input.style.color = themeColor(stroke.color);
+    input.style.fontFamily = sketchMode ? 'Caveat, cursive' : 'system-ui, sans-serif';
+    input.style.borderRadius = '8px 8px 0 0';
+    const bb = getStrokeBBox(stroke);
+    const tlS = worldToScreen(bb.x1, bb.y1);
+    const brS = worldToScreen(bb.x2, bb.y2);
+    const headerH = Math.min(30 * viewportScale, (brS.y - tlS.y) * 0.4);
+    input.style.left = tlS.x + 'px';
+    input.style.top = tlS.y + 'px';
+    input.style.width = (brS.x - tlS.x) + 'px';
+    input.style.height = headerH + 'px';
+    input.style.fontSize = Math.max(10, Math.min(16, headerH * 0.55)) + 'px';
+    input.placeholder = 'Label...';
+    const prevLabel = stroke.label || '';
+    if (stroke.label) input.value = stroke.label;
+    document.body.appendChild(input);
+    input.focus();
+
+    let committed = false;
+    function commit() {
+      if (committed) return;
+      committed = true;
+      const label = input.value.trim();
+      if (label !== prevLabel) {
+        pushAction({ action: 'container-label', strokeId: stroke.strokeId, prevLabel: prevLabel, newLabel: label });
+      }
+      stroke.label = label;
+      input.remove();
+      redraw();
+      broadcast({ type: 'container-label', strokeId: stroke.strokeId, label: label, participantId: myId });
+    }
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { commit(); }
+    });
+    input.addEventListener('blur', commit);
+  }
+
+  canvas.addEventListener('mousedown', onStart);
+  canvas.addEventListener('mousemove', onMove);
+  canvas.addEventListener('mouseup', onEnd);
+  canvas.addEventListener('mouseleave', onEnd);
+  canvas.addEventListener('touchstart', onStart, { passive: false });
+  canvas.addEventListener('touchmove', onMove, { passive: false });
+  canvas.addEventListener('touchend', onEnd);
+
+  // --- Wheel zoom ---
+  canvas.addEventListener('wheel', (e) => {
+    if (appState === 'welcome') return;
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const worldBefore = screenToWorld(sx, sy);
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    viewportScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, viewportScale * factor));
+    const worldAfter = screenToWorld(sx, sy);
+    viewportX -= worldAfter.x - worldBefore.x;
+    viewportY -= worldAfter.y - worldBefore.y;
+    closeTextEditors();
+    redraw();
+  }, { passive: false });
+
+  // --- Space key for panning ---
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !e.repeat && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
+      if (appState === 'welcome') return;
+      e.preventDefault();
+      spaceHeld = true;
+      canvas.style.cursor = 'grab';
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+      spaceHeld = false;
+      if (!isPanning) {
+        canvas.style.cursor = getToolCursor();
+      }
+    }
+  });
+
+  canvas.addEventListener('dblclick', (e) => {
+    if (appState === 'welcome') return;
+    if (activeTool !== 'select') return;
+    const pos = getPos(e);
+    const hit = hitTest(pos);
+    if (hit) {
+      if (hit.type === 'container') openContainerLabelEditor(hit);
+      else openTextEditor(hit);
+    }
+  });
+
+  // Double-tap detection for mobile (dblclick doesn't fire for touch)
+  let lastTapTime = 0;
+  let lastTapPos = null;
+  canvas.addEventListener('touchend', (e) => {
+    if (appState === 'welcome') return;
+    if (activeTool !== 'select') return;
+    if (e.touches.length > 0) return; // ignore if other fingers still down
+    const now = Date.now();
+    const pos = getPos(e);
+    const TAP_THRESHOLD = 300;
+    const DIST_THRESHOLD = 20;
+    if (lastTapPos && (now - lastTapTime) < TAP_THRESHOLD) {
+      const dx = pos.x - lastTapPos.x;
+      const dy = pos.y - lastTapPos.y;
+      if (Math.sqrt(dx * dx + dy * dy) < DIST_THRESHOLD) {
+        const hit = hitTest(pos);
+        if (hit) {
+          if (hit.type === 'container') openContainerLabelEditor(hit);
+          else openTextEditor(hit);
+        }
+        lastTapTime = 0;
+        lastTapPos = null;
+        return;
+      }
+    }
+    lastTapTime = now;
+    lastTapPos = pos;
+  });
+
+  // --- Message Batching ---
+  function broadcastBuffered(msg) {
+    msgBuffer.push(msg);
+    if (!msgFlushTimer) {
+      msgFlushTimer = setTimeout(flushMessages, 50);
+    }
+  }
+
+  function flushMessages() {
+    msgFlushTimer = null;
+    if (msgBuffer.length === 0) return;
+    if (msgBuffer.length === 1) {
+      broadcast(msgBuffer[0]);
+    } else {
+      broadcast({ type: 'batch', messages: msgBuffer });
+    }
+    msgBuffer = [];
+  }
+
+  // --- Messaging ---
+  let remoteStrokes = {};
+
+  function broadcast(msg) {
+    if (isHost) {
+      for (const entry of connections) {
+        if (entry.conn.open) entry.conn.send(msg);
+      }
+    } else if (hostConn && hostConn.open) {
+      hostConn.send(msg);
+    }
+  }
+
+  function broadcastExcept(msg, excludeConn) {
+    for (const entry of connections) {
+      if (entry.conn !== excludeConn && entry.conn.open) {
+        entry.conn.send(msg);
+      }
+    }
+  }
+
+  function handleMessage(msg, fromConn) {
+    if (msg.type === 'batch') {
+      for (const m of msg.messages) handleMessage(m, fromConn);
+      return;
+    }
+
+    if (msg.type === 'cursor') {
+      remoteCursors[msg.participantId] = { x: msg.x, y: msg.y, color: msg.color, time: Date.now() };
+      requestAnimationFrame(() => redraw());
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'sync-state') {
+      strokes = msg.strokes;
+      remoteStrokes = {};
+      selectedStrokes.clear();
+      redraw();
+      return;
+    }
+
+    if (msg.type === 'clear') {
+      strokes = [];
+      currentStroke = null;
+      remoteStrokes = {};
+      selectedStrokes.clear();
+      redraw();
+      if (isHost && fromConn) broadcastExcept({ type: 'clear' }, fromConn);
+      return;
+    }
+
+    if (msg.type === 'user-count') {
+      userCount = msg.count;
+      updateStatus();
+      return;
+    }
+
+    const pid = msg.participantId;
+
+    if (msg.type === 'move' && msg.strokeId) {
+      const target = findStrokeById(msg.strokeId);
+      if (target) {
+        moveStroke(target, msg.dx, msg.dy);
+        updateAttachedArrows(target);
+        redraw();
+      }
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'resize' && msg.strokeId) {
+      const target = findStrokeById(msg.strokeId);
+      if (target) {
+        target.start = { x: msg.startX, y: msg.startY };
+        target.end = { x: msg.endX, y: msg.endY };
+        if (target.type === 'arrow') {
+          target.startAttach = msg.startAttach || null;
+          target.endAttach = msg.endAttach || null;
+          target.controlPoint = (msg.controlPointX != null) ? { x: msg.controlPointX, y: msg.controlPointY } : target.controlPoint || null;
+        }
+        updateAttachedArrows(target);
+        redraw();
+      }
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'recolor' && msg.strokeId) {
+      const target = findStrokeById(msg.strokeId);
+      if (target) { target.color = msg.color; redraw(); }
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'fill-color' && msg.strokeId) {
+      const target = findStrokeById(msg.strokeId);
+      if (target) { target.fillColor = msg.fillColor; redraw(); }
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'line-style' && msg.strokeId) {
+      const target = findStrokeById(msg.strokeId);
+      if (target) { target.lineStyle = msg.lineStyle; redraw(); }
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'z-order' && msg.strokeIds) {
+      applyZOrder(msg.strokeIds, msg.direction);
+      redraw();
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'container-label' && msg.strokeId) {
+      const target = findStrokeById(msg.strokeId);
+      if (target) { target.label = msg.label; redraw(); }
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'delete' && msg.strokeId) {
+      const idx = strokes.findIndex(s => s.strokeId === msg.strokeId);
+      if (idx !== -1) {
+        const removed = strokes[idx];
+        strokes.splice(idx, 1);
+        clearArrowAttachments(removed.strokeId);
+        selectedStrokes.delete(removed);
+        redraw();
+      }
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (msg.type === 'start' && pid) {
+      const pos = { x: msg.x, y: msg.y };
+      remoteStrokes[pid] = { type: 'freehand', color: msg.color, points: [pos], participantId: pid, strokeId: msg.strokeId, text: '', lineWidth: msg.lineWidth || 4 };
+      strokes.push(remoteStrokes[pid]);
+    } else if (msg.type === 'draw' && pid && remoteStrokes[pid]) {
+      const pos = { x: msg.x, y: msg.y };
+      remoteStrokes[pid].points.push(pos);
+      const pts = remoteStrokes[pid].points;
+      const prev = worldToScreen(pts[pts.length - 2].x, pts[pts.length - 2].y);
+      const cur = worldToScreen(pos.x, pos.y);
+      ctx.strokeStyle = themeColor(msg.color);
+      ctx.lineWidth = (remoteStrokes[pid].lineWidth || 4) * viewportScale;
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(cur.x, cur.y);
+      ctx.stroke();
+    } else if (msg.type === 'end' && pid) {
+      delete remoteStrokes[pid];
+      redraw();
+    } else if (msg.type === 'shape') {
+      const stroke = { type: msg.tool, color: msg.color, start: { x: msg.startX, y: msg.startY }, end: { x: msg.endX, y: msg.endY }, participantId: pid, strokeId: msg.strokeId, text: '', lineWidth: msg.lineWidth || 4, subtype: msg.subtype, fillColor: msg.fillColor || null, lineStyle: msg.lineStyle || 'solid' };
+      if (msg.tool === 'arrow') {
+        stroke.startAttach = msg.startAttach || null;
+        stroke.endAttach = msg.endAttach || null;
+        if (msg.controlPointX != null) stroke.controlPoint = { x: msg.controlPointX, y: msg.controlPointY };
+      }
+      if (msg.tool === 'container') {
+        stroke.label = msg.label || '';
+      }
+      strokes.push(stroke);
+      redraw();
+    } else if (msg.type === 'text-fill' && msg.strokeId) {
+      const target = findStrokeById(msg.strokeId);
+      if (target) {
+        target.text = msg.text;
+        redraw();
+      }
+    }
+
+    if (msg.type === 'text-format' && msg.strokeId) {
+      const target = findStrokeById(msg.strokeId);
+      if (target) { target.textFormat = msg.textFormat; redraw(); }
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+
+    if (isHost && fromConn) broadcastExcept(msg, fromConn);
+  }
+
+  // --- User count ---
+  function getUserCount() {
+    return connections.length + 1;
+  }
+
+  function broadcastUserCount() {
+    const count = getUserCount();
+    for (const entry of connections) {
+      if (entry.conn.open) entry.conn.send({ type: 'user-count', count: count });
+    }
+    updateStatus();
+  }
+
+  // --- Host connected / Guest connected ---
+  function onHostConnected() {
+    copyLinkBtn.classList.remove('hidden');
+    updateStatus();
+  }
+
+  function onGuestConnected() {
+    setStatus('Connected!', 'connected');
+    copyLinkBtn.classList.add('hidden');
+    clearBtn.classList.add('hidden');
+    history.replaceState(null, '', window.location.pathname);
+  }
+
+  function onGuestDisconnected() {
+    setStatus('Disconnected', 'disconnected');
+    hostConn = null;
+  }
+
+  // --- Host: Create Room ---
+  function startHosting() {
+    appState = 'room';
+    isHost = true;
+    showToolbar();
+    setStatus('Initializing...', 'waiting');
+
+    const peer = new Peer();
+
+    peer.on('open', (id) => {
+      myId = id;
+      const inviteLink = window.location.origin + window.location.pathname + '#room=' + id;
+
+      setStatus('Waiting for guests', 'waiting');
+      copyLinkBtn.classList.remove('hidden');
+
+      copyLinkBtn.onclick = () => {
+        navigator.clipboard.writeText(inviteLink).then(() => {
+          copyLinkBtn.title = 'Copied!';
+          setTimeout(() => { copyLinkBtn.title = 'Copy Link'; }, 2000);
+        });
+      };
+    });
+
+    peer.on('connection', (c) => {
+      if (connections.length >= MAX_USERS - 1) {
+        c.on('open', () => {
+          c.send({ type: 'error', message: 'Room is full (max ' + MAX_USERS + ' users)' });
+          setTimeout(() => c.close(), 500);
+        });
+        return;
+      }
+
+      const entry = { conn: c };
+      connections.push(entry);
+
+      c.on('open', () => {
+        c.send({ type: 'user-count', count: getUserCount() });
+        c.send({ type: 'sync-state', strokes: strokes });
+        onHostConnected();
+        broadcastUserCount();
+      });
+
+      c.on('data', (msg) => {
+        handleMessage(msg, c);
+      });
+
+      c.on('close', () => {
+        connections = connections.filter(e => e.conn !== c);
+        broadcastUserCount();
+        if (connections.length === 0) {
+          setStatus('Waiting for guests', 'waiting');
+        }
+      });
+    });
+
+    peer.on('error', (err) => {
+      setStatus('Error: ' + err.type, 'disconnected');
+    });
+  }
+
+  // --- Guest: Join via hash ---
+  function handleJoin() {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#room=')) return;
+    guestRoomId = hash.substring(6);
+    connectAsGuest(guestRoomId);
+  }
+
+  function connectAsGuest(roomId) {
+    appState = 'room';
+    isHost = false;
+    showToolbar();
+    setStatus('Connecting...', 'waiting');
+
+    const peer = new Peer();
+    guestPeer = peer;
+
+    peer.on('open', (id) => {
+      myId = id;
+      const c = peer.connect(roomId, { reliable: true, serialization: 'json' });
+      hostConn = c;
+
+      c.on('open', () => {
+        reconnectAttempts = 0;
+        hideConnectionBanner();
+        onGuestConnected();
+      });
+
+      c.on('data', (msg) => {
+        if (msg.type === 'error') {
+          setStatus(msg.message, 'disconnected');
+          c.close();
+          return;
+        }
+        handleMessage(msg, null);
+      });
+
+      c.on('close', () => {
+        onGuestDisconnected();
+        attemptReconnect();
+      });
+    });
+
+    peer.on('error', (err) => {
+      if (err.type === 'peer-unavailable') {
+        setStatus('Room not found or expired', 'disconnected');
+      } else {
+        setStatus('Error: ' + err.type, 'disconnected');
+        attemptReconnect();
+      }
+    });
+  }
+
+  function attemptReconnect() {
+    if (!guestRoomId || reconnectAttempts >= MAX_RECONNECT) {
+      showConnectionBanner('Disconnected. Could not reconnect.');
+      return;
+    }
+    reconnectAttempts++;
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000);
+    showConnectionBanner('Reconnecting... (attempt ' + reconnectAttempts + '/' + MAX_RECONNECT + ')');
+    setStatus('Reconnecting...', 'reconnecting');
+    setTimeout(() => {
+      if (guestPeer) { try { guestPeer.destroy(); } catch(e) {} guestPeer = null; }
+      connectAsGuest(guestRoomId);
+    }, delay);
+  }
+
+  // --- Clear canvas ---
+  clearBtn.addEventListener('click', () => {
+    if (appState === 'room' && !isHost) return;
+    if (strokes.length > 0) pushAction({ action: 'clear', snapshot: strokes.map(deepCloneStroke) });
+    strokes = [];
+    currentStroke = null;
+    remoteStrokes = {};
+    selectedStrokes.clear();
+    redraw();
+    if (isHost) {
+      for (const entry of connections) {
+        if (entry.conn.open) entry.conn.send({ type: 'clear' });
+      }
+    }
+  });
+
+  // --- Undo / Redo buttons ---
+  document.getElementById('undoBtn').addEventListener('click', performUndo);
+  document.getElementById('redoBtn').addEventListener('click', performRedo);
+
+  // --- Export / Import ---
+  const exportBtn = document.getElementById('exportBtn');
+  const exportDropdown = document.getElementById('exportDropdown');
+  const importBtn = document.getElementById('importBtn');
+
+  exportBtn.addEventListener('click', () => {
+    const isOpen = exportDropdown.classList.toggle('open');
+    if (isOpen) {
+      const rect = exportBtn.getBoundingClientRect();
+      exportDropdown.style.left = (rect.left + rect.width / 2 - 50) + 'px';
+      exportDropdown.style.top = (rect.bottom + 6) + 'px';
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!exportBtn.contains(e.target) && !exportDropdown.contains(e.target)) exportDropdown.classList.remove('open');
+  });
+
+  // --- Subtool dropdowns ---
+  const rectangleBtn = document.getElementById('rectangleBtn');
+  const arrowBtn = document.getElementById('arrowBtn');
+  const rectangleDropdown = document.getElementById('rectangleDropdown');
+  const arrowDropdown = document.getElementById('arrowDropdown');
+
+  const subtoolIcons = {
+    rectangle: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="1.5"/></svg>',
+    ellipse: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="10" rx="7" ry="5"/></svg>',
+    diamond: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L17 10L10 17L3 10Z"/></svg>',
+    container: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="1.5"/><line x1="3" y1="7" x2="17" y2="7"/></svg>',
+    arrow: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4M16 4v5M16 4h-5"/></svg>',
+    'arrow-double': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4M16 4v5M16 4h-5M4 16v-5M4 16h5"/></svg>',
+    line: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4"/></svg>',
+    'line-dashed': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 2.5"><path d="M4 16L16 4"/></svg>',
+    'line-dotted': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="0.5 3"><path d="M4 16L16 4"/></svg>'
+  };
+
+  const subtoolTitles = {
+    rectangle: 'Rectangle (R)', ellipse: 'Ellipse (R)', diamond: 'Diamond (R)', container: 'Container (R)',
+    arrow: 'Arrow (A)', 'arrow-double': 'Double Arrow (A)', line: 'Line (A)',
+    'line-dashed': 'Dashed (A)', 'line-dotted': 'Dotted (A)'
+  };
+
+  function openSubtoolDropdown(btn, dropdown) {
+    // Close other dropdowns
+    rectangleDropdown.classList.remove('open');
+    arrowDropdown.classList.remove('open');
+    exportDropdown.classList.remove('open');
+    const rect = btn.getBoundingClientRect();
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.top = (rect.bottom + 6) + 'px';
+    dropdown.classList.add('open');
+  }
+
+  function updateSubtoolBtn(btn, dropdown, subtype, activeBtn) {
+    btn.innerHTML = subtoolIcons[subtype] + '<span class="subtool-indicator">&#9662;</span>';
+    btn.title = subtoolTitles[subtype];
+    if (activeBtn) {
+      dropdown.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      activeBtn.classList.add('active');
+    } else {
+      dropdown.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.subtype === subtype));
+    }
+  }
+
+  // Override default click for rectangle/arrow buttons
+  rectangleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (activeTool === 'rectangle') {
+      // Already active — toggle dropdown
+      if (rectangleDropdown.classList.contains('open')) {
+        rectangleDropdown.classList.remove('open');
+      } else {
+        openSubtoolDropdown(rectangleBtn, rectangleDropdown);
+      }
+    } else {
+      switchTool('rectangle');
+      rectangleDropdown.classList.remove('open');
+      arrowDropdown.classList.remove('open');
+    }
+  });
+
+  arrowBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (activeTool === 'arrow') {
+      if (arrowDropdown.classList.contains('open')) {
+        arrowDropdown.classList.remove('open');
+      } else {
+        openSubtoolDropdown(arrowBtn, arrowDropdown);
+      }
+    } else {
+      switchTool('arrow');
+      arrowDropdown.classList.remove('open');
+      rectangleDropdown.classList.remove('open');
+    }
+  });
+
+  rectangleDropdown.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      rectangleSubtype = btn.dataset.subtype;
+      updateSubtoolBtn(rectangleBtn, rectangleDropdown, rectangleSubtype);
+      rectangleDropdown.classList.remove('open');
+      switchTool('rectangle');
+    });
+  });
+
+  arrowDropdown.querySelectorAll('button[data-subtype]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      arrowSubtype = btn.dataset.subtype;
+      arrowLineStyle = btn.dataset.linestyle || 'solid';
+      const iconKey = arrowLineStyle !== 'solid' ? arrowSubtype + '-' + arrowLineStyle : arrowSubtype;
+      updateSubtoolBtn(arrowBtn, arrowDropdown, iconKey, btn);
+      arrowDropdown.classList.remove('open');
+      switchTool('arrow');
+    });
+  });
+
+  // Close subtool dropdowns on outside click
+  document.addEventListener('click', (e) => {
+    if (!rectangleBtn.contains(e.target) && !rectangleDropdown.contains(e.target)) rectangleDropdown.classList.remove('open');
+    if (!arrowBtn.contains(e.target) && !arrowDropdown.contains(e.target)) arrowDropdown.classList.remove('open');
+  });
+
+  // --- PNG metadata helpers (tEXt chunk) ---
+  function crc32(buf) {
+    let crc = -1;
+    for (let i = 0; i < buf.length; i++) {
+      crc ^= buf[i];
+      for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+    }
+    return (crc ^ -1) >>> 0;
+  }
+
+  function embedPngMetadata(pngBuf, key, value) {
+    const png = new Uint8Array(pngBuf);
+    // Find IEND chunk (last 12 bytes: length(4) + "IEND"(4) + CRC(4))
+    let iendPos = -1;
+    for (let i = png.length - 12; i >= 8; i--) {
+      if (png[i+4] === 0x49 && png[i+5] === 0x45 && png[i+6] === 0x4E && png[i+7] === 0x44) {
+        iendPos = i; break;
+      }
+    }
+    if (iendPos < 0) return pngBuf;
+    // Build tEXt chunk: keyword + null + text
+    const enc = new TextEncoder();
+    const keyBytes = enc.encode(key);
+    const valBytes = enc.encode(value);
+    const dataLen = keyBytes.length + 1 + valBytes.length;
+    const chunk = new Uint8Array(12 + dataLen);
+    const dv = new DataView(chunk.buffer);
+    dv.setUint32(0, dataLen);
+    chunk[4] = 0x74; chunk[5] = 0x45; chunk[6] = 0x58; chunk[7] = 0x74; // tEXt
+    chunk.set(keyBytes, 8);
+    chunk[8 + keyBytes.length] = 0;
+    chunk.set(valBytes, 9 + keyBytes.length);
+    const crcData = chunk.slice(4, 8 + dataLen);
+    dv.setUint32(8 + dataLen, crc32(crcData));
+    // Insert before IEND
+    const result = new Uint8Array(png.length + chunk.length);
+    result.set(png.slice(0, iendPos));
+    result.set(chunk, iendPos);
+    result.set(png.slice(iendPos), iendPos + chunk.length);
+    return result.buffer;
+  }
+
+  function extractPngMetadata(pngBuf, key) {
+    const png = new Uint8Array(pngBuf);
+    const enc = new TextEncoder();
+    const keyBytes = enc.encode(key);
+    let pos = 8; // skip PNG signature
+    while (pos < png.length - 8) {
+      const dv = new DataView(png.buffer, pos);
+      const len = dv.getUint32(0);
+      const type = String.fromCharCode(png[pos+4], png[pos+5], png[pos+6], png[pos+7]);
+      if (type === 'tEXt') {
+        // Check if keyword matches
+        let match = keyBytes.length < len;
+        for (let i = 0; match && i < keyBytes.length; i++) {
+          if (png[pos + 8 + i] !== keyBytes[i]) match = false;
+        }
+        if (match && png[pos + 8 + keyBytes.length] === 0) {
+          const valStart = pos + 9 + keyBytes.length;
+          const valEnd = pos + 8 + len;
+          return new TextDecoder().decode(png.slice(valStart, valEnd));
+        }
+      }
+      if (type === 'IEND') break;
+      pos += 12 + len;
+    }
+    return null;
+  }
+
+  // --- Shared import logic ---
+  function loadStrokesFromData(data) {
+    if (!data.strokes || !Array.isArray(data.strokes)) { alert('Invalid drawing file'); return; }
+    strokes = data.strokes;
+    remoteStrokes = {};
+    selectedStrokes.clear();
+    undoStack = [];
+    redoStack = [];
+    updateUndoRedoButtons();
+    redraw();
+    if (isHost) {
+      for (const entry of connections) {
+        if (entry.conn.open) entry.conn.send({ type: 'sync-state', strokes: strokes });
+      }
+    } else if (hostConn && hostConn.open) {
+      for (const s of strokes) broadcastStrokeAdd(s);
+    }
+  }
+
+  function importFile(file) {
+    if (!file) return;
+    if (file.name.endsWith('.png') || file.type === 'image/png') {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const meta = extractPngMetadata(reader.result, 'DrawTogether');
+        if (!meta) { alert('This PNG does not contain drawing data'); return; }
+        try {
+          loadStrokesFromData(JSON.parse(meta));
+        } catch (err) { alert('Failed to parse embedded data: ' + err.message); }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          loadStrokesFromData(JSON.parse(reader.result));
+        } catch (err) { alert('Failed to parse file: ' + err.message); }
+      };
+      reader.readAsText(file);
+    }
+  }
+
+  document.getElementById('exportJsonBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportDropdown.classList.remove('open');
+    const data = JSON.stringify({ version: 1, strokes: strokes }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'drawing.json'; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('exportPngBtn').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    exportDropdown.classList.remove('open');
+    if (strokes.length === 0) return;
+    const blob = await renderToPngBlob();
+    if (!blob) return;
+    const buf = await blob.arrayBuffer();
+    const jsonStr = JSON.stringify({ version: 1, strokes: strokes });
+    const enhanced = embedPngMetadata(buf, 'DrawTogether', jsonStr);
+    const newBlob = new Blob([enhanced], { type: 'image/png' });
+    const url = URL.createObjectURL(newBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'drawing.png'; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = '.json,.png'; fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+
+  importBtn.addEventListener('click', () => { fileInput.click(); });
+
+  fileInput.addEventListener('change', () => {
+    importFile(fileInput.files[0]);
+    fileInput.value = '';
+  });
+
+  // --- Drag & Drop ---
+  canvas.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    canvas.classList.add('drag-over');
+  });
+  canvas.addEventListener('dragleave', () => {
+    canvas.classList.remove('drag-over');
+  });
+  canvas.addEventListener('drop', (e) => {
+    e.preventDefault();
+    canvas.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) importFile(file);
+  });
+
+  // --- Theme Toggle ---
+  function getThemeGrey(theme) {
+    return theme === 'light' ? GREY_LIGHT_THEME : GREY_DARK_THEME;
+  }
+
+  function themeColor(color) {
+    if (currentTheme === 'light' && color === GREY_DARK_THEME) return GREY_LIGHT_THEME;
+    if (currentTheme === 'dark' && color === GREY_LIGHT_THEME) return GREY_DARK_THEME;
+    return color;
+  }
+
+  function applyTheme(theme) {
+    currentTheme = theme;
+    BG_COLOR = THEMES[theme].bg;
+    document.documentElement.classList.toggle('light', theme === 'light');
+    localStorage.setItem('draw-together-theme', theme);
+    const btn = document.getElementById('themeBtn');
+    if (btn) btn.title = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+    // Update grey swatch color for theme
+    const newGrey = getThemeGrey(theme);
+    const oldGrey = theme === 'light' ? GREY_DARK_THEME : GREY_LIGHT_THEME;
+    const greySwatch = colorPicker.querySelector('.color-swatch');
+    if (greySwatch) greySwatch.style.background = newGrey;
+    PICKER_COLORS[0] = newGrey;
+    if (myColor === oldGrey) myColor = newGrey;
+    redraw();
+  }
+
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  });
+
+  // --- Width Picker ---
+  const widthPicker = document.getElementById('widthPicker');
+  STROKE_WIDTHS.forEach(w => {
+    const dot = document.createElement('div');
+    dot.className = 'width-dot' + (w === currentLineWidth ? ' active' : '');
+    const size = Math.max(8, w * 2.5);
+    dot.style.width = size + 'px';
+    dot.style.height = size + 'px';
+    dot.title = w + 'px';
+    dot.addEventListener('click', () => {
+      currentLineWidth = w;
+      widthPicker.querySelectorAll('.width-dot').forEach(d => d.classList.remove('active'));
+      dot.classList.add('active');
+    });
+    widthPicker.appendChild(dot);
+  });
+
+  // --- Connection Banner ---
+  function showConnectionBanner(text) {
+    const banner = document.getElementById('connectionBanner');
+    banner.textContent = text;
+    banner.classList.add('visible');
+  }
+
+  function hideConnectionBanner() {
+    document.getElementById('connectionBanner').classList.remove('visible');
+  }
+
+  // --- Shortcut Overlay ---
+  document.getElementById('shortcutOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'shortcutOverlay') {
+      e.target.classList.remove('visible');
+    }
+  });
+
+  // --- Touch Long-Press to Select ---
+  canvas.addEventListener('touchstart', (e) => {
+    if (appState === 'welcome') return;
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    longPressStartPos = { x: touch.clientX, y: touch.clientY };
+    longPressTimer = setTimeout(() => {
+      // Cancel any in-progress drawing
+      if (currentStroke) {
+        const idx = strokes.indexOf(currentStroke);
+        if (idx !== -1) strokes.splice(idx, 1);
+        currentStroke = null;
+        broadcast({ type: 'end', participantId: myId });
+      }
+      shapePreview = null;
+      shapeStart = null;
+      const rect = canvas.getBoundingClientRect();
+      const pos = screenToWorld(touch.clientX - rect.left, touch.clientY - rect.top);
+      const hit = hitTest(pos);
+      if (hit) {
+        switchTool('select');
+        selectedStrokes.clear();
+        selectedStrokes.add(hit);
+        redraw();
+        if (navigator.vibrate) navigator.vibrate(50);
+      }
+      longPressTimer = null;
+    }, 500);
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (longPressTimer && longPressStartPos) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - longPressStartPos.x;
+      const dy = touch.clientY - longPressStartPos.y;
+      if (Math.sqrt(dx * dx + dy * dy) > 10) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }, { passive: true });
+
+  // --- PNG Render Helper ---
+  function renderToPngBlob() {
+    return new Promise((resolve) => {
+      if (strokes.length === 0) { resolve(null); return; }
+      const { x1: minX, y1: minY, x2: maxX, y2: maxY } = getStrokesBBox(strokes);
+      const pad = 30;
+      const w = (maxX - minX) + pad * 2;
+      const h = (maxY - minY) + pad * 2;
+      const savedVX = viewportX, savedVY = viewportY, savedScale = viewportScale;
+      const savedW = canvas.width, savedH = canvas.height;
+      canvas.width = Math.max(1, Math.round(w));
+      canvas.height = Math.max(1, Math.round(h));
+      viewportX = (minX + maxX) / 2;
+      viewportY = (minY + maxY) / 2;
+      viewportScale = 1;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      redraw();
+      canvas.toBlob((blob) => {
+        canvas.width = savedW; canvas.height = savedH;
+        viewportX = savedVX; viewportY = savedVY; viewportScale = savedScale;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        redraw();
+        resolve(blob);
+      });
+    });
+  }
+
+  // --- Agent Bridge ---
+  class AgentBridge {
+    constructor() {
+      this._pushTimer = null;
+      this._connected = false;
+      this._baseUrl = null;
+      this._tryConnect();
+    }
+
+    async _tryConnect() {
+      // Check URL param first (e.g. ?bridge=http://localhost:3333)
+      const params = new URLSearchParams(window.location.search);
+      const bridgeParam = params.get('bridge');
+      const candidates = bridgeParam ? [bridgeParam] : ['http://localhost:3333'];
+      for (const url of candidates) {
+        try {
+          // Only allow localhost bridges to prevent data exfiltration via crafted URLs
+          const parsed = new URL(url);
+          if (parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') continue;
+          const r = await fetch(url + '/api/state');
+          if (r.ok) { this._baseUrl = url; this.connect(); return; }
+        } catch (err) {
+          console.warn('AgentBridge: failed to connect to ' + url, err.message || err);
+        }
+      }
+    }
+
+    connect() {
+      const es = new EventSource(this._baseUrl + '/api/events');
+      es.onopen = () => {
+        console.log('AgentBridge: connected to ' + this._baseUrl);
+        this._connected = true;
+        this._pollSession();
+        this._hookRedraw();
+      };
+      es.onerror = () => {
+        this._connected = false;
+        if (es.readyState === EventSource.CLOSED) {
+          console.warn('AgentBridge: SSE connection closed, reconnecting in 2s...');
+          setTimeout(() => this.connect(), 2000);
+        }
+      };
+
+      es.addEventListener('add-strokes', (e) => {
+        const data = JSON.parse(e.data);
+        const incoming = data.strokes || [];
+        for (const s of incoming) {
+          strokes.push(s);
+          broadcastStrokeAdd(s);
+        }
+        redraw();
+      });
+
+      es.addEventListener('delete-stroke', (e) => {
+        const { strokeId } = JSON.parse(e.data);
+        const idx = strokes.findIndex(s => s.strokeId === strokeId);
+        if (idx !== -1) {
+          strokes.splice(idx, 1);
+          broadcast({ type: 'delete', strokeId });
+          redraw();
+        }
+      });
+
+      es.addEventListener('clear', () => {
+        strokes.length = 0;
+        remoteStrokes = {};
+        selectedStrokes.clear();
+        broadcast({ type: 'clear' });
+        redraw();
+      });
+
+      es.addEventListener('request-state', () => {
+        this.pushState(true);
+      });
+
+      es.addEventListener('set-viewport', (e) => {
+        const data = JSON.parse(e.data);
+        if (data.x !== undefined) viewportX = data.x;
+        if (data.y !== undefined) viewportY = data.y;
+        if (data.scale !== undefined) viewportScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, data.scale));
+        redraw();
+      });
+
+      es.addEventListener('fit-content', () => {
+        zoomToFit();
+      });
+    }
+
+    _pollSession() {
+      const iv = setInterval(() => {
+        if (myId) {
+          clearInterval(iv);
+          const inviteLink = window.location.origin + window.location.pathname + '#room=' + myId;
+          fetch(this._baseUrl + '/api/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ myId, inviteLink, isHost }),
+          }).catch(() => {});
+        }
+      }, 200);
+    }
+
+    _hookRedraw() {
+      const origRedraw = redraw;
+      const self = this;
+      redraw = function() {
+        origRedraw.apply(this, arguments);
+        self._debouncedPush();
+      };
+    }
+
+    _debouncedPush() {
+      if (this._pushTimer) clearTimeout(this._pushTimer);
+      this._pushTimer = setTimeout(() => this.pushState(false), 500);
+    }
+
+    async pushState(includePng) {
+      if (!this._connected) return;
+      try {
+        if (includePng) {
+          const blob = await renderToPngBlob();
+          const fd = new FormData();
+          fd.append('strokes', JSON.stringify(strokes));
+          fd.append('viewport', JSON.stringify({ x: viewportX, y: viewportY, scale: viewportScale }));
+          if (blob) fd.append('png', blob, 'canvas.png');
+          await fetch(this._baseUrl + '/api/sync', { method: 'POST', body: fd });
+        } else {
+          await fetch(this._baseUrl + '/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ strokes, viewport: { x: viewportX, y: viewportY, scale: viewportScale } }),
+          });
+        }
+      } catch {}
+    }
+  }
+
+  // --- Init ---
+  applyTheme(currentTheme);
+  if (window.location.hash.startsWith('#room=')) {
+    handleJoin();
+  } else {
+    startHosting();
+  }
+  new AgentBridge();
+})();
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MD Together</title>
+    <title>MD Together — NibSet</title>
     <meta name="description" content="A peer-to-peer collaborative markdown editor with live preview. Create a room and edit together in real-time.">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,23 +29,23 @@
         }
 
         :root {
-            --bg-primary: #1a1b26;
-            --bg-secondary: #24283b;
-            --bg-tertiary: #2f3349;
-            --bg-hover: #3b3f5c;
-            --text-primary: #c0caf5;
-            --text-secondary: #a9b1d6;
-            --text-muted: #565f89;
-            --accent: #7aa2f7;
-            --accent-hover: #5d8bf4;
-            --border: #3b3f5c;
-            --divider: #565f89;
-            --success: #9ece6a;
-            --danger: #f7768e;
-            --info: #7aa2f7;
-            --warning: #e0af68;
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-tertiary: #1a2237;
+            --bg-hover: #151d2e;
+            --text-primary: #d1d5db;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --border: rgba(255,255,255,0.06);
+            --divider: #6b7280;
+            --success: #4ade80;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --warning: #fbbf24;
             --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
             --header-height: 56px;
             --toolbar-height: 44px;
             --statusbar-height: 32px;
@@ -75,8 +75,9 @@
             justify-content: space-between;
             height: var(--header-height);
             padding: 0 16px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
+            background: rgba(10, 14, 26, 0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
             flex-shrink: 0;
         }
 
@@ -778,7 +779,7 @@
     });
 
     // ===== User identity =====
-    const USER_COLORS = ['#7aa2f7', '#f7768e', '#9ece6a', '#e0af68', '#bb9af7', '#ff9e64', '#2ac3de', '#b4f9f8'];
+    const USER_COLORS = ['#3b82f6', '#ef4444', '#4ade80', '#fbbf24', '#a78bfa', '#fb923c', '#22d3ee', '#86efac'];
     const ANIMALS = ['Fox', 'Owl', 'Bear', 'Wolf', 'Hawk', 'Lynx', 'Deer', 'Crow'];
     const COLOR_NAMES = ['Blue', 'Red', 'Green', 'Gold', 'Purple', 'Orange', 'Cyan', 'Teal'];
 

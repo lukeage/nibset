@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON — NibSet</title>
+    <link rel="icon" type="image/png" href="../assets/logo.png">
+    <meta name="description" content="Validate, format, and explore JSON data. Tree view, path copying, and side-by-side comparison.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script>
+    (function(){
+      var t = localStorage.getItem('nibset-theme');
+      if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+      document.documentElement.setAttribute('data-theme', t);
+      var link = document.getElementById('hljs-theme');
+      if (link && t === 'light') link.href = link.href.replace('github-dark.min.css', 'github.min.css');
+    })();
+    </script>
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #060608;
+            --bg-secondary: #111115;
+            --bg-tertiary: #1c1c24;
+            --bg-hover: #16161c;
+            --text-primary: #e8e8ec;
+            --text-secondary: #8b8b95;
+            --text-muted: #55555e;
+            --accent: #c9f270;
+            --accent-hover: #b8e35f;
+            --accent-text: #060608;
+            --border: rgba(255,255,255,0.06);
+            --header-bg: rgba(6,6,8,0.85);
+            --header-border: rgba(255,255,255,0.05);
+            --divider: #55555e;
+            --success: #c9f270;
+            --danger: #ef4444;
+            --info: #c9f270;
+            --warning: #fbbf24;
+            --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            --header-height: 56px;
+            --toolbar-height: 44px;
+            --statusbar-height: 28px;
+            --radius: 8px;
+            --radius-sm: 4px;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #eaeaee;
+            --bg-tertiary: #dcdce0;
+            --bg-hover: #f0f0f4;
+            --text-primary: #1a1a1e;
+            --text-secondary: #5a5a64;
+            --text-muted: #8b8b95;
+            --accent: #5a8a1a;
+            --accent-hover: #4a7515;
+            --accent-text: #ffffff;
+            --border: rgba(0,0,0,0.08);
+            --header-bg: rgba(245,245,247,0.85);
+            --header-border: rgba(0,0,0,0.08);
+            --divider: #c0c0c8;
+            --success: #5a8a1a;
+            --info: #5a8a1a;
+        }
+
+        html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
+        .app { display: flex; flex-direction: column; height: 100dvh; }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--header-height); padding: 0 16px;
+            background: var(--header-bg); backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--header-border); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
+        .header-home:hover { opacity: 1; }
+        .header-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+        .header-title i { color: var(--accent); }
+        .header-center { display: flex; align-items: center; gap: 4px; }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* ===== View Switcher ===== */
+        .view-switcher {
+            display: flex; gap: 2px; background: var(--bg-tertiary); border-radius: var(--radius-sm); padding: 3px;
+            border: 1px solid var(--border);
+        }
+        .view-btn {
+            padding: 5px 14px; border: none; background: transparent; color: var(--text-muted);
+            font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer;
+            border-radius: 3px; transition: all 0.15s ease; display: flex; align-items: center; gap: 6px;
+        }
+        .view-btn:hover { color: var(--text-secondary); }
+        .view-btn.active { background: var(--accent); color: var(--accent-text); }
+        .view-btn i { font-size: 11px; }
+
+        /* ===== Buttons ===== */
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-secondary);
+            font-family: var(--font-ui); font-size: 13px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+        }
+        .btn:hover { background: var(--bg-hover); border-color: var(--divider); color: var(--text-primary); }
+        .btn i { font-size: 12px; }
+        .btn--accent { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+        .btn--accent:hover { background: var(--accent-hover); }
+
+        .theme-toggle {
+            display: flex; align-items: center; justify-content: center;
+            width: 36px; height: 36px; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); background: var(--bg-tertiary);
+            color: var(--text-secondary); cursor: pointer; transition: all 0.15s ease;
+        }
+        .theme-toggle:hover { background: var(--bg-hover); border-color: var(--divider); color: var(--text-primary); }
+        .theme-toggle svg { width: 18px; height: 18px; }
+        [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+        /* ===== Toolbar ===== */
+        .toolbar {
+            display: flex; align-items: center; gap: 6px; padding: 0 16px;
+            height: var(--toolbar-height); border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto;
+        }
+        .toolbar-btn {
+            display: flex; align-items: center; gap: 5px; padding: 5px 10px;
+            border: none; border-radius: var(--radius-sm); background: transparent;
+            color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px;
+            font-weight: 500; cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+        }
+        .toolbar-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .toolbar-btn.active { background: var(--accent); color: var(--accent-text); }
+        .toolbar-btn i { font-size: 11px; }
+        .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+        .toolbar-spacer { flex: 1; }
+
+        .validation-indicator {
+            display: flex; align-items: center; gap: 6px; font-size: 12px;
+            font-weight: 500; white-space: nowrap; margin-left: auto; padding-right: 4px;
+        }
+        .validation-indicator .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .validation-indicator.valid { color: var(--success); }
+        .validation-indicator.valid .dot { background: var(--success); }
+        .validation-indicator.invalid { color: var(--danger); }
+        .validation-indicator.invalid .dot { background: var(--danger); }
+        .validation-indicator.empty { color: var(--text-muted); }
+        .validation-indicator.empty .dot { background: var(--text-muted); }
+
+        /* ===== Editor Container ===== */
+        .editor-container {
+            display: flex; flex: 1; min-height: 0; position: relative;
+        }
+        .input-pane {
+            display: flex; flex-direction: column; flex: 1; min-width: 0;
+        }
+        .input-pane textarea {
+            flex: 1; width: 100%; padding: 16px; border: none; outline: none; resize: none;
+            background: var(--bg-primary); color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+            tab-size: 2;
+        }
+        .input-pane textarea::placeholder { color: var(--text-muted); }
+
+        .pane-divider {
+            width: 6px; background: var(--bg-secondary);
+            border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+            cursor: col-resize; transition: background 0.15s ease; flex-shrink: 0;
+        }
+        .pane-divider:hover, .pane-divider.dragging { background: var(--accent); }
+
+        .output-pane {
+            display: flex; flex-direction: column; flex: 1; min-width: 0;
+            overflow: auto; background: var(--bg-primary);
+        }
+        .output-pane .empty-state {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            flex: 1; color: var(--text-muted); font-size: 13px; gap: 8px; padding: 32px;
+        }
+        .output-pane .empty-state i { font-size: 28px; opacity: 0.4; }
+
+        /* ===== Compare Mode ===== */
+        .compare-container { display: none; flex: 1; flex-direction: column; min-height: 0; }
+        .compare-container.active { display: flex; }
+        .compare-panes { display: flex; flex: 1; min-height: 0; }
+        .compare-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .compare-label {
+            height: 28px; padding: 0 16px; background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600;
+            color: var(--text-muted); display: flex; align-items: center;
+        }
+        .compare-pane textarea {
+            flex: 1; width: 100%; padding: 16px; border: none; outline: none; resize: none;
+            background: var(--bg-primary); color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 13px; line-height: 1.6; tab-size: 2;
+        }
+        .compare-pane textarea::placeholder { color: var(--text-muted); }
+        .compare-divider {
+            width: 6px; background: var(--bg-secondary);
+            border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+            cursor: col-resize; transition: background 0.15s ease; flex-shrink: 0;
+        }
+        .compare-divider:hover, .compare-divider.dragging { background: var(--accent); }
+
+        .diff-results {
+            border-top: 2px solid var(--border); background: var(--bg-secondary);
+            overflow-y: auto; max-height: 40%; min-height: 120px;
+        }
+        .diff-header {
+            display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+            border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-secondary);
+        }
+        .diff-header .diff-count { color: var(--accent); }
+        .diff-list { padding: 8px 0; }
+        .diff-entry {
+            display: flex; align-items: flex-start; gap: 12px; padding: 6px 16px;
+            font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+            border-left: 3px solid transparent;
+        }
+        .diff-entry:hover { background: var(--bg-hover); }
+        .diff-entry.added { border-left-color: var(--success); background: rgba(201,242,112,0.04); }
+        .diff-entry.removed { border-left-color: var(--danger); background: rgba(239,68,68,0.04); }
+        .diff-entry.changed { border-left-color: var(--warning); background: rgba(251,191,36,0.04); }
+        .diff-path { color: var(--accent); cursor: pointer; flex-shrink: 0; min-width: 0; word-break: break-all; }
+        .diff-path:hover { text-decoration: underline; }
+        .diff-type {
+            font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 1px 6px;
+            border-radius: 3px; flex-shrink: 0; font-family: var(--font-ui);
+        }
+        .diff-entry.added .diff-type { background: rgba(201,242,112,0.15); color: var(--success); }
+        .diff-entry.removed .diff-type { background: rgba(239,68,68,0.15); color: var(--danger); }
+        .diff-entry.changed .diff-type { background: rgba(251,191,36,0.15); color: var(--warning); }
+        .diff-value { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+        .diff-empty {
+            padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 13px;
+        }
+
+        /* ===== Tree View ===== */
+        .tree { font-family: var(--font-mono); font-size: 13px; padding: 16px; overflow: auto; flex: 1; line-height: 1.7; }
+        .tree-node { position: relative; }
+        .tree-children { padding-left: 20px; }
+        .tree-node.collapsed > .tree-children { display: none; }
+        .tree-line {
+            display: flex; align-items: center; gap: 4px; padding: 1px 4px;
+            border-radius: 3px; cursor: default;
+        }
+        .tree-line:hover { background: var(--bg-hover); }
+        .tree-toggle {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 16px; height: 16px; font-size: 10px; cursor: pointer;
+            color: var(--text-muted); transition: transform 0.15s ease; flex-shrink: 0;
+            user-select: none;
+        }
+        .tree-toggle.expanded { transform: rotate(90deg); }
+        .tree-toggle-placeholder { width: 16px; flex-shrink: 0; }
+        .tree-key {
+            color: var(--accent); cursor: pointer; font-weight: 500;
+        }
+        .tree-key:hover { text-decoration: underline; }
+        .tree-colon { color: var(--text-muted); margin: 0 2px; }
+        .tree-string { color: #a8db72; }
+        .tree-number { color: #f0c674; }
+        .tree-boolean { color: #81a2be; }
+        .tree-null { color: var(--text-muted); font-style: italic; }
+        .tree-bracket { color: var(--text-muted); }
+        .tree-count { color: var(--text-muted); font-size: 11px; margin-left: 4px; }
+        .tree-preview { color: var(--text-muted); font-size: 12px; margin-left: 4px; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; display: inline-block; vertical-align: bottom; }
+
+        [data-theme="light"] .tree-string { color: #50762e; }
+        [data-theme="light"] .tree-number { color: #986801; }
+        [data-theme="light"] .tree-boolean { color: #4078a0; }
+
+        /* ===== Formatted View ===== */
+        .formatted-view { flex: 1; overflow: auto; }
+        .formatted-view pre {
+            margin: 0; padding: 16px; background: var(--bg-primary) !important;
+            font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+        }
+        .formatted-view code { background: transparent !important; }
+
+        /* ===== Status Bar ===== */
+        .statusbar {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--statusbar-height); padding: 0 16px;
+            background: var(--bg-secondary); border-top: 1px solid var(--border);
+            font-size: 11px; color: var(--text-muted); flex-shrink: 0;
+        }
+        .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+        .statusbar-right { font-family: var(--font-mono); }
+
+        /* ===== Toast ===== */
+        .toast-container {
+            position: fixed; bottom: 48px; right: 16px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast {
+            padding: 10px 16px; background: var(--bg-tertiary); border: 1px solid var(--border);
+            border-radius: var(--radius); color: var(--text-primary); font-size: 13px;
+            font-weight: 500; display: flex; align-items: center; gap: 8px;
+            animation: toastIn 0.25s ease; box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        }
+        .toast i { color: var(--accent); font-size: 14px; }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ===== Mobile ===== */
+        .mobile-tabs {
+            display: none; height: 40px; background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border); overflow-x: auto;
+        }
+        .mobile-tabs button {
+            flex: 1; border: none; background: transparent; color: var(--text-muted);
+            font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer;
+            padding: 0 16px; white-space: nowrap;
+        }
+        .mobile-tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+        @media (max-width: 768px) {
+            .header-center { display: none; }
+            .mobile-tabs { display: flex; }
+            .view-switcher { display: none; }
+            .editor-container[data-mobile="input"] .output-pane,
+            .editor-container[data-mobile="input"] .pane-divider { display: none; }
+            .editor-container[data-mobile="output"] .input-pane,
+            .editor-container[data-mobile="output"] .pane-divider { display: none; }
+            .compare-panes { flex-direction: column; }
+            .compare-divider { width: 100%; height: 6px; cursor: row-resize;
+                border-left: none; border-right: none;
+                border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+            }
+            .btn span.btn-label { display: none; }
+            .toolbar { gap: 4px; padding: 0 8px; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="../index.html" class="header-home" title="Back to NibSet">
+                <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="22">
+                    <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+                    <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#nhg)" stroke="var(--border)" stroke-width="0.5"/>
+                    <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#nhg)" />
+                    <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+                    <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+                    <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <line x1="10" y1="33" x2="22" y2="33" stroke="url(#nhg)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#nhg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                    <defs><linearGradient id="nhg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text-primary)"/><stop offset="100%" stop-color="var(--text-muted)"/></linearGradient></defs>
+                </svg>
+            </a>
+            <div class="header-title">
+                <i class="fas fa-brackets-curly"></i>
+                JSON
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="view-switcher">
+                <button class="view-btn active" data-view="tree"><i class="fas fa-sitemap"></i> Tree</button>
+                <button class="view-btn" data-view="formatted"><i class="fas fa-code"></i> Formatted</button>
+                <button class="view-btn" data-view="compare"><i class="fas fa-columns"></i> Compare</button>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="toolbar-btn" id="formatBtn" title="Format JSON (Ctrl+Shift+F)"><i class="fas fa-indent"></i> Format</button>
+        <button class="toolbar-btn" id="minifyBtn" title="Minify JSON"><i class="fas fa-compress"></i> Minify</button>
+        <button class="toolbar-btn" id="clearBtn" title="Clear"><i class="fas fa-eraser"></i> Clear</button>
+        <div class="tb-sep"></div>
+        <button class="toolbar-btn tree-only" id="expandBtn" title="Expand all"><i class="fas fa-expand"></i> Expand</button>
+        <button class="toolbar-btn tree-only" id="collapseBtn" title="Collapse all"><i class="fas fa-compress-alt"></i> Collapse</button>
+        <div class="tb-sep tree-only"></div>
+        <button class="toolbar-btn" id="sortKeysBtn" title="Sort keys alphabetically"><i class="fas fa-sort-alpha-down"></i> Sort keys</button>
+        <div class="tb-sep"></div>
+        <button class="toolbar-btn" id="copyOutputBtn" title="Copy output"><i class="fas fa-copy"></i> <span class="btn-label">Copy</span></button>
+        <div class="validation-indicator empty" id="validationIndicator">
+            <span class="dot"></span>
+            <span class="validation-text">Paste JSON to start</span>
+        </div>
+    </div>
+
+    <!-- Mobile Tabs -->
+    <div class="mobile-tabs" id="mobileTabs">
+        <button class="active" data-mobile="input">Input</button>
+        <button data-mobile="output">Output</button>
+    </div>
+
+    <!-- Main Editor (Tree / Formatted mode) -->
+    <div class="editor-container" id="editorContainer" data-mobile="input">
+        <div class="input-pane">
+            <textarea id="jsonInput" spellcheck="false" placeholder='Paste or type JSON here...
+
+{
+  "name": "NibSet",
+  "tools": ["draw", "markdown", "json"],
+  "version": 1.0,
+  "active": true
+}'></textarea>
+        </div>
+        <div class="pane-divider" id="paneDivider"></div>
+        <div class="output-pane" id="outputPane">
+            <div class="empty-state" id="emptyState">
+                <i class="fas fa-brackets-curly"></i>
+                <span>Paste JSON on the left to explore</span>
+            </div>
+            <div class="tree" id="treeView" style="display:none;"></div>
+            <div class="formatted-view" id="formattedView" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Compare Mode -->
+    <div class="compare-container" id="compareContainer">
+        <div class="compare-panes">
+            <div class="compare-pane">
+                <div class="compare-label">Left JSON</div>
+                <textarea id="compareLeft" spellcheck="false" placeholder="Paste first JSON here..."></textarea>
+            </div>
+            <div class="compare-divider" id="compareDivider"></div>
+            <div class="compare-pane">
+                <div class="compare-label">Right JSON</div>
+                <textarea id="compareRight" spellcheck="false" placeholder="Paste second JSON here..."></textarea>
+            </div>
+        </div>
+        <div class="diff-results" id="diffResults">
+            <div class="diff-empty">Paste JSON in both panels to compare</div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+        <div class="statusbar-left">
+            <span id="charCount">0 chars</span>
+            <span id="lineCount">0 lines</span>
+        </div>
+        <div class="statusbar-right">
+            <span id="lastPath"></span>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+(function() {
+    'use strict';
+
+    // ===== State =====
+    const state = {
+        viewMode: 'tree',
+        parsedJSON: null,
+        isValid: false,
+        sortKeys: false
+    };
+
+    // ===== DOM refs =====
+    const $ = id => document.getElementById(id);
+    const jsonInput = $('jsonInput');
+    const treeView = $('treeView');
+    const formattedView = $('formattedView');
+    const emptyState = $('emptyState');
+    const outputPane = $('outputPane');
+    const editorContainer = $('editorContainer');
+    const compareContainer = $('compareContainer');
+    const compareLeft = $('compareLeft');
+    const compareRight = $('compareRight');
+    const diffResults = $('diffResults');
+    const validationIndicator = $('validationIndicator');
+    const charCount = $('charCount');
+    const lineCount = $('lineCount');
+    const lastPath = $('lastPath');
+    const toastContainer = $('toastContainer');
+
+    // ===== Toast =====
+    function showToast(message, icon = 'fa-check') {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = '<i class="fas ' + icon + '"></i> ' + escapeHtml(message);
+        toastContainer.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    // ===== Clipboard =====
+    function copyToClipboard(text, label) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => showToast(label || 'Copied to clipboard'));
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast(label || 'Copied to clipboard');
+        }
+    }
+
+    // ===== Helpers =====
+    function escapeHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    function needsBracketNotation(key) {
+        return /[^a-zA-Z0-9_$]/.test(key) || /^\d/.test(key);
+    }
+
+    function buildPathSegment(parentPath, key, isArrayIndex) {
+        if (isArrayIndex) return parentPath + '[' + key + ']';
+        if (needsBracketNotation(key)) return parentPath + '["' + key.replace(/"/g, '\\"') + '"]';
+        return parentPath + '.' + key;
+    }
+
+    // ===== Validation =====
+    function validateJSON(text) {
+        if (!text.trim()) return { valid: false, empty: true };
+        try {
+            const data = JSON.parse(text);
+            return { valid: true, data };
+        } catch (e) {
+            const msg = e.message;
+            let line = null, column = null;
+            // Try to extract position
+            const posMatch = msg.match(/position\s+(\d+)/i) || msg.match(/at\s+(\d+)/i);
+            if (posMatch) {
+                const pos = parseInt(posMatch[1]);
+                const before = text.substring(0, pos);
+                line = (before.match(/\n/g) || []).length + 1;
+                column = pos - before.lastIndexOf('\n');
+            }
+            return { valid: false, error: msg, line, column };
+        }
+    }
+
+    // ===== Format / Minify =====
+    function sortReplacer(key, value) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const sorted = {};
+            Object.keys(value).sort().forEach(k => sorted[k] = value[k]);
+            return sorted;
+        }
+        return value;
+    }
+
+    function formatJSON(text) {
+        const data = JSON.parse(text);
+        return JSON.stringify(data, state.sortKeys ? sortReplacer : null, 2);
+    }
+
+    function minifyJSON(text) {
+        return JSON.stringify(JSON.parse(text));
+    }
+
+    // ===== Update Status =====
+    function updateStatus(text) {
+        const chars = text.length;
+        const lines = text ? text.split('\n').length : 0;
+        charCount.textContent = chars.toLocaleString() + ' chars';
+        lineCount.textContent = lines.toLocaleString() + ' lines';
+    }
+
+    function updateValidation(result) {
+        const vi = validationIndicator;
+        const vt = vi.querySelector('.validation-text');
+        if (result.empty) {
+            vi.className = 'validation-indicator empty';
+            vt.textContent = 'Paste JSON to start';
+        } else if (result.valid) {
+            vi.className = 'validation-indicator valid';
+            const type = Array.isArray(result.data) ? 'Array' : typeof result.data === 'object' && result.data !== null ? 'Object' : typeof result.data;
+            vt.textContent = 'Valid · ' + type;
+        } else {
+            vi.className = 'validation-indicator invalid';
+            let msg = 'Invalid';
+            if (result.line) msg += ' · line ' + result.line + ':' + result.column;
+            vt.textContent = msg;
+        }
+    }
+
+    // ===== Tree View =====
+    function renderTree(data, path, isRoot) {
+        const container = document.createDocumentFragment();
+
+        function createNode(key, value, currentPath, isArrayIndex) {
+            const node = document.createElement('div');
+            node.className = 'tree-node';
+
+            const line = document.createElement('div');
+            line.className = 'tree-line';
+
+            const isExpandable = value !== null && typeof value === 'object';
+
+            if (isExpandable) {
+                const toggle = document.createElement('span');
+                toggle.className = 'tree-toggle expanded';
+                toggle.textContent = '\u25B6';
+                toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    node.classList.toggle('collapsed');
+                    toggle.classList.toggle('expanded');
+                });
+                line.appendChild(toggle);
+            } else {
+                const ph = document.createElement('span');
+                ph.className = 'tree-toggle-placeholder';
+                line.appendChild(ph);
+            }
+
+            if (key !== null) {
+                const keyEl = document.createElement('span');
+                keyEl.className = 'tree-key';
+                keyEl.textContent = isArrayIndex ? key : '"' + key + '"';
+                keyEl.title = 'Click to copy path: ' + currentPath;
+                keyEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    copyToClipboard(currentPath, 'Copied: ' + currentPath);
+                    lastPath.textContent = currentPath;
+                });
+                line.appendChild(keyEl);
+
+                const colon = document.createElement('span');
+                colon.className = 'tree-colon';
+                colon.textContent = ':';
+                line.appendChild(colon);
+            }
+
+            if (isExpandable) {
+                const isArr = Array.isArray(value);
+                const bracket = document.createElement('span');
+                bracket.className = 'tree-bracket';
+                bracket.textContent = isArr ? '[' : '{';
+                line.appendChild(bracket);
+
+                const count = document.createElement('span');
+                count.className = 'tree-count';
+                const len = isArr ? value.length : Object.keys(value).length;
+                count.textContent = len + (isArr ? (len === 1 ? ' item' : ' items') : (len === 1 ? ' key' : ' keys'));
+                line.appendChild(count);
+
+                // Preview for collapsed state
+                if (!isArr && len > 0) {
+                    const preview = document.createElement('span');
+                    preview.className = 'tree-preview';
+                    const previewKeys = Object.keys(value).slice(0, 3).map(k => '"' + k + '"').join(', ');
+                    preview.textContent = previewKeys + (len > 3 ? ', ...' : '');
+                    line.appendChild(preview);
+                }
+
+                node.appendChild(line);
+
+                const children = document.createElement('div');
+                children.className = 'tree-children';
+
+                if (isArr) {
+                    value.forEach((item, i) => {
+                        const childPath = currentPath + '[' + i + ']';
+                        children.appendChild(createNode(i, item, childPath, true));
+                    });
+                } else {
+                    const keys = state.sortKeys ? Object.keys(value).sort() : Object.keys(value);
+                    keys.forEach(k => {
+                        const childPath = buildPathSegment(currentPath, k, false);
+                        children.appendChild(createNode(k, value[k], childPath, false));
+                    });
+                }
+
+                const closeBracket = document.createElement('div');
+                closeBracket.className = 'tree-line';
+                const closePh = document.createElement('span');
+                closePh.className = 'tree-toggle-placeholder';
+                closeBracket.appendChild(closePh);
+                const closeEl = document.createElement('span');
+                closeEl.className = 'tree-bracket';
+                closeEl.textContent = isArr ? ']' : '}';
+                closeBracket.appendChild(closeEl);
+                children.appendChild(closeBracket);
+
+                node.appendChild(children);
+            } else {
+                const valEl = document.createElement('span');
+                if (value === null) {
+                    valEl.className = 'tree-null';
+                    valEl.textContent = 'null';
+                } else if (typeof value === 'string') {
+                    valEl.className = 'tree-string';
+                    valEl.textContent = '"' + value + '"';
+                } else if (typeof value === 'number') {
+                    valEl.className = 'tree-number';
+                    valEl.textContent = String(value);
+                } else if (typeof value === 'boolean') {
+                    valEl.className = 'tree-boolean';
+                    valEl.textContent = String(value);
+                }
+                line.appendChild(valEl);
+                node.appendChild(line);
+            }
+
+            return node;
+        }
+
+        if (isRoot) {
+            container.appendChild(createNode(null, data, '$', false));
+        }
+
+        return container;
+    }
+
+    function showTree(data) {
+        treeView.innerHTML = '';
+        treeView.appendChild(renderTree(data, '$', true));
+    }
+
+    // ===== Formatted View =====
+    function showFormatted(text) {
+        try {
+            const formatted = formatJSON(text);
+            formattedView.innerHTML = '<pre><code class="language-json"></code></pre>';
+            const codeEl = formattedView.querySelector('code');
+            codeEl.textContent = formatted;
+            hljs.highlightElement(codeEl);
+        } catch (e) {
+            formattedView.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><span>Invalid JSON</span></div>';
+        }
+    }
+
+    // ===== Compare / Diff =====
+    function compareJSON(a, b, path) {
+        const diffs = [];
+        path = path || '$';
+
+        if (a === b) return diffs;
+        if (a === null || b === null || typeof a !== typeof b) {
+            diffs.push({ path, type: 'changed', left: a, right: b });
+            return diffs;
+        }
+        if (typeof a !== 'object') {
+            if (a !== b) diffs.push({ path, type: 'changed', left: a, right: b });
+            return diffs;
+        }
+
+        const aIsArr = Array.isArray(a);
+        const bIsArr = Array.isArray(b);
+        if (aIsArr !== bIsArr) {
+            diffs.push({ path, type: 'changed', left: a, right: b });
+            return diffs;
+        }
+
+        if (aIsArr) {
+            const maxLen = Math.max(a.length, b.length);
+            for (let i = 0; i < maxLen; i++) {
+                const childPath = path + '[' + i + ']';
+                if (i >= a.length) {
+                    diffs.push({ path: childPath, type: 'added', right: b[i] });
+                } else if (i >= b.length) {
+                    diffs.push({ path: childPath, type: 'removed', left: a[i] });
+                } else {
+                    diffs.push(...compareJSON(a[i], b[i], childPath));
+                }
+            }
+        } else {
+            const allKeys = new Set([...Object.keys(a), ...Object.keys(b)]);
+            for (const key of allKeys) {
+                const childPath = buildPathSegment(path, key, false);
+                if (!(key in a)) {
+                    diffs.push({ path: childPath, type: 'added', right: b[key] });
+                } else if (!(key in b)) {
+                    diffs.push({ path: childPath, type: 'removed', left: a[key] });
+                } else {
+                    diffs.push(...compareJSON(a[key], b[key], childPath));
+                }
+            }
+        }
+        return diffs;
+    }
+
+    function renderDiff() {
+        const leftText = compareLeft.value.trim();
+        const rightText = compareRight.value.trim();
+
+        if (!leftText || !rightText) {
+            diffResults.innerHTML = '<div class="diff-empty">Paste JSON in both panels to compare</div>';
+            return;
+        }
+
+        let leftData, rightData;
+        try { leftData = JSON.parse(leftText); } catch (e) {
+            diffResults.innerHTML = '<div class="diff-empty" style="color:var(--danger)">Left JSON is invalid</div>';
+            return;
+        }
+        try { rightData = JSON.parse(rightText); } catch (e) {
+            diffResults.innerHTML = '<div class="diff-empty" style="color:var(--danger)">Right JSON is invalid</div>';
+            return;
+        }
+
+        const diffs = compareJSON(leftData, rightData);
+
+        if (diffs.length === 0) {
+            diffResults.innerHTML = '<div class="diff-empty" style="color:var(--success)"><i class="fas fa-check-circle" style="margin-right:6px;"></i> JSON documents are identical</div>';
+            return;
+        }
+
+        let html = '<div class="diff-header"><span>Found <span class="diff-count">' + diffs.length + '</span> difference' + (diffs.length !== 1 ? 's' : '') + '</span></div>';
+        html += '<div class="diff-list">';
+        diffs.forEach(d => {
+            const typeLabel = d.type === 'added' ? 'add' : d.type === 'removed' ? 'del' : 'mod';
+            let valueText = '';
+            if (d.type === 'changed') {
+                valueText = truncate(JSON.stringify(d.left)) + ' → ' + truncate(JSON.stringify(d.right));
+            } else if (d.type === 'added') {
+                valueText = truncate(JSON.stringify(d.right));
+            } else {
+                valueText = truncate(JSON.stringify(d.left));
+            }
+            html += '<div class="diff-entry ' + d.type + '">';
+            html += '<span class="diff-type">' + typeLabel + '</span>';
+            html += '<span class="diff-path" title="Click to copy" onclick="event.stopPropagation()">' + escapeHtml(d.path) + '</span>';
+            html += '<span class="diff-value">' + escapeHtml(valueText) + '</span>';
+            html += '</div>';
+        });
+        html += '</div>';
+        diffResults.innerHTML = html;
+
+        // Bind copy on diff paths
+        diffResults.querySelectorAll('.diff-path').forEach(el => {
+            el.addEventListener('click', () => {
+                copyToClipboard(el.textContent, 'Copied: ' + el.textContent);
+            });
+        });
+    }
+
+    function truncate(s, max) {
+        max = max || 60;
+        return s.length > max ? s.substring(0, max) + '...' : s;
+    }
+
+    // ===== View Mode Switching =====
+    function setViewMode(mode) {
+        state.viewMode = mode;
+
+        // Update buttons
+        document.querySelectorAll('.view-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.view === mode);
+        });
+
+        // Toggle tree-only toolbar buttons
+        document.querySelectorAll('.tree-only').forEach(el => {
+            el.style.display = mode === 'tree' ? '' : 'none';
+        });
+
+        if (mode === 'compare') {
+            editorContainer.style.display = 'none';
+            compareContainer.classList.add('active');
+            renderDiff();
+        } else {
+            editorContainer.style.display = 'flex';
+            compareContainer.classList.remove('active');
+            renderCurrentView();
+        }
+    }
+
+    function renderCurrentView() {
+        const text = jsonInput.value;
+        const result = validateJSON(text);
+        updateValidation(result);
+        updateStatus(text);
+
+        if (result.empty) {
+            emptyState.style.display = 'flex';
+            treeView.style.display = 'none';
+            formattedView.style.display = 'none';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+
+        if (!result.valid) {
+            treeView.style.display = 'none';
+            formattedView.style.display = 'none';
+            emptyState.style.display = 'flex';
+            emptyState.querySelector('i').className = 'fas fa-exclamation-triangle';
+            emptyState.querySelector('span').textContent = 'Fix JSON errors to see output';
+            return;
+        }
+
+        emptyState.querySelector('i').className = 'fas fa-brackets-curly';
+        emptyState.querySelector('span').textContent = 'Paste JSON on the left to explore';
+
+        state.parsedJSON = result.data;
+
+        if (state.viewMode === 'tree') {
+            treeView.style.display = 'block';
+            formattedView.style.display = 'none';
+            showTree(result.data);
+        } else if (state.viewMode === 'formatted') {
+            treeView.style.display = 'none';
+            formattedView.style.display = 'block';
+            showFormatted(text);
+        }
+    }
+
+    // ===== Expand / Collapse All =====
+    function expandAll() {
+        treeView.querySelectorAll('.tree-node.collapsed').forEach(n => {
+            n.classList.remove('collapsed');
+            const toggle = n.querySelector(':scope > .tree-line > .tree-toggle');
+            if (toggle) toggle.classList.add('expanded');
+        });
+    }
+
+    function collapseAll() {
+        treeView.querySelectorAll('.tree-node').forEach(n => {
+            if (n.querySelector('.tree-children')) {
+                n.classList.add('collapsed');
+                const toggle = n.querySelector(':scope > .tree-line > .tree-toggle');
+                if (toggle) toggle.classList.remove('expanded');
+            }
+        });
+    }
+
+    // ===== Draggable Dividers =====
+    function setupDivider(dividerEl, containerEl, leftSelector, rightSelector) {
+        let isDragging = false;
+        dividerEl.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dividerEl.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const rect = containerEl.getBoundingClientRect();
+            const offset = e.clientX - rect.left;
+            let ratio = offset / rect.width;
+            ratio = Math.max(0.15, Math.min(0.85, ratio));
+            const left = containerEl.querySelector(leftSelector);
+            const right = containerEl.querySelector(rightSelector);
+            if (left && right) {
+                left.style.flex = '0 0 ' + (ratio * 100) + '%';
+                right.style.flex = '0 0 ' + ((1 - ratio) * 100 - 1) + '%';
+            }
+        });
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                dividerEl.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+    }
+
+    setupDivider($('paneDivider'), editorContainer, '.input-pane', '.output-pane');
+    setupDivider($('compareDivider'), document.querySelector('.compare-panes'), '.compare-pane:first-child', '.compare-pane:last-child');
+
+    // ===== Theme Toggle =====
+    $('themeToggle').addEventListener('click', () => {
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const next = current === 'light' ? 'dark' : 'light';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('nibset-theme', next);
+        const link = document.getElementById('hljs-theme');
+        if (link) {
+            link.href = next === 'light'
+                ? link.href.replace('github-dark.min.css', 'github.min.css')
+                : link.href.replace('github.min.css', 'github-dark.min.css');
+        }
+        // Re-render formatted view if active
+        if (state.viewMode === 'formatted' && state.isValid) renderCurrentView();
+    });
+
+    // ===== Event Wiring =====
+    let validateTimer;
+    jsonInput.addEventListener('input', () => {
+        clearTimeout(validateTimer);
+        validateTimer = setTimeout(() => renderCurrentView(), 150);
+        updateStatus(jsonInput.value);
+    });
+
+    // View switcher
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', () => setViewMode(btn.dataset.view));
+    });
+
+    // Format
+    $('formatBtn').addEventListener('click', () => {
+        if (!jsonInput.value.trim()) return;
+        try {
+            jsonInput.value = formatJSON(jsonInput.value);
+            renderCurrentView();
+            showToast('Formatted', 'fa-check');
+        } catch (e) {
+            showToast('Cannot format invalid JSON', 'fa-exclamation-triangle');
+        }
+    });
+
+    // Minify
+    $('minifyBtn').addEventListener('click', () => {
+        if (!jsonInput.value.trim()) return;
+        try {
+            jsonInput.value = minifyJSON(jsonInput.value);
+            renderCurrentView();
+            showToast('Minified', 'fa-check');
+        } catch (e) {
+            showToast('Cannot minify invalid JSON', 'fa-exclamation-triangle');
+        }
+    });
+
+    // Clear
+    $('clearBtn').addEventListener('click', () => {
+        jsonInput.value = '';
+        compareLeft.value = '';
+        compareRight.value = '';
+        renderCurrentView();
+        renderDiff();
+        lastPath.textContent = '';
+    });
+
+    // Expand / Collapse
+    $('expandBtn').addEventListener('click', expandAll);
+    $('collapseBtn').addEventListener('click', collapseAll);
+
+    // Sort keys
+    $('sortKeysBtn').addEventListener('click', () => {
+        state.sortKeys = !state.sortKeys;
+        $('sortKeysBtn').classList.toggle('active', state.sortKeys);
+        renderCurrentView();
+        if (state.sortKeys) showToast('Keys sorted', 'fa-sort-alpha-down');
+    });
+
+    // Copy output
+    $('copyOutputBtn').addEventListener('click', () => {
+        if (!jsonInput.value.trim()) return;
+        try {
+            const text = formatJSON(jsonInput.value);
+            copyToClipboard(text, 'Copied formatted JSON');
+        } catch (e) {
+            copyToClipboard(jsonInput.value, 'Copied raw input');
+        }
+    });
+
+    // Compare mode inputs
+    let diffTimer;
+    function debounceDiff() {
+        clearTimeout(diffTimer);
+        diffTimer = setTimeout(renderDiff, 200);
+    }
+    compareLeft.addEventListener('input', debounceDiff);
+    compareRight.addEventListener('input', debounceDiff);
+
+    // Mobile tabs
+    $('mobileTabs').querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            $('mobileTabs').querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            editorContainer.dataset.mobile = btn.dataset.mobile;
+        });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'F') {
+            e.preventDefault();
+            $('formatBtn').click();
+        }
+    });
+
+    // ===== Init =====
+    renderCurrentView();
+
+})();
+</script>
+</body>
+</html>

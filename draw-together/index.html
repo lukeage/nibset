@@ -8,11 +8,27 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+(function(){
+  var t = localStorage.getItem('nibset-theme');
+  if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
 <style>
   :root {
     --bg: #060608; --text: #e8e8ec; --muted: #8b8b95;
     --toolbar-bg: rgba(17,17,21,0.95); --border: #1c1c24; --border-light: rgba(255,255,255,0.08);
     --grid-color: rgba(255,255,255,0.03); --welcome-bg: rgba(6,6,8,0.92);
+    --accent: #c9f270; --accent-bg: rgba(201,242,112,0.15); --accent-ring: rgba(201,242,112,0.3);
+    --toolbar-border: rgba(255,255,255,0.05);
+  }
+  [data-theme="light"] {
+    --bg: #f5f5f7; --text: #1a1a1e; --muted: #5a5a64;
+    --toolbar-bg: rgba(245,245,247,0.95); --border: #dcdce0; --border-light: rgba(0,0,0,0.08);
+    --grid-color: rgba(0,0,0,0.04); --welcome-bg: rgba(245,245,247,0.92);
+    --accent: #5a8a1a; --accent-bg: rgba(90,138,26,0.15); --accent-ring: rgba(90,138,26,0.3);
+    --toolbar-border: rgba(0,0,0,0.08);
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; color: var(--text); }
@@ -34,7 +50,7 @@
     display: flex; align-items: center; gap: 6px;
     padding: 6px 12px;
     background: var(--toolbar-bg); border-radius: 14px;
-    backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.05);
+    backdrop-filter: blur(16px); border: 1px solid var(--toolbar-border);
     z-index: 10;
     animation: slideDown 0.25s ease;
   }
@@ -63,8 +79,8 @@
     transition: background 0.15s;
   }
   button:hover { background: var(--border-light); }
-  button.primary { background: #c9f270; color: #060608; border-color: #c9f270; font-weight: 600; }
-  button.primary:hover { background: #b8e35f; }
+  button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { opacity: 0.9; }
 
   /* Icon tool buttons */
   .tool-btn {
@@ -76,7 +92,7 @@
     position: relative;
   }
   .tool-btn:hover { background: var(--border); color: var(--text); }
-  .tool-btn.tool-active { background: #c9f270; color: #060608; border-color: #c9f270; }
+  .tool-btn.tool-active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
   .tool-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
 
   /* Tooltips */
@@ -99,24 +115,51 @@
   .swatch:hover { opacity: 0.8; }
   .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
 
-  .fill-picker-wrap {
-    display: flex; gap: 4px; align-items: center;
+  .fill-btn-preview {
+    width: 14px; height: 14px; border-radius: 3px;
+    border: 1.5px dashed var(--muted); position: relative;
   }
-  .fill-swatch { position: relative; }
-  .fill-swatch.no-fill {
+  .fill-btn-preview.has-fill {
+    border-style: solid; border-color: transparent;
+  }
+  .fill-btn-preview.no-fill::after {
+    content: ''; position: absolute; top: 0; left: 5px;
+    width: 1.5px; height: 11px; background: var(--muted);
+    transform: rotate(45deg);
+  }
+  .fill-dropdown {
+    min-width: 160px; padding: 8px !important;
+  }
+  .fill-dropdown-label {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 2px 4px 4px; font-weight: 600;
+  }
+  .fill-dropdown-swatches {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 0 2px 6px;
+  }
+  .fill-dropdown-swatches .swatch {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .fill-dropdown-swatches .swatch:hover { opacity: 0.8; }
+  .fill-dropdown-swatches .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
+  .fill-dropdown-swatches .swatch.no-fill {
     background: transparent !important;
-    border: 2px dashed var(--text);
+    border: 2px dashed var(--text); position: relative;
   }
-  .fill-swatch.no-fill::after {
-    content: ''; position: absolute; top: 2px; left: 9px;
+  .fill-dropdown-swatches .swatch.no-fill::after {
+    content: ''; position: absolute; top: 2px; left: 8px;
     width: 2px; height: 14px; background: var(--text);
     transform: rotate(45deg);
   }
-  .fill-swatch.no-fill.active { border-color: #fff; }
+  .fill-dropdown-swatches .swatch.no-fill.active { border-color: #fff; }
+  .fill-dropdown-opacities {
+    display: flex; gap: 4px; padding: 0 2px;
+  }
   .opacity-btn {
-    padding: 2px 5px; font-size: 10px; border-radius: 4px;
+    padding: 3px 8px; font-size: 11px; border-radius: 6px;
     background: var(--border-light); color: var(--text); border: 1px solid transparent;
-    cursor: pointer; line-height: 1.2;
+    cursor: pointer; line-height: 1.2; flex: 1; text-align: center;
   }
   .opacity-btn:hover { opacity: 0.8; }
   .opacity-btn.active { border-color: #fff; }
@@ -156,7 +199,7 @@
   }
   .subtool-dropdown { min-width: 140px; }
   .subtool-dropdown button { display: flex; align-items: center; gap: 8px; }
-  .subtool-dropdown button.active { background: rgba(201,242,112,0.15); color: #c9f270; }
+  .subtool-dropdown button.active { background: var(--accent-bg); color: var(--accent); }
   .subtool-dropdown button svg { width: 16px; height: 16px; flex-shrink: 0; }
 
   /* Undo/redo disabled state */
@@ -168,7 +211,7 @@
     transition: background 0.15s, box-shadow 0.15s;
   }
   .width-dot:hover { background: var(--text); }
-  .width-dot.active { background: #c9f270; box-shadow: 0 0 0 2px rgba(201,242,112,0.3); }
+  .width-dot.active { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
 
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   .dot-reconnecting { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
@@ -194,6 +237,16 @@
   .shortcut-row:last-child { border-bottom: none; }
   .shortcut-row kbd { background: var(--border); padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; }
 
+  .theme-toggle {
+    width: 34px; height: 34px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid transparent; border-radius: 10px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .theme-toggle:hover { background: var(--border); color: var(--text); }
+  .theme-toggle svg { width: 18px; height: 18px; display: none; }
+
   @media (max-width: 600px) {
     #toolbar { flex-wrap: wrap; max-width: calc(100vw - 16px); justify-content: center; top: 8px; padding: 6px 8px; gap: 4px; }
     .tb-sep { display: none; }
@@ -207,16 +260,16 @@
 <div id="toolbar" class="hidden">
   <a href="../index.html" class="toolbar-home" title="Back to NibSet">
     <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="16" height="20">
-      <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="#c9f270" />
-      <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#thg)" stroke="rgba(255,255,255,0.12)" stroke-width="0.5"/>
+      <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+      <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#thg)" stroke="var(--border-light)" stroke-width="0.5"/>
       <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#thg)" />
-      <line x1="16" y1="0" x2="16" y2="10" stroke="rgba(201,242,112,0.3)" stroke-width="0.5"/>
-      <circle cx="16" cy="14" r="1.5" fill="#c9f270" opacity="0.9"/>
+      <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+      <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
       <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#thg)" stroke-width="2" fill="none" stroke-linecap="round"/>
       <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#thg)" stroke-width="2" fill="none" stroke-linecap="round"/>
       <line x1="10" y1="33" x2="22" y2="33" stroke="url(#thg)" stroke-width="1.5" stroke-linecap="round"/>
       <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#thg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-      <defs><linearGradient id="thg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e8e8ec"/><stop offset="100%" stop-color="#8b8b95"/></linearGradient></defs>
+      <defs><linearGradient id="thg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text)"/><stop offset="100%" stop-color="var(--muted)"/></linearGradient></defs>
     </svg>
   </a>
   <div class="tb-sep"></div>
@@ -269,7 +322,9 @@
   <div class="tb-sep"></div>
   <div class="color-picker" id="colorPicker"></div>
   <div class="tb-sep"></div>
-  <div class="fill-picker-wrap" id="fillPicker"></div>
+  <button class="tool-btn" id="fillBtn" title="Fill Color (F)">
+    <div class="fill-btn-preview no-fill" id="fillBtnPreview"></div>
+  </button>
   <div class="tb-sep"></div>
   <div class="width-picker" id="widthPicker"></div>
 
@@ -315,7 +370,14 @@
       <path d="M10 13V3M6 7l4-4 4 4M4 15v2h12v-2"/>
     </svg>
   </button>
+  <div class="tb-sep"></div>
+  <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+    <svg class="icon-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/></svg>
+    <svg class="icon-moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17 12.5A7.5 7.5 0 017.5 3 7 7 0 1017 12.5z"/></svg>
+  </button>
 </div>
+
+<div class="dropdown fill-dropdown" id="fillDropdown"></div>
 
 <div class="dropdown export-dropdown" id="exportDropdown">
   <button id="exportJsonBtn">JSON</button>
@@ -368,11 +430,12 @@
 <script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
 <script>
 (function() {
-  const PICKER_COLORS = ['#d1d5db', '#c9f270', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
+  const PICKER_COLORS = ['#d1d5db', '#c9f270', '#ef4444', '#22c55e', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899'];
   const MAX_USERS = 10;
   const GRID_SIZE = 15;
   const STROKE_WIDTHS = [2, 4, 7, 12];
-  const BG_COLOR = '#060608';
+  function getBgColor() { return document.documentElement.getAttribute('data-theme') === 'light' ? '#f5f5f7' : '#060608'; }
+  function getAccentColor() { return document.documentElement.getAttribute('data-theme') === 'light' ? '#5a8a1a' : '#c9f270'; }
 
   let currentLineWidth = 4;
 
@@ -738,11 +801,22 @@
   }
 
   // --- Color Picker ---
+  function updateSwatchColors() {
+    document.querySelectorAll('.color-swatch[data-color]').forEach(s => {
+      s.style.background = themeColor(s.dataset.color);
+    });
+    document.querySelectorAll('#fillDropdown .swatch[data-color]').forEach(s => {
+      s.style.background = themeColor(s.dataset.color);
+    });
+    if (typeof updateFillBtnPreview === 'function') updateFillBtnPreview();
+  }
+
   const colorPicker = document.getElementById('colorPicker');
   PICKER_COLORS.forEach((color, i) => {
     const swatch = document.createElement('div');
     swatch.className = 'swatch color-swatch' + (i === 0 ? ' active' : '');
-    swatch.style.background = color;
+    swatch.dataset.color = color;
+    swatch.style.background = themeColor(color);
     swatch.addEventListener('click', () => {
       myColor = color;
       colorPicker.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
@@ -762,7 +836,7 @@
     colorPicker.appendChild(swatch);
   });
 
-  // --- Fill Color Picker ---
+  // --- Fill Color Picker (Dropdown) ---
   function hexToRgba(hex, alpha) {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -776,53 +850,108 @@
     return hexToRgba(baseHex, opacity);
   }
 
-  const fillPicker = document.getElementById('fillPicker');
-  let fillBaseColor = null; // the hex color before opacity is applied
+  const fillBtn = document.getElementById('fillBtn');
+  const fillBtnPreview = document.getElementById('fillBtnPreview');
+  const fillDropdown = document.getElementById('fillDropdown');
+  let fillBaseColor = null;
 
-  // "No fill" swatch
-  const noFillSwatch = document.createElement('div');
-  noFillSwatch.className = 'swatch fill-swatch no-fill active';
-  noFillSwatch.title = 'No fill';
-  noFillSwatch.addEventListener('click', () => {
-    fillBaseColor = null;
-    myFillColor = null;
-    fillPicker.querySelectorAll('.fill-swatch').forEach(s => s.classList.remove('active'));
-    noFillSwatch.classList.add('active');
-    applyFillToSelection();
-  });
-  fillPicker.appendChild(noFillSwatch);
+  function updateFillBtnPreview() {
+    if (fillBaseColor) {
+      fillBtnPreview.className = 'fill-btn-preview has-fill';
+      fillBtnPreview.style.background = themeColor(fillBaseColor);
+      fillBtnPreview.style.opacity = fillOpacity;
+    } else {
+      fillBtnPreview.className = 'fill-btn-preview no-fill';
+      fillBtnPreview.style.background = '';
+      fillBtnPreview.style.opacity = '';
+    }
+  }
 
-  PICKER_COLORS.forEach(color => {
-    const swatch = document.createElement('div');
-    swatch.className = 'swatch fill-swatch';
-    swatch.style.background = color;
-    swatch.style.opacity = '0.6';
-    swatch.addEventListener('click', () => {
-      fillBaseColor = color;
-      myFillColor = computeFillColor(color, fillOpacity);
-      fillPicker.querySelectorAll('.fill-swatch').forEach(s => s.classList.remove('active'));
-      swatch.classList.add('active');
+  function buildFillDropdown() {
+    fillDropdown.innerHTML = '';
+
+    // Color label + swatches
+    const colorLabel = document.createElement('div');
+    colorLabel.className = 'fill-dropdown-label';
+    colorLabel.textContent = 'Fill Color';
+    fillDropdown.appendChild(colorLabel);
+
+    const swatchWrap = document.createElement('div');
+    swatchWrap.className = 'fill-dropdown-swatches';
+
+    // No fill
+    const noFill = document.createElement('div');
+    noFill.className = 'swatch no-fill' + (!fillBaseColor ? ' active' : '');
+    noFill.title = 'No fill';
+    noFill.addEventListener('click', () => {
+      fillBaseColor = null;
+      myFillColor = null;
+      swatchWrap.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+      noFill.classList.add('active');
+      updateFillBtnPreview();
       applyFillToSelection();
     });
-    fillPicker.appendChild(swatch);
+    swatchWrap.appendChild(noFill);
+
+    PICKER_COLORS.forEach(color => {
+      const swatch = document.createElement('div');
+      swatch.className = 'swatch' + (fillBaseColor === color ? ' active' : '');
+      swatch.dataset.color = color;
+      swatch.style.background = themeColor(color);
+      swatch.style.opacity = '0.6';
+      swatch.addEventListener('click', () => {
+        fillBaseColor = color;
+        myFillColor = computeFillColor(color, fillOpacity);
+        swatchWrap.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        updateFillBtnPreview();
+        applyFillToSelection();
+      });
+      swatchWrap.appendChild(swatch);
+    });
+    fillDropdown.appendChild(swatchWrap);
+
+    // Opacity label + buttons
+    const opLabel = document.createElement('div');
+    opLabel.className = 'fill-dropdown-label';
+    opLabel.textContent = 'Opacity';
+    fillDropdown.appendChild(opLabel);
+
+    const opWrap = document.createElement('div');
+    opWrap.className = 'fill-dropdown-opacities';
+    [0.25, 0.5, 1].forEach(op => {
+      const btn = document.createElement('button');
+      btn.className = 'opacity-btn' + (op === fillOpacity ? ' active' : '');
+      btn.textContent = Math.round(op * 100) + '%';
+      btn.addEventListener('click', () => {
+        fillOpacity = op;
+        opWrap.querySelectorAll('.opacity-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (fillBaseColor) {
+          myFillColor = computeFillColor(fillBaseColor, fillOpacity);
+          updateFillBtnPreview();
+          applyFillToSelection();
+        }
+      });
+      opWrap.appendChild(btn);
+    });
+    fillDropdown.appendChild(opWrap);
+  }
+
+  buildFillDropdown();
+
+  fillBtn.addEventListener('click', () => {
+    exportDropdown.classList.remove('open');
+    const isOpen = fillDropdown.classList.toggle('open');
+    if (isOpen) {
+      const rect = fillBtn.getBoundingClientRect();
+      fillDropdown.style.left = rect.left + 'px';
+      fillDropdown.style.top = (rect.bottom + 6) + 'px';
+    }
   });
 
-  // Opacity presets
-  [0.25, 0.5, 1].forEach(op => {
-    const btn = document.createElement('button');
-    btn.className = 'opacity-btn' + (op === fillOpacity ? ' active' : '');
-    btn.textContent = Math.round(op * 100) + '%';
-    btn.title = 'Fill opacity ' + Math.round(op * 100) + '%';
-    btn.addEventListener('click', () => {
-      fillOpacity = op;
-      fillPicker.querySelectorAll('.opacity-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      if (fillBaseColor) {
-        myFillColor = computeFillColor(fillBaseColor, fillOpacity);
-        applyFillToSelection();
-      }
-    });
-    fillPicker.appendChild(btn);
+  document.addEventListener('mousedown', e => {
+    if (!fillBtn.contains(e.target) && !fillDropdown.contains(e.target)) fillDropdown.classList.remove('open');
   });
 
   function applyFillToSelection() {
@@ -1727,7 +1856,7 @@
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(angle);
-      ctx.fillStyle = BG_COLOR;
+      ctx.fillStyle = getBgColor();
       ctx.fillRect(-hw, -hh, hw * 2, hh * 2);
       ctx.restore();
       ctx.fillStyle = themeColor(stroke.color);
@@ -1844,7 +1973,7 @@
     const tl = worldToScreen(bb.x1, bb.y1);
     const br = worldToScreen(bb.x2, bb.y2);
     ctx.save();
-    ctx.strokeStyle = '#c9f270';
+    ctx.strokeStyle = getAccentColor();
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
     ctx.strokeRect(tl.x - pad, tl.y - pad, br.x - tl.x + 2 * pad, br.y - tl.y + 2 * pad);
@@ -1914,7 +2043,7 @@
       }
       ctx.fillStyle = '#fff';
       ctx.fill();
-      ctx.strokeStyle = '#c9f270';
+      ctx.strokeStyle = getAccentColor();
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.restore();
@@ -2007,12 +2136,12 @@
     ctx.roundRect(frontX, baseY, size, size, 6);
     ctx.fillStyle = '#fff';
     ctx.fill();
-    ctx.strokeStyle = '#c9f270';
+    ctx.strokeStyle = getAccentColor();
     ctx.lineWidth = 1.5;
     ctx.stroke();
     // Up-arrow icon (bring to front)
     const fcx = frontX + size / 2, fcy = baseY + size / 2;
-    ctx.strokeStyle = '#c9f270';
+    ctx.strokeStyle = getAccentColor();
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -2031,12 +2160,12 @@
     ctx.roundRect(backX, baseY, size, size, 6);
     ctx.fillStyle = '#fff';
     ctx.fill();
-    ctx.strokeStyle = '#c9f270';
+    ctx.strokeStyle = getAccentColor();
     ctx.lineWidth = 1.5;
     ctx.stroke();
     // Down-arrow icon (send to back)
     const bcx = backX + size / 2, bcy = baseY + size / 2;
-    ctx.strokeStyle = '#c9f270';
+    ctx.strokeStyle = getAccentColor();
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -2326,7 +2455,7 @@
   }
 
   function redraw() {
-    ctx.fillStyle = BG_COLOR;
+    ctx.fillStyle = getBgColor();
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (showGrid) drawGrid();
     const tlW = screenToWorld(0, 0);
@@ -2376,7 +2505,7 @@
       ctx.save();
       ctx.fillStyle = 'rgba(59, 130, 246, 0.08)';
       ctx.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
-      ctx.strokeStyle = '#c9f270';
+      ctx.strokeStyle = getAccentColor();
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 3]);
       ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
@@ -2956,14 +3085,14 @@
     const mdBtn = document.createElement('button');
     mdBtn.textContent = 'Md';
     mdBtn.title = 'Toggle Markdown';
-    mdBtn.style.cssText = 'position:fixed;z-index:21;padding:2px 6px;font-size:11px;border-radius:4px;cursor:pointer;border:1px solid ' + themeColor(stroke.color) + ';background:' + (stroke.textFormat === 'markdown' ? 'rgba(201,242,112,0.25)' : 'var(--toolbar-bg)') + ';color:' + themeColor(stroke.color) + ';font-weight:' + (stroke.textFormat === 'markdown' ? 'bold' : 'normal');
+    mdBtn.style.cssText = 'position:fixed;z-index:21;padding:2px 6px;font-size:11px;border-radius:4px;cursor:pointer;border:1px solid ' + themeColor(stroke.color) + ';background:' + (stroke.textFormat === 'markdown' ? 'var(--accent-bg)' : 'var(--toolbar-bg)') + ';color:' + themeColor(stroke.color) + ';font-weight:' + (stroke.textFormat === 'markdown' ? 'bold' : 'normal');
     mdBtn.style.left = (editorLeft + finalW - 30) + 'px';
     mdBtn.style.top = (editorTop - 24) + 'px';
     mdBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
       stroke.textFormat = stroke.textFormat === 'markdown' ? 'plain' : 'markdown';
-      mdBtn.style.background = stroke.textFormat === 'markdown' ? 'rgba(201,242,112,0.25)' : 'var(--toolbar-bg)';
+      mdBtn.style.background = stroke.textFormat === 'markdown' ? 'var(--accent-bg)' : 'var(--toolbar-bg)';
       mdBtn.style.fontWeight = stroke.textFormat === 'markdown' ? 'bold' : 'normal';
       broadcast({ type: 'text-format', strokeId: stroke.strokeId, textFormat: stroke.textFormat, participantId: myId });
       redraw();
@@ -3520,6 +3649,7 @@
   const importBtn = document.getElementById('importBtn');
 
   exportBtn.addEventListener('click', () => {
+    fillDropdown.classList.remove('open');
     const isOpen = exportDropdown.classList.toggle('open');
     if (isOpen) {
       const rect = exportBtn.getBoundingClientRect();
@@ -3560,6 +3690,7 @@
     rectangleDropdown.classList.remove('open');
     arrowDropdown.classList.remove('open');
     exportDropdown.classList.remove('open');
+    fillDropdown.classList.remove('open');
     const rect = btn.getBoundingClientRect();
     dropdown.style.left = rect.left + 'px';
     dropdown.style.top = (rect.bottom + 6) + 'px';
@@ -3801,7 +3932,10 @@
     if (file) importFile(file);
   });
 
-  function themeColor(color) { return color; }
+  function themeColor(color) {
+    if (document.documentElement.getAttribute('data-theme') === 'light' && color === '#d1d5db') return '#4b5563';
+    return color;
+  }
 
   // --- Width Picker ---
   const widthPicker = document.getElementById('widthPicker');
@@ -4050,6 +4184,25 @@
       } catch {}
     }
   }
+
+  // --- Theme Toggle ---
+  (function(){
+    var mode = localStorage.getItem('nibset-theme');
+    if (!mode) { mode = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', mode); }
+    var btn = document.getElementById('themeToggle');
+    function apply(m) {
+      mode = m;
+      document.documentElement.setAttribute('data-theme', m);
+      localStorage.setItem('nibset-theme', m);
+      btn.title = m === 'light' ? 'Theme: Light' : 'Theme: Dark';
+      btn.querySelector('.icon-sun').style.display = (m === 'light') ? 'block' : 'none';
+      btn.querySelector('.icon-moon').style.display = (m === 'dark') ? 'block' : 'none';
+      if (typeof updateSwatchColors === 'function') updateSwatchColors();
+      if (typeof redraw === 'function') redraw();
+    }
+    btn.addEventListener('click', function() { apply(mode === 'light' ? 'dark' : 'light'); });
+    apply(mode);
+  })();
 
   // --- Init ---
   if (window.location.hash.startsWith('#room=')) {

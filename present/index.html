@@ -552,17 +552,6 @@ html, body {
   </div>
 </div>
 
-<!-- Background Modal -->
-<div class="modal-overlay" id="bgModal">
-  <div class="modal" style="position:relative;">
-    <h3>Slide Background</h3>
-    <div id="bgEditor"></div>
-    <div style="margin-top:16px;text-align:right;">
-      <button class="btn btn-sm" data-close-modal="bgModal">Done</button>
-    </div>
-  </div>
-</div>
-
 <!-- Keyboard Shortcuts Modal -->
 <div class="modal-overlay" id="shortcutsModal">
   <div class="modal" style="position:relative;">
@@ -695,7 +684,7 @@ function createSlide(type, layout) {
     background: { color: (pres && pres.theme ? pres.theme.background : scheme.suggestedBackground), image: null, fit: 'cover', opacity: 1 },
     elements: [], transition: 'fade'
   };
-  s.elements = getLayoutDefaults(s.layout, s.type);
+  s.elements = getLayoutDefaults(s.layout, s.type).map((el, i) => { el.zIndex = i + 1; return el; });
   return s;
 }
 
@@ -827,16 +816,6 @@ function load() {
     if (raw) {
       pres = JSON.parse(raw);
       if (!pres.slides || !pres.meta) throw new Error('Invalid');
-      if (!pres.colorScheme) pres.colorScheme = 'midnight';
-      if (!pres.theme || !pres.theme.background) {
-        const s = COLOR_SCHEMES[pres.colorScheme || 'nibset'];
-        pres.theme = { background: s.suggestedBackground, textColor: s.textColor, backgroundImage: null, backgroundFit: 'cover', backgroundOpacity: 1 };
-      }
-      if (pres.theme.backgroundImage === undefined) {
-        pres.theme.backgroundImage = null;
-        pres.theme.backgroundFit = 'cover';
-        pres.theme.backgroundOpacity = 1;
-      }
       return true;
     }
   } catch (e) { /* fall through */ }
@@ -878,7 +857,6 @@ function applyScheme(newKey) {
   pres.colorScheme = newKey;
   pres.theme.background = newScheme.suggestedBackground;
   pres.theme.textColor = newScheme.textColor;
-  const derived = schemeDerived(newScheme);
 
   pres.slides.forEach(slide => {
     slide.background.color = pres.theme.background;
@@ -1001,8 +979,11 @@ function bringForward(id) {
   const slide = curSlide();
   const el = slide.elements.find(e => e.id === id);
   if (!el) return;
+  const others = slide.elements.filter(e => e.id !== id && e.zIndex > el.zIndex);
+  if (others.length === 0) return;
+  const above = others.reduce((closest, e) => e.zIndex < closest.zIndex ? e : closest);
   pushUndo();
-  el.zIndex = slide.elements.reduce((m, e) => Math.max(m, e.zIndex), 0) + 1;
+  const tmp = el.zIndex; el.zIndex = above.zIndex; above.zIndex = tmp;
   renderSlide();
   scheduleSave();
 }
@@ -1011,8 +992,11 @@ function sendBackward(id) {
   const slide = curSlide();
   const el = slide.elements.find(e => e.id === id);
   if (!el) return;
+  const others = slide.elements.filter(e => e.id !== id && e.zIndex < el.zIndex);
+  if (others.length === 0) return;
+  const below = others.reduce((closest, e) => e.zIndex > closest.zIndex ? e : closest);
   pushUndo();
-  el.zIndex = Math.max(1, slide.elements.reduce((m, e) => Math.min(m, e.zIndex), Infinity) - 1);
+  const tmp = el.zIndex; el.zIndex = below.zIndex; below.zIndex = tmp;
   renderSlide();
   scheduleSave();
 }
@@ -1086,21 +1070,10 @@ function renderThumbnails() {
         if (!canvasEl) return;
         const key = 'thumb-' + el.id;
         if (chartInstances.has(key)) { chartInstances.get(key).destroy(); chartInstances.delete(key); }
-        const cfg = {
-          type: el.content.chartType || 'pie',
-          data: { labels: el.content.labels, datasets: deepClone(el.content.datasets) },
-          options: {
-            responsive: true, maintainAspectRatio: false, animation: false,
-            plugins: { legend: { display: el.style.showLegend !== false, labels: { color: '#e8e8ec' } } },
-            scales: {}
-          }
-        };
-        if (['bar', 'line'].includes(cfg.type)) {
-          cfg.options.scales = {
-            x: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(255,255,255,0.06)' } },
-            y: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(255,255,255,0.06)' } }
-          };
-        }
+        const cfg = buildChartConfig(el, {
+          animated: false, cloneDatasets: true,
+          legendColor: '#e8e8ec', axisColor: '#8b8b95', gridColor: 'rgba(255,255,255,0.06)'
+        });
         try { chartInstances.set(key, new Chart(canvasEl.getContext('2d'), cfg)); } catch (e) {}
       });
     });
@@ -1142,8 +1115,8 @@ function renderSlideToContainer(slide, container, isThumbnail) {
     container.appendChild(sn);
   }
 
-  // Elements
-  slide.elements.forEach(el => {
+  // Elements (sorted by zIndex so DOM order matches stacking order)
+  slide.elements.slice().sort((a, b) => a.zIndex - b.zIndex).forEach(el => {
     const dom = createElementDom(el, isThumbnail);
     container.appendChild(dom);
   });
@@ -1198,36 +1171,47 @@ function createElementDom(el, isThumbnail) {
   return div;
 }
 
-function renderChartElement(el) {
-  const canvasEl = document.getElementById('chart-' + el.id);
-  if (!canvasEl) return;
-  // Destroy existing
-  if (chartInstances.has(el.id)) {
-    chartInstances.get(el.id).destroy();
-    chartInstances.delete(el.id);
-  }
-  const ctx = canvasEl.getContext('2d');
-  const derived = schemeDerived(activeScheme());
+function buildChartConfig(el, opts) {
   const cfg = {
     type: el.content.chartType || 'pie',
-    data: { labels: el.content.labels, datasets: el.content.datasets },
+    data: {
+      labels: el.content.labels,
+      datasets: opts.cloneDatasets ? deepClone(el.content.datasets) : el.content.datasets
+    },
     options: {
       responsive: true, maintainAspectRatio: false,
+      ...(opts.animated === false ? { animation: false } : {}),
       plugins: {
-        legend: { display: el.style.showLegend !== false, labels: { color: derived.chartLegendColor } }
+        legend: { display: el.style?.showLegend !== false, labels: { color: opts.legendColor } }
       },
       scales: {}
     }
   };
   if (['bar', 'line'].includes(cfg.type)) {
     cfg.options.scales = {
-      x: { ticks: { color: derived.chartAxisColor }, grid: { color: derived.chartGridColor } },
-      y: { ticks: { color: derived.chartAxisColor }, grid: { color: derived.chartGridColor } }
+      x: { ticks: { color: opts.axisColor }, grid: { color: opts.gridColor } },
+      y: { ticks: { color: opts.axisColor }, grid: { color: opts.gridColor } }
     };
   }
+  return cfg;
+}
+
+function renderChartElement(el) {
+  const canvasEl = document.getElementById('chart-' + el.id);
+  if (!canvasEl) return;
+  if (chartInstances.has(el.id)) {
+    chartInstances.get(el.id).destroy();
+    chartInstances.delete(el.id);
+  }
+  const derived = schemeDerived(activeScheme());
+  const cfg = buildChartConfig(el, {
+    animated: true, cloneDatasets: false,
+    legendColor: derived.chartLegendColor,
+    axisColor: derived.chartAxisColor,
+    gridColor: derived.chartGridColor
+  });
   try {
-    const chart = new Chart(ctx, cfg);
-    chartInstances.set(el.id, chart);
+    chartInstances.set(el.id, new Chart(canvasEl.getContext('2d'), cfg));
   } catch (e) { console.error('Chart error:', e); }
 }
 
@@ -1322,14 +1306,8 @@ function onMouseMove(e) {
 }
 
 function onMouseUp(e) {
-  if (isDragging && dragData) {
+  if ((isDragging || isResizing) && dragData) {
     isDragging = false;
-    pushUndo();
-    dragData = null;
-    renderThumbnails();
-    scheduleSave();
-  }
-  if (isResizing && dragData) {
     isResizing = false;
     pushUndo();
     dragData = null;
@@ -1545,6 +1523,17 @@ function attachSlidePropsEvents() {
   if (bo) bo.oninput = () => { slide.background.opacity = parseFloat(bo.value); renderSlide(); scheduleSave(); };
 }
 
+function renderPositionProps(el) {
+  return `
+    <div class="props-section">
+      <div class="props-section-title">Position</div>
+      <div class="props-row"><span class="props-label">X</span><input type="number" class="props-input" id="propX" value="${Math.round(el.x)}" step="1"></div>
+      <div class="props-row"><span class="props-label">Y</span><input type="number" class="props-input" id="propY" value="${Math.round(el.y)}" step="1"></div>
+      <div class="props-row"><span class="props-label">W</span><input type="number" class="props-input" id="propW" value="${Math.round(el.w)}" step="1"></div>
+      <div class="props-row"><span class="props-label">H</span><input type="number" class="props-input" id="propH" value="${Math.round(el.h)}" step="1"></div>
+    </div>`;
+}
+
 function renderTextProps(el) {
   return `
     <div class="props-section">
@@ -1579,13 +1568,7 @@ function renderTextProps(el) {
         </div>
       </div>
     </div>
-    <div class="props-section">
-      <div class="props-section-title">Position</div>
-      <div class="props-row"><span class="props-label">X</span><input type="number" class="props-input" id="propX" value="${Math.round(el.x)}" step="1"></div>
-      <div class="props-row"><span class="props-label">Y</span><input type="number" class="props-input" id="propY" value="${Math.round(el.y)}" step="1"></div>
-      <div class="props-row"><span class="props-label">W</span><input type="number" class="props-input" id="propW" value="${Math.round(el.w)}" step="1"></div>
-      <div class="props-row"><span class="props-label">H</span><input type="number" class="props-input" id="propH" value="${Math.round(el.h)}" step="1"></div>
-    </div>`;
+    ${renderPositionProps(el)}`;
 }
 
 function renderImageProps(el) {
@@ -1612,13 +1595,7 @@ function renderImageProps(el) {
         <input type="range" id="propImgOpacity" min="0" max="1" step="0.05" value="${el.style.opacity ?? 1}" style="flex:1">
       </div>
     </div>
-    <div class="props-section">
-      <div class="props-section-title">Position</div>
-      <div class="props-row"><span class="props-label">X</span><input type="number" class="props-input" id="propX" value="${Math.round(el.x)}" step="1"></div>
-      <div class="props-row"><span class="props-label">Y</span><input type="number" class="props-input" id="propY" value="${Math.round(el.y)}" step="1"></div>
-      <div class="props-row"><span class="props-label">W</span><input type="number" class="props-input" id="propW" value="${Math.round(el.w)}" step="1"></div>
-      <div class="props-row"><span class="props-label">H</span><input type="number" class="props-input" id="propH" value="${Math.round(el.h)}" step="1"></div>
-    </div>`;
+    ${renderPositionProps(el)}`;
 }
 
 function renderChartProps(el) {
@@ -1653,13 +1630,7 @@ function renderChartProps(el) {
       <button class="btn btn-sm" id="propChartAddRow" style="margin-top:6px;width:100%"><i class="fa-solid fa-plus"></i> Add Row</button>
       <button class="btn btn-accent btn-sm" id="propChartUpdate" style="margin-top:6px;width:100%"><i class="fa-solid fa-refresh"></i> Update Chart</button>
     </div>
-    <div class="props-section">
-      <div class="props-section-title">Position</div>
-      <div class="props-row"><span class="props-label">X</span><input type="number" class="props-input" id="propX" value="${Math.round(el.x)}" step="1"></div>
-      <div class="props-row"><span class="props-label">Y</span><input type="number" class="props-input" id="propY" value="${Math.round(el.y)}" step="1"></div>
-      <div class="props-row"><span class="props-label">W</span><input type="number" class="props-input" id="propW" value="${Math.round(el.w)}" step="1"></div>
-      <div class="props-row"><span class="props-label">H</span><input type="number" class="props-input" id="propH" value="${Math.round(el.h)}" step="1"></div>
-    </div>`;
+    ${renderPositionProps(el)}`;
 }
 
 function attachElementPropsEvents(el) {
@@ -1773,7 +1744,6 @@ function attachElementPropsEvents(el) {
 function openModal(id) {
   $(id).classList.add('visible');
   if (id === 'layoutModal') buildLayoutGrid();
-  if (id === 'bgModal') buildBgEditor();
   if (id === 'themeModal') buildThemeEditor();
 }
 
@@ -1819,10 +1789,6 @@ function buildLayoutGrid() {
     };
     grid.appendChild(opt);
   });
-}
-
-function buildBgEditor() {
-  $('bgEditor').innerHTML = '<p style="font-size:13px;color:var(--text-secondary)">Use the properties panel on the right to customize the slide background.</p>';
 }
 
 function buildThemeEditor() {
@@ -1971,16 +1937,20 @@ $('tbAddChart').onclick = () => addElement(createChartElement(10, 15, 80, 70, 'p
 $('tbBold').onclick = () => document.execCommand('bold');
 $('tbItalic').onclick = () => document.execCommand('italic');
 $('tbUnderline').onclick = () => document.execCommand('underline');
-$('tbAlignL').onclick = () => { if (selectedElementId) { const el = curSlide().elements.find(e => e.id === selectedElementId); if (el?.type === 'text') { el.style.align = 'left'; renderSlide(); updateProps(); scheduleSave(); } } };
-$('tbAlignC').onclick = () => { if (selectedElementId) { const el = curSlide().elements.find(e => e.id === selectedElementId); if (el?.type === 'text') { el.style.align = 'center'; renderSlide(); updateProps(); scheduleSave(); } } };
-$('tbAlignR').onclick = () => { if (selectedElementId) { const el = curSlide().elements.find(e => e.id === selectedElementId); if (el?.type === 'text') { el.style.align = 'right'; renderSlide(); updateProps(); scheduleSave(); } } };
+[['L','left'],['C','center'],['R','right']].forEach(([key, align]) => {
+  $('tbAlign' + key).onclick = () => {
+    if (!selectedElementId) return;
+    const el = curSlide().elements.find(e => e.id === selectedElementId);
+    if (el?.type === 'text') { el.style.align = align; renderSlide(); updateProps(); scheduleSave(); }
+  };
+});
 
 $('tbBringFwd').onclick = () => { if (selectedElementId) bringForward(selectedElementId); };
 $('tbSendBack').onclick = () => { if (selectedElementId) sendBackward(selectedElementId); };
 $('tbDuplicate').onclick = () => {
   if (selectedElementId) {
     const el = curSlide().elements.find(e => e.id === selectedElementId);
-    if (el) { pushUndo(); const dup = deepClone(el); dup.id = uid(); dup.x += 3; dup.y += 3; curSlide().elements.push(dup); selectedElementId = dup.id; renderSlide(); updateProps(); scheduleSave(); }
+    if (el) { pushUndo(); const dup = deepClone(el); dup.id = uid(); dup.x += 3; dup.y += 3; dup.zIndex = curSlide().elements.reduce((m, e) => Math.max(m, e.zIndex), 0) + 1; curSlide().elements.push(dup); selectedElementId = dup.id; renderSlide(); updateProps(); scheduleSave(); }
   }
 };
 $('tbDelete').onclick = () => { if (selectedElementId) deleteElement(selectedElementId); };
@@ -2197,19 +2167,14 @@ function renderPresentSlide() {
       const canvasEl = presentSlide.querySelector('#chart-' + el.id);
       if (!canvasEl) return;
       canvasEl.id = 'present-chart-' + el.id;
-      const ctx = canvasEl.getContext('2d');
-      const cfg = {
-        type: el.content.chartType || 'pie',
-        data: { labels: el.content.labels, datasets: deepClone(el.content.datasets) },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#e8e8ec' } } }, scales: {} }
-      };
-      if (['bar','line'].includes(cfg.type)) {
-        cfg.options.scales = { x: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(255,255,255,0.06)' } }, y: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(255,255,255,0.06)' } } };
-      }
+      const cfg = buildChartConfig(el, {
+        animated: true, cloneDatasets: true,
+        legendColor: '#e8e8ec', axisColor: '#8b8b95', gridColor: 'rgba(255,255,255,0.06)'
+      });
       try {
         const key = 'present-' + el.id;
         if (chartInstances.has(key)) { chartInstances.get(key).destroy(); chartInstances.delete(key); }
-        chartInstances.set(key, new Chart(ctx, cfg));
+        chartInstances.set(key, new Chart(canvasEl.getContext('2d'), cfg));
       } catch (e) { console.error(e); }
     });
   });
@@ -2281,7 +2246,7 @@ function render(){
     var tf=document.createElement('div');tf.className='slide-title-footer';tf.textContent=data.meta.title||'';slideEl.appendChild(tf);
     var sn=document.createElement('div');sn.className='slide-number';sn.textContent=(idx+1);slideEl.appendChild(sn);
   }
-  s.elements.forEach(function(el){
+  s.elements.slice().sort(function(a,b){return a.zIndex-b.zIndex;}).forEach(function(el){
     var d=document.createElement('div');
     d.className='slide-element';
     d.style.cssText='left:'+el.x+'%;top:'+el.y+'%;width:'+el.w+'%;height:'+el.h+'%;z-index:'+el.zIndex+';';

@@ -1,0 +1,2411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Present — NibSet</title>
+<link rel="icon" type="image/png" href="../assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+  var t = localStorage.getItem('nibset-theme');
+  if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary: #060608;
+  --bg-secondary: #111115;
+  --bg-tertiary: #1c1c24;
+  --bg-hover: #16161c;
+  --text-primary: #e8e8ec;
+  --text-secondary: #8b8b95;
+  --text-muted: #55555e;
+  --accent: #c9f270;
+  --accent-hover: #b8e35f;
+  --accent-text: #060608;
+  --border: rgba(255,255,255,0.06);
+  --header-bg: rgba(6,6,8,0.85);
+  --header-border: rgba(255,255,255,0.05);
+  --danger: #ef4444;
+  --warning: #fbbf24;
+  --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+  --header-height: 52px;
+  --sidebar-width: 200px;
+  --props-width: 260px;
+  --radius: 8px;
+  --radius-sm: 4px;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #eaeaee;
+  --bg-tertiary: #dcdce0;
+  --bg-hover: #f0f0f4;
+  --text-primary: #1a1a1e;
+  --text-secondary: #5a5a64;
+  --text-muted: #8b8b95;
+  --accent: #5a8a1a;
+  --accent-hover: #4a7515;
+  --accent-text: #ffffff;
+  --border: rgba(0,0,0,0.08);
+  --header-bg: rgba(245,245,247,0.85);
+  --header-border: rgba(0,0,0,0.08);
+}
+
+html, body {
+  height: 100dvh;
+  overflow: hidden;
+  font-family: var(--font-ui);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* ===== APP LAYOUT ===== */
+.app { display: flex; flex-direction: column; height: 100dvh; }
+
+/* ===== HEADER ===== */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  height: var(--header-height); padding: 0 12px;
+  background: var(--header-bg); backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--header-border); flex-shrink: 0; z-index: 50;
+}
+.header-left { display: flex; align-items: center; gap: 10px; }
+.header-home {
+  display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; text-decoration: none;
+}
+.header-home:hover { opacity: 1; }
+.header-home img { height: 26px; }
+.header-title {
+  font-size: 16px; font-weight: 600; color: var(--text-primary);
+  display: flex; align-items: center; gap: 8px;
+}
+.header-title i { color: var(--accent); font-size: 14px; }
+.header-center { display: flex; align-items: center; gap: 8px; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+
+/* ===== BUTTONS ===== */
+.btn {
+  padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;
+  font-family: var(--font-ui); cursor: pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--text-muted); }
+.btn-accent {
+  background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600;
+}
+.btn-accent:hover { opacity: 0.9; background: var(--accent); border-color: var(--accent); }
+.btn-icon {
+  width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: var(--radius); background: transparent;
+  color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-size: 14px;
+}
+.btn-icon:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.btn-icon.active { background: var(--accent); color: var(--accent-text); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* ===== EDITOR BODY ===== */
+.editor-body {
+  display: flex; flex: 1; overflow: hidden;
+}
+
+/* ===== SLIDE PANEL (LEFT SIDEBAR) ===== */
+.slide-panel {
+  width: var(--sidebar-width); background: var(--bg-secondary);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  flex-shrink: 0; overflow: hidden;
+}
+.slide-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.slide-panel-header span { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); }
+.slide-list {
+  flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.slide-list::-webkit-scrollbar { width: 4px; }
+.slide-list::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+
+.slide-thumb {
+  position: relative; border-radius: var(--radius-sm); border: 2px solid transparent;
+  cursor: pointer; transition: border-color 0.15s; overflow: hidden; flex-shrink: 0;
+  background: var(--bg-primary);
+}
+.slide-thumb.active { border-color: var(--accent); }
+.slide-thumb:hover:not(.active) { border-color: var(--text-muted); }
+.slide-thumb-inner {
+  width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden; pointer-events: none;
+}
+.slide-thumb-scaled {
+  width: 960px; height: 540px; position: absolute; top: 0; left: 0;
+  transform-origin: top left; pointer-events: none;
+}
+.slide-thumb-num {
+  position: absolute; bottom: 2px; left: 4px; font-size: 10px; font-weight: 600;
+  color: var(--text-muted); z-index: 2;
+}
+.slide-thumb.drag-over { border-color: var(--accent); border-style: dashed; }
+
+/* ===== CANVAS AREA ===== */
+.canvas-area {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-primary);
+}
+.canvas-toolbar {
+  display: flex; align-items: center; gap: 4px; padding: 6px 12px;
+  background: var(--bg-secondary); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  min-height: 40px; flex-wrap: wrap;
+}
+.toolbar-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+.canvas-viewport {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 24px; overflow: hidden; position: relative;
+}
+.canvas-statusbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 12px; font-size: 11px; color: var(--text-muted);
+  background: var(--bg-secondary); border-top: 1px solid var(--border); flex-shrink: 0;
+}
+
+/* ===== SLIDE CANVAS ===== */
+.slide-canvas {
+  width: 960px; height: 540px; background: #1a1a2e; position: relative;
+  border-radius: 4px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+  transform-origin: center center;
+}
+.slide-canvas.drop-target { outline: 3px dashed var(--accent); outline-offset: -3px; }
+
+/* Slide background layer */
+.slide-bg {
+  position: absolute; inset: 0; z-index: -1; background-size: cover; background-position: center;
+}
+
+/* Slide design line (default type) */
+.slide-design-line {
+  position: absolute; top: 15%; left: 24px; right: 24px; height: 1px;
+  z-index: 1;
+}
+.slide-title-footer {
+  position: absolute; bottom: 8px; left: 16px; font-size: 11px;
+  color: rgba(255,255,255,0.3); z-index: 1;
+}
+.slide-number {
+  position: absolute; bottom: 8px; right: 16px; font-size: 11px;
+  color: rgba(255,255,255,0.3); z-index: 1;
+}
+
+/* ===== ELEMENTS ON CANVAS ===== */
+.slide-element {
+  position: absolute; cursor: move; user-select: none;
+  transition: box-shadow 0.1s;
+}
+.slide-element:hover { box-shadow: 0 0 0 1px rgba(201,242,112,0.3); }
+.slide-element.selected {
+  box-shadow: 0 0 0 2px var(--accent);
+  z-index: 100 !important;
+}
+.slide-element.editing { cursor: text; }
+
+/* Resize handles */
+.resize-handle {
+  position: absolute; width: 10px; height: 10px; background: var(--accent);
+  border: 1px solid var(--accent-text); border-radius: 2px; z-index: 200;
+  display: none;
+}
+.slide-element.selected .resize-handle { display: block; }
+.rh-tl { top: -5px; left: -5px; cursor: nwse-resize; }
+.rh-tr { top: -5px; right: -5px; cursor: nesw-resize; }
+.rh-bl { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.rh-br { bottom: -5px; right: -5px; cursor: nwse-resize; }
+.rh-t { top: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.rh-b { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: ns-resize; }
+.rh-l { top: 50%; left: -5px; transform: translateY(-50%); cursor: ew-resize; }
+.rh-r { top: 50%; right: -5px; transform: translateY(-50%); cursor: ew-resize; }
+
+/* Text elements */
+.el-text {
+  padding: 4px 8px; min-width: 40px; min-height: 24px;
+  line-height: 1.4; word-wrap: break-word; overflow-wrap: break-word;
+}
+.el-text[contenteditable="true"] {
+  outline: none; cursor: text; user-select: text;
+}
+
+/* Image elements */
+.el-image { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.el-image img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+
+/* Chart elements */
+.el-chart { display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 8px; }
+.el-chart canvas { max-width: 100%; max-height: 100%; }
+
+/* ===== PROPERTIES PANEL (RIGHT) ===== */
+.props-panel {
+  width: var(--props-width); background: var(--bg-secondary);
+  border-left: 1px solid var(--border); display: flex; flex-direction: column;
+  flex-shrink: 0; overflow-y: auto; overflow-x: hidden;
+}
+.props-panel.hidden { display: none; }
+.props-panel::-webkit-scrollbar { width: 4px; }
+.props-panel::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+
+.props-section {
+  padding: 12px; border-bottom: 1px solid var(--border);
+}
+.props-section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-secondary); margin-bottom: 8px;
+}
+.props-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.props-label {
+  font-size: 12px; color: var(--text-secondary); min-width: 50px; flex-shrink: 0;
+}
+.props-input {
+  flex: 1; padding: 4px 8px; background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); font-size: 12px;
+  font-family: var(--font-ui); outline: none; transition: border-color 0.15s;
+}
+.props-input:focus { border-color: var(--accent); }
+.props-textarea {
+  width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); font-size: 12px;
+  font-family: var(--font-mono); outline: none; resize: vertical; min-height: 80px;
+  transition: border-color 0.15s;
+}
+.props-textarea:focus { border-color: var(--accent); }
+.props-select {
+  flex: 1; padding: 4px 8px; background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); font-size: 12px;
+  font-family: var(--font-ui); outline: none; cursor: pointer;
+}
+
+/* ===== MODALS ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; z-index: 500;
+  opacity: 0; pointer-events: none; transition: opacity 0.15s;
+}
+.modal-overlay.visible { opacity: 1; pointer-events: auto; }
+.modal {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px; min-width: 360px; max-width: 600px; max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+}
+.modal h3 { font-size: 16px; margin-bottom: 16px; }
+.modal-close {
+  position: absolute; top: 12px; right: 12px; background: none; border: none;
+  color: var(--text-secondary); font-size: 18px; cursor: pointer;
+}
+
+/* Layout picker grid */
+.layout-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+}
+.layout-option {
+  padding: 12px 8px; background: var(--bg-primary); border: 2px solid var(--border);
+  border-radius: var(--radius); cursor: pointer; text-align: center; transition: all 0.15s;
+}
+.layout-option:hover { border-color: var(--text-muted); }
+.layout-option.selected { border-color: var(--accent); }
+.layout-option i { font-size: 24px; color: var(--text-secondary); margin-bottom: 6px; display: block; }
+.layout-option span { font-size: 11px; color: var(--text-secondary); }
+
+/* Chart data editor */
+.chart-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.chart-table th { text-align: left; padding: 4px 6px; color: var(--text-secondary); font-weight: 500; border-bottom: 1px solid var(--border); }
+.chart-table td { padding: 3px 4px; }
+.chart-table input { width: 100%; padding: 3px 6px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 3px; color: var(--text-primary); font-size: 12px; font-family: var(--font-ui); }
+.chart-table input[type="color"] { width: 28px; height: 24px; padding: 1px; cursor: pointer; }
+.chart-row-del { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 13px; padding: 2px 4px; }
+
+/* ===== PRESENTATION MODE ===== */
+.present-overlay {
+  position: fixed; inset: 0; background: #000; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  cursor: none;
+}
+.present-overlay.active { opacity: 1; pointer-events: auto; }
+.present-overlay:hover { cursor: default; }
+.present-slide {
+  position: relative; background: #1a1a2e; overflow: hidden;
+  transition: opacity 0.3s ease;
+}
+.present-slide.fade-out { opacity: 0; }
+.present-slide.fade-in { opacity: 1; }
+
+/* ===== CONTEXT MENU ===== */
+.ctx-menu {
+  position: fixed; background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 4px 0; min-width: 160px; z-index: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: none;
+}
+.ctx-menu.visible { display: block; }
+.ctx-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  font-size: 13px; color: var(--text-primary); cursor: pointer; transition: background 0.1s;
+}
+.ctx-item:hover { background: var(--bg-hover); }
+.ctx-item i { width: 16px; text-align: center; color: var(--text-secondary); font-size: 12px; }
+.ctx-item.danger { color: var(--danger); }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ===== TOAST ===== */
+.toast-container { position: fixed; bottom: 16px; right: 16px; z-index: 700; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  padding: 8px 16px; background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: 13px; color: var(--text-primary);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); animation: slideUp 0.2s ease;
+}
+@keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ===== EMPTY STATE ===== */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; color: var(--text-muted); text-align: center; gap: 12px;
+}
+.empty-state i { font-size: 48px; opacity: 0.3; }
+.empty-state p { font-size: 14px; }
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
+
+/* ===== BACKGROUND SETTINGS ===== */
+.bg-preview {
+  width: 100%; aspect-ratio: 16/9; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); overflow: hidden; margin-bottom: 8px;
+  background-size: cover; background-position: center;
+}
+
+/* ===== Scheme selector ===== */
+.scheme-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;
+}
+.modal .scheme-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.scheme-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 4px 6px; border-radius: var(--radius-sm);
+  border: 2px solid var(--border); cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s; background: var(--bg-secondary);
+}
+.scheme-card:hover { border-color: var(--text-muted); }
+.scheme-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,242,112,0.2); }
+[data-theme="light"] .scheme-card.active { box-shadow: 0 0 0 2px rgba(90,138,26,0.2); }
+.scheme-card-preview {
+  width: 100%; aspect-ratio: 16/9; border-radius: 3px; position: relative; overflow: hidden;
+}
+.scheme-card-dots {
+  position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 3px;
+}
+.scheme-card-dot { width: 8px; height: 8px; border-radius: 50%; }
+.scheme-card-name {
+  font-size: 10px; color: var(--text-secondary); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center;
+}
+
+/* ===== Color swatches ===== */
+.color-swatches {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap; flex: 1;
+  position: relative;
+}
+.color-input-hidden {
+  position: absolute; right: 0; bottom: 0; width: 1px; height: 1px;
+  opacity: 0; pointer-events: none; padding: 0; border: none;
+}
+.color-swatch {
+  width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; transition: border-color 0.15s, opacity 0.15s; flex-shrink: 0;
+}
+.color-swatch:hover { opacity: 0.8; }
+.color-swatch.active {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+}
+[data-theme="light"] .color-swatch.active {
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
+}
+.color-more-btn {
+  width: 22px; height: 22px; border-radius: 50%; border: 1px dashed var(--text-muted);
+  background: transparent; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; font-size: 10px; color: var(--text-muted); transition: all 0.15s;
+  flex-shrink: 0;
+}
+.color-more-btn:hover { border-color: var(--text-secondary); color: var(--text-secondary); }
+.chart-color-swatch {
+  width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border);
+  cursor: pointer; position: relative; flex-shrink: 0;
+}
+.chart-color-swatch:hover { border-color: var(--text-muted); }
+.chart-color-dropdown {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 6px; display: none; z-index: 300; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  flex-wrap: wrap; gap: 4px; width: 140px;
+}
+.chart-color-dropdown.visible { display: flex; }
+.chart-color-dropdown .color-swatch { width: 20px; height: 20px; }
+
+/* ===== Keyboard shortcuts hint ===== */
+.shortcuts-list { display: flex; flex-direction: column; gap: 6px; }
+.shortcut-row { display: flex; justify-content: space-between; font-size: 13px; }
+.shortcut-key {
+  padding: 2px 8px; background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: 4px; font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary);
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <a class="header-home" href="../index.html">
+        <img src="../assets/logo.png" alt="NibSet">
+      </a>
+      <div class="header-title">
+        <i class="fa-solid fa-presentation-screen"></i>
+        Present
+      </div>
+    </div>
+    <div class="header-center">
+      <input id="presTitle" class="props-input" style="width:200px;text-align:center;font-weight:600;" placeholder="Untitled Presentation" value="Untitled Presentation">
+    </div>
+    <div class="header-right">
+      <button class="btn btn-sm" id="btnThemeModal" title="Theme"><i class="fa-solid fa-palette"></i> Theme</button>
+      <button class="btn btn-sm" id="btnImport" title="Import"><i class="fa-solid fa-file-import"></i> Import</button>
+      <button class="btn btn-sm" id="btnExportHTML" title="Export HTML"><i class="fa-solid fa-file-export"></i> Export</button>
+      <button class="btn btn-accent btn-sm" id="btnPresent"><i class="fa-solid fa-play"></i> Present</button>
+      <button class="btn-icon" id="btnTheme" title="Toggle theme"><i class="fa-solid fa-circle-half-stroke"></i></button>
+    </div>
+  </header>
+
+  <!-- Editor Body -->
+  <div class="editor-body">
+    <!-- Left: Slide Panel -->
+    <aside class="slide-panel">
+      <div class="slide-panel-header">
+        <span>Slides</span>
+        <button class="btn btn-sm" id="btnAddSlide"><i class="fa-solid fa-plus"></i></button>
+      </div>
+      <div class="slide-list" id="slideList"></div>
+    </aside>
+
+    <!-- Center: Canvas -->
+    <main class="canvas-area">
+      <div class="canvas-toolbar" id="canvasToolbar">
+        <button class="btn-icon" id="tbAddText" title="Add text"><i class="fa-solid fa-font"></i></button>
+        <button class="btn-icon" id="tbAddImage" title="Add image"><i class="fa-solid fa-image"></i></button>
+        <button class="btn-icon" id="tbAddChart" title="Add chart"><i class="fa-solid fa-chart-pie"></i></button>
+        <div class="toolbar-sep"></div>
+        <button class="btn-icon" id="tbBold" title="Bold (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
+        <button class="btn-icon" id="tbItalic" title="Italic (Ctrl+I)"><i class="fa-solid fa-italic"></i></button>
+        <button class="btn-icon" id="tbUnderline" title="Underline (Ctrl+U)"><i class="fa-solid fa-underline"></i></button>
+        <div class="toolbar-sep"></div>
+        <button class="btn-icon" id="tbAlignL" title="Align left"><i class="fa-solid fa-align-left"></i></button>
+        <button class="btn-icon" id="tbAlignC" title="Align center"><i class="fa-solid fa-align-center"></i></button>
+        <button class="btn-icon" id="tbAlignR" title="Align right"><i class="fa-solid fa-align-right"></i></button>
+        <div class="toolbar-sep"></div>
+        <button class="btn-icon" id="tbBringFwd" title="Bring forward"><i class="fa-solid fa-layer-group"></i></button>
+        <button class="btn-icon" id="tbSendBack" title="Send backward"><i class="fa-solid fa-layer-group fa-flip-vertical"></i></button>
+        <button class="btn-icon" id="tbDuplicate" title="Duplicate element"><i class="fa-solid fa-copy"></i></button>
+        <button class="btn-icon" id="tbDelete" title="Delete element" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button>
+      </div>
+      <div class="canvas-viewport" id="canvasViewport">
+        <div class="slide-canvas" id="slideCanvas"></div>
+      </div>
+      <div class="canvas-statusbar">
+        <span id="slideInfo">Slide 1 of 1</span>
+        <span id="saveStatus">Saved</span>
+      </div>
+    </main>
+
+    <!-- Right: Properties Panel -->
+    <aside class="props-panel" id="propsPanel">
+      <div id="propsContent"></div>
+    </aside>
+  </div>
+</div>
+
+<!-- Layout Picker Modal -->
+<div class="modal-overlay" id="layoutModal">
+  <div class="modal" style="position:relative;">
+    <h3>Choose Layout</h3>
+    <div class="layout-grid" id="layoutGrid"></div>
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn btn-sm" data-close-modal="layoutModal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Background Modal -->
+<div class="modal-overlay" id="bgModal">
+  <div class="modal" style="position:relative;">
+    <h3>Slide Background</h3>
+    <div id="bgEditor"></div>
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn btn-sm" data-close-modal="bgModal">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Keyboard Shortcuts Modal -->
+<div class="modal-overlay" id="shortcutsModal">
+  <div class="modal" style="position:relative;">
+    <h3>Keyboard Shortcuts</h3>
+    <div class="shortcuts-list">
+      <div class="shortcut-row"><span>Present</span><span class="shortcut-key">F5</span></div>
+      <div class="shortcut-row"><span>Add slide</span><span class="shortcut-key">Ctrl+M</span></div>
+      <div class="shortcut-row"><span>Duplicate slide</span><span class="shortcut-key">Ctrl+D</span></div>
+      <div class="shortcut-row"><span>Delete element</span><span class="shortcut-key">Delete</span></div>
+      <div class="shortcut-row"><span>Bold</span><span class="shortcut-key">Ctrl+B</span></div>
+      <div class="shortcut-row"><span>Italic</span><span class="shortcut-key">Ctrl+I</span></div>
+      <div class="shortcut-row"><span>Undo</span><span class="shortcut-key">Ctrl+Z</span></div>
+      <div class="shortcut-row"><span>Redo</span><span class="shortcut-key">Ctrl+Y</span></div>
+      <div class="shortcut-row"><span>Deselect</span><span class="shortcut-key">Escape</span></div>
+      <div class="shortcut-row"><span>Shortcuts</span><span class="shortcut-key">?</span></div>
+    </div>
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn btn-sm" data-close-modal="shortcutsModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Theme Modal -->
+<div class="modal-overlay" id="themeModal">
+  <div class="modal" style="position:relative;min-width:420px;">
+    <h3>Presentation Theme</h3>
+    <div id="themeEditor"></div>
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn btn-sm" data-close-modal="themeModal">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div class="ctx-menu" id="ctxMenu"></div>
+
+<!-- Presentation Overlay -->
+<div class="present-overlay" id="presentOverlay">
+  <div class="present-slide" id="presentSlide"></div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Hidden file input -->
+<input type="file" id="fileInput" accept=".html,.json,.png,.jpg,.jpeg,.gif,.webp,.svg" style="display:none">
+
+<script>
+(function() {
+'use strict';
+
+// ===== CONSTANTS =====
+const STORAGE_KEY = 'nibset-present-data';
+const AUTOSAVE_DELAY = 1500;
+const MAX_UNDO = 50;
+const SLIDE_W = 960;
+const SLIDE_H = 540;
+const DEFAULT_COLORS = ['#d1d5db','#c9f270','#ef4444','#22c55e','#f59e0b','#3b82f6','#8b5cf6','#ec4899'];
+
+const COLOR_SCHEMES = {
+  nibset: {
+    name: 'NibSet', isDark: true, suggestedBackground: '#111115', textColor: '#e8e8ec',
+    swatches: ['#c9f270','#e8e8ec','#ef4444','#22c55e','#f59e0b','#3b82f6','#8b5cf6','#ec4899']
+  },
+  midnight: {
+    name: 'Midnight', isDark: true, suggestedBackground: '#1a1a2e', textColor: '#e8e8ec',
+    swatches: ['#818cf8','#c4b5fd','#38bdf8','#f472b6','#fbbf24','#34d399','#f87171','#e8e8ec']
+  },
+  light: {
+    name: 'Light', isDark: false, suggestedBackground: '#ffffff', textColor: '#1e1e2e',
+    swatches: ['#374151','#16a34a','#dc2626','#2563eb','#d97706','#7c3aed','#db2777','#0891b2']
+  },
+  ocean: {
+    name: 'Ocean', isDark: true, suggestedBackground: '#0f172a', textColor: '#e0f2fe',
+    swatches: ['#38bdf8','#22d3ee','#818cf8','#a78bfa','#f472b6','#34d399','#fbbf24','#94a3b8']
+  },
+  forest: {
+    name: 'Forest', isDark: true, suggestedBackground: '#1a2e1a', textColor: '#d4e8c2',
+    swatches: ['#86efac','#a3b899','#fbbf24','#f87171','#60a5fa','#c084fc','#fb923c','#e8e8ec']
+  },
+  warm: {
+    name: 'Warm', isDark: true, suggestedBackground: '#2e1a1a', textColor: '#f5e6d3',
+    swatches: ['#f59e0b','#d4a574','#ef4444','#e879a0','#c084fc','#60a5fa','#34d399','#e8e8ec']
+  },
+  mono: {
+    name: 'Mono', isDark: true, suggestedBackground: '#111111', textColor: '#e5e5e5',
+    swatches: ['#f5f5f5','#d4d4d4','#a3a3a3','#737373','#525252','#404040','#262626','#171717']
+  }
+};
+
+function activeScheme() {
+  return COLOR_SCHEMES[(pres && pres.colorScheme) || 'nibset'];
+}
+
+function schemeDerived(scheme) {
+  return {
+    chartLegendColor: scheme.textColor,
+    chartAxisColor: scheme.isDark ? '#8b8b95' : '#6b7280',
+    chartGridColor: scheme.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'
+  };
+}
+
+// ===== UTILITY =====
+function uid() { return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substr(2, 12); }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
+function debounce(fn, ms) { let t; return function(...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); }; }
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function rgbToHex(rgb) {
+  if (rgb.startsWith('#')) return rgb;
+  const m = rgb.match(/\d+/g);
+  if (!m || m.length < 3) return '#d1d5db';
+  return '#' + m.slice(0, 3).map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
+}
+
+// ===== DATA MODEL =====
+function createPresentation() {
+  return {
+    meta: { title: 'Untitled Presentation', author: '', createdAt: Date.now(), updatedAt: Date.now(), aspectRatio: '16:9' },
+    theme: { background: '#111115', textColor: '#e8e8ec', backgroundImage: null, backgroundFit: 'cover', backgroundOpacity: 1 },
+    colorScheme: 'nibset',
+    slides: []
+  };
+}
+
+function createSlide(type, layout) {
+  const scheme = activeScheme();
+  const s = {
+    id: uid(), type: type || 'default', layout: layout || 'title-body',
+    background: { color: (pres && pres.theme ? pres.theme.background : scheme.suggestedBackground), image: null, fit: 'cover', opacity: 1 },
+    elements: [], transition: 'fade'
+  };
+  s.elements = getLayoutDefaults(s.layout, s.type);
+  return s;
+}
+
+function createTextElement(x, y, w, h, content, style) {
+  return {
+    id: uid(), type: 'text', x, y, w, h, zIndex: 1, locked: false,
+    content: content || '<p>Text</p>',
+    style: Object.assign({ fontSize: 24, fontFamily: 'Plus Jakarta Sans', color: activeScheme().textColor, bold: false, italic: false, align: 'left', lineHeight: 1.4 }, style || {})
+  };
+}
+
+function createImageElement(x, y, w, h, src) {
+  return {
+    id: uid(), type: 'image', x, y, w, h, zIndex: 1, locked: false,
+    content: { src: src || '', alt: '' },
+    style: { objectFit: 'contain', borderRadius: 0, opacity: 1 }
+  };
+}
+
+function createChartElement(x, y, w, h, chartType) {
+  const sw = activeScheme().swatches;
+  return {
+    id: uid(), type: 'chart', x, y, w, h, zIndex: 1, locked: false,
+    content: {
+      chartType: chartType || 'pie',
+      labels: ['Category A', 'Category B', 'Category C'],
+      datasets: [{ label: 'Data', data: [30, 50, 20], backgroundColor: [sw[0], sw[1], sw[2]] }],
+      options: {}
+    },
+    style: { showLegend: true }
+  };
+}
+
+// ===== LAYOUT TEMPLATES =====
+const LAYOUTS = {
+  'title-body': { name: 'Title + Body', icon: 'fa-heading' },
+  'two-columns': { name: 'Two Columns', icon: 'fa-columns' },
+  'image-text': { name: 'Image + Text', icon: 'fa-image' },
+  'blank': { name: 'Blank', icon: 'fa-square' },
+  'chart': { name: 'Chart', icon: 'fa-chart-pie' }
+};
+
+function getLayoutDefaults(layout, slideType) {
+  const isFull = slideType === 'full';
+  const topOff = 0;
+  switch (layout) {
+    case 'title-body':
+      if (isFull) return [
+        createTextElement(10, 25, 80, 20, 'Title', { fontSize: 48, align: 'center', bold: true }),
+        createTextElement(15, 50, 70, 20, 'Subtitle or description', { fontSize: 24, align: 'center', color: activeScheme().swatches[activeScheme().swatches.length - 1] })
+      ];
+      return [
+        createTextElement(5, topOff + 4, 90, 14, 'Title', { fontSize: 36, bold: true }),
+        createTextElement(5, topOff + 22, 90, 55, 'Body text goes here. Click to edit.', { fontSize: 20, color: activeScheme().textColor })
+      ];
+    case 'two-columns':
+      return [
+        createTextElement(5, topOff + 4, 90, 12, 'Title', { fontSize: 32, bold: true }),
+        createTextElement(5, topOff + 20, 42, 58, 'Left column content', { fontSize: 18, color: activeScheme().textColor }),
+        createTextElement(53, topOff + 20, 42, 58, 'Right column content', { fontSize: 18, color: activeScheme().textColor })
+      ];
+    case 'image-text':
+      return [
+        createImageElement(5, topOff + 4, 45, 80, ''),
+        createTextElement(55, topOff + 4, 40, 12, 'Title', { fontSize: 32, bold: true }),
+        createTextElement(55, topOff + 20, 40, 60, 'Description text', { fontSize: 18, color: activeScheme().textColor })
+      ];
+    case 'blank':
+      return [];
+    case 'chart':
+      return [
+        createTextElement(5, topOff + 2, 90, 10, 'Chart', { fontSize: 28, bold: true }),
+        createChartElement(10, topOff + 16, 80, 68, 'pie')
+      ];
+    default:
+      return [];
+  }
+}
+
+// ===== STATE =====
+let pres = null;
+let currentSlideIdx = 0;
+let selectedElementId = null;
+let isEditing = false;
+let isDragging = false;
+let isResizing = false;
+let dragData = null;
+let undoStack = [];
+let redoStack = [];
+let chartInstances = new Map();
+let saveTimeout = null;
+let layoutModalMode = 'change'; // 'change' = change current slide layout, 'new' = create new slide
+
+// ===== DOM REFS =====
+const $ = id => document.getElementById(id);
+const slideList = $('slideList');
+const slideCanvas = $('slideCanvas');
+const canvasViewport = $('canvasViewport');
+const propsPanel = $('propsPanel');
+const propsContent = $('propsContent');
+const presentOverlay = $('presentOverlay');
+const presentSlide = $('presentSlide');
+const toastContainer = $('toastContainer');
+const fileInput = $('fileInput');
+
+// ===== PERSISTENCE =====
+function save() {
+  pres.meta.updatedAt = Date.now();
+  pres.meta.title = $('presTitle').value || 'Untitled Presentation';
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pres));
+    $('saveStatus').textContent = 'Saved';
+  } catch (e) {
+    $('saveStatus').textContent = 'Save failed';
+    toast('Storage full! Consider exporting your presentation.');
+  }
+}
+
+const autoSave = debounce(save, AUTOSAVE_DELAY);
+
+function scheduleSave() {
+  $('saveStatus').textContent = 'Saving...';
+  autoSave();
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      pres = JSON.parse(raw);
+      if (!pres.slides || !pres.meta) throw new Error('Invalid');
+      if (!pres.colorScheme) pres.colorScheme = 'midnight';
+      if (!pres.theme || !pres.theme.background) {
+        const s = COLOR_SCHEMES[pres.colorScheme || 'nibset'];
+        pres.theme = { background: s.suggestedBackground, textColor: s.textColor, backgroundImage: null, backgroundFit: 'cover', backgroundOpacity: 1 };
+      }
+      if (pres.theme.backgroundImage === undefined) {
+        pres.theme.backgroundImage = null;
+        pres.theme.backgroundFit = 'cover';
+        pres.theme.backgroundOpacity = 1;
+      }
+      return true;
+    }
+  } catch (e) { /* fall through */ }
+  return false;
+}
+
+// ===== UNDO / REDO =====
+function pushUndo() {
+  undoStack.push(deepClone(pres));
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack = [];
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  redoStack.push(deepClone(pres));
+  pres = undoStack.pop();
+  currentSlideIdx = clamp(currentSlideIdx, 0, pres.slides.length - 1);
+  selectedElementId = null;
+  renderAll();
+  scheduleSave();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  undoStack.push(deepClone(pres));
+  pres = redoStack.pop();
+  currentSlideIdx = clamp(currentSlideIdx, 0, pres.slides.length - 1);
+  selectedElementId = null;
+  renderAll();
+  scheduleSave();
+}
+
+// ===== COLOR SCHEME =====
+function applyScheme(newKey) {
+  const newScheme = COLOR_SCHEMES[newKey];
+  if (!newScheme) return;
+  pushUndo();
+  pres.colorScheme = newKey;
+  pres.theme.background = newScheme.suggestedBackground;
+  pres.theme.textColor = newScheme.textColor;
+  const derived = schemeDerived(newScheme);
+
+  pres.slides.forEach(slide => {
+    slide.background.color = pres.theme.background;
+    slide.elements.forEach(el => {
+      if (el.type === 'text') {
+        el.style.color = newScheme.textColor;
+      }
+      if (el.type === 'chart' && el.content.datasets && el.content.datasets[0]) {
+        const bg = el.content.datasets[0].backgroundColor;
+        if (bg) {
+          for (let i = 0; i < bg.length; i++) {
+            bg[i] = newScheme.swatches[i % newScheme.swatches.length];
+          }
+        }
+      }
+    });
+  });
+
+  renderAll();
+  scheduleSave();
+}
+
+function applyThemeToAll() {
+  pushUndo();
+  pres.slides.forEach(slide => {
+    slide.background.color = pres.theme.background;
+    slide.background.image = pres.theme.backgroundImage;
+    slide.background.fit = pres.theme.backgroundFit;
+    slide.background.opacity = pres.theme.backgroundOpacity;
+    slide.elements.forEach(el => {
+      if (el.type === 'text') {
+        el.style.color = pres.theme.textColor;
+      }
+    });
+  });
+  renderAll();
+  scheduleSave();
+}
+
+// ===== SLIDE OPERATIONS =====
+function curSlide() { return pres.slides[currentSlideIdx]; }
+
+function addSlide(layout, type) {
+  pushUndo();
+  const s = createSlide(type || 'default', layout || 'title-body');
+  pres.slides.splice(currentSlideIdx + 1, 0, s);
+  currentSlideIdx = currentSlideIdx + 1;
+  selectedElementId = null;
+  renderAll();
+  scheduleSave();
+}
+
+function deleteSlide(idx) {
+  if (pres.slides.length <= 1) { toast('Cannot delete the only slide'); return; }
+  pushUndo();
+  pres.slides.splice(idx, 1);
+  if (currentSlideIdx >= pres.slides.length) currentSlideIdx = pres.slides.length - 1;
+  selectedElementId = null;
+  renderAll();
+  scheduleSave();
+}
+
+function duplicateSlide(idx) {
+  pushUndo();
+  const copy = deepClone(pres.slides[idx]);
+  copy.id = uid();
+  copy.elements.forEach(e => e.id = uid());
+  pres.slides.splice(idx + 1, 0, copy);
+  currentSlideIdx = idx + 1;
+  renderAll();
+  scheduleSave();
+}
+
+function moveSlide(fromIdx, toIdx) {
+  if (fromIdx === toIdx) return;
+  pushUndo();
+  const [s] = pres.slides.splice(fromIdx, 1);
+  pres.slides.splice(toIdx, 0, s);
+  currentSlideIdx = toIdx;
+  renderAll();
+  scheduleSave();
+}
+
+// ===== ELEMENT OPERATIONS =====
+function addElement(el) {
+  pushUndo();
+  const slide = curSlide();
+  const maxZ = slide.elements.reduce((m, e) => Math.max(m, e.zIndex), 0);
+  el.zIndex = maxZ + 1;
+  slide.elements.push(el);
+  selectedElementId = el.id;
+  renderSlide();
+  renderThumbnails();
+  updateProps();
+  scheduleSave();
+}
+
+function deleteElement(id) {
+  const slide = curSlide();
+  const idx = slide.elements.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  pushUndo();
+  slide.elements.splice(idx, 1);
+  selectedElementId = null;
+  renderSlide();
+  renderThumbnails();
+  updateProps();
+  scheduleSave();
+}
+
+function updateElement(id, changes) {
+  const slide = curSlide();
+  const el = slide.elements.find(e => e.id === id);
+  if (!el) return;
+  Object.assign(el, changes);
+  scheduleSave();
+}
+
+function bringForward(id) {
+  const slide = curSlide();
+  const el = slide.elements.find(e => e.id === id);
+  if (!el) return;
+  pushUndo();
+  el.zIndex = slide.elements.reduce((m, e) => Math.max(m, e.zIndex), 0) + 1;
+  renderSlide();
+  scheduleSave();
+}
+
+function sendBackward(id) {
+  const slide = curSlide();
+  const el = slide.elements.find(e => e.id === id);
+  if (!el) return;
+  pushUndo();
+  el.zIndex = Math.max(1, slide.elements.reduce((m, e) => Math.min(m, e.zIndex), Infinity) - 1);
+  renderSlide();
+  scheduleSave();
+}
+
+// ===== RENDER: THUMBNAILS =====
+function renderThumbnails() {
+  slideList.innerHTML = '';
+  pres.slides.forEach((slide, idx) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'slide-thumb' + (idx === currentSlideIdx ? ' active' : '');
+    thumb.draggable = true;
+    thumb.dataset.idx = idx;
+
+    const inner = document.createElement('div');
+    inner.className = 'slide-thumb-inner';
+    const scaled = document.createElement('div');
+    scaled.className = 'slide-thumb-scaled';
+    renderSlideToContainer(slide, scaled, true);
+    inner.appendChild(scaled);
+
+    const num = document.createElement('div');
+    num.className = 'slide-thumb-num';
+    num.textContent = idx + 1;
+
+    thumb.appendChild(inner);
+    thumb.appendChild(num);
+
+    thumb.addEventListener('click', () => {
+      currentSlideIdx = idx;
+      selectedElementId = null;
+      renderAll();
+    });
+    thumb.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showSlideContextMenu(e, idx);
+    });
+
+    // Drag reorder
+    thumb.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', idx);
+      e.dataTransfer.effectAllowed = 'move';
+      thumb.style.opacity = '0.5';
+    });
+    thumb.addEventListener('dragend', () => { thumb.style.opacity = '1'; });
+    thumb.addEventListener('dragover', (e) => { e.preventDefault(); thumb.classList.add('drag-over'); });
+    thumb.addEventListener('dragleave', () => { thumb.classList.remove('drag-over'); });
+    thumb.addEventListener('drop', (e) => {
+      e.preventDefault();
+      thumb.classList.remove('drag-over');
+      const from = parseInt(e.dataTransfer.getData('text/plain'));
+      moveSlide(from, idx);
+    });
+
+    slideList.appendChild(thumb);
+  });
+
+  // Compute and apply thumbnail scale after DOM layout
+  requestAnimationFrame(() => {
+    slideList.querySelectorAll('.slide-thumb-inner').forEach(inner => {
+      const w = inner.clientWidth;
+      if (w > 0) {
+        const scale = w / SLIDE_W;
+        const scaled = inner.querySelector('.slide-thumb-scaled');
+        if (scaled) scaled.style.transform = `scale(${scale})`;
+      }
+    });
+    // Render charts in thumbnails
+    pres.slides.forEach(slide => {
+      slide.elements.filter(e => e.type === 'chart').forEach(el => {
+        const canvasEl = document.getElementById('thumb-chart-' + el.id);
+        if (!canvasEl) return;
+        const key = 'thumb-' + el.id;
+        if (chartInstances.has(key)) { chartInstances.get(key).destroy(); chartInstances.delete(key); }
+        const cfg = {
+          type: el.content.chartType || 'pie',
+          data: { labels: el.content.labels, datasets: deepClone(el.content.datasets) },
+          options: {
+            responsive: true, maintainAspectRatio: false, animation: false,
+            plugins: { legend: { display: el.style.showLegend !== false, labels: { color: '#e8e8ec' } } },
+            scales: {}
+          }
+        };
+        if (['bar', 'line'].includes(cfg.type)) {
+          cfg.options.scales = {
+            x: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+            y: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+          };
+        }
+        try { chartInstances.set(key, new Chart(canvasEl.getContext('2d'), cfg)); } catch (e) {}
+      });
+    });
+  });
+}
+
+// ===== RENDER: SLIDE TO CONTAINER =====
+function renderSlideToContainer(slide, container, isThumbnail) {
+  container.innerHTML = '';
+  const bgStyle = [];
+  if (slide.background.image) {
+    bgStyle.push(`background-image: url(${slide.background.image})`);
+    bgStyle.push(`background-size: ${slide.background.fit}`);
+    bgStyle.push(`background-position: center`);
+    bgStyle.push(`opacity: ${slide.background.opacity}`);
+  }
+  const bg = document.createElement('div');
+  bg.className = 'slide-bg';
+  bg.style.cssText = bgStyle.join(';') + ';background-color:' + (slide.background.color || '#1a1a2e');
+  container.appendChild(bg);
+  container.style.backgroundColor = slide.background.color || '#1a1a2e';
+
+  // Default slide type: design line, title footer, and slide number
+  if (slide.type === 'default') {
+    const dl = document.createElement('div');
+    dl.className = 'slide-design-line';
+    dl.style.background = activeScheme().swatches[0];
+    dl.style.opacity = '0.35';
+    container.appendChild(dl);
+
+    const tf = document.createElement('div');
+    tf.className = 'slide-title-footer';
+    tf.textContent = pres.meta.title || 'Presentation';
+    container.appendChild(tf);
+
+    const sn = document.createElement('div');
+    sn.className = 'slide-number';
+    sn.textContent = (pres.slides.indexOf(slide) + 1);
+    container.appendChild(sn);
+  }
+
+  // Elements
+  slide.elements.forEach(el => {
+    const dom = createElementDom(el, isThumbnail);
+    container.appendChild(dom);
+  });
+}
+
+function createElementDom(el, isThumbnail) {
+  const div = document.createElement('div');
+  div.className = 'slide-element' + (el.id === selectedElementId && !isThumbnail ? ' selected' : '');
+  div.dataset.id = el.id;
+  div.style.cssText = `left:${el.x}%;top:${el.y}%;width:${el.w}%;height:${el.h}%;z-index:${el.zIndex};`;
+
+  if (el.type === 'text') {
+    div.classList.add('el-text');
+    div.innerHTML = el.content;
+    div.style.fontSize = (el.style.fontSize || 24) + 'px';
+    div.style.fontFamily = el.style.fontFamily || 'Plus Jakarta Sans';
+    div.style.color = el.style.color || activeScheme().textColor;
+    div.style.textAlign = el.style.align || 'left';
+    div.style.lineHeight = el.style.lineHeight || 1.4;
+    if (el.style.bold) div.style.fontWeight = '700';
+    if (el.style.italic) div.style.fontStyle = 'italic';
+  } else if (el.type === 'image') {
+    div.classList.add('el-image');
+    if (el.content.src) {
+      const img = document.createElement('img');
+      img.src = el.content.src;
+      img.alt = el.content.alt || '';
+      img.style.objectFit = el.style.objectFit || 'contain';
+      img.style.borderRadius = (el.style.borderRadius || 0) + 'px';
+      img.style.opacity = el.style.opacity ?? 1;
+      div.appendChild(img);
+    } else {
+      div.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center"><i class="fa-solid fa-image" style="font-size:24px;display:block;margin-bottom:4px"></i>Drop image here</div>';
+    }
+  } else if (el.type === 'chart') {
+    div.classList.add('el-chart');
+    const canvas = document.createElement('canvas');
+    canvas.id = (isThumbnail ? 'thumb-chart-' : 'chart-') + el.id;
+    div.appendChild(canvas);
+  }
+
+  // Resize handles (not for thumbnails)
+  if (!isThumbnail) {
+    ['tl','tr','bl','br','t','b','l','r'].forEach(pos => {
+      const h = document.createElement('div');
+      h.className = 'resize-handle rh-' + pos;
+      h.dataset.handle = pos;
+      div.appendChild(h);
+    });
+  }
+
+  return div;
+}
+
+function renderChartElement(el) {
+  const canvasEl = document.getElementById('chart-' + el.id);
+  if (!canvasEl) return;
+  // Destroy existing
+  if (chartInstances.has(el.id)) {
+    chartInstances.get(el.id).destroy();
+    chartInstances.delete(el.id);
+  }
+  const ctx = canvasEl.getContext('2d');
+  const derived = schemeDerived(activeScheme());
+  const cfg = {
+    type: el.content.chartType || 'pie',
+    data: { labels: el.content.labels, datasets: el.content.datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: el.style.showLegend !== false, labels: { color: derived.chartLegendColor } }
+      },
+      scales: {}
+    }
+  };
+  if (['bar', 'line'].includes(cfg.type)) {
+    cfg.options.scales = {
+      x: { ticks: { color: derived.chartAxisColor }, grid: { color: derived.chartGridColor } },
+      y: { ticks: { color: derived.chartAxisColor }, grid: { color: derived.chartGridColor } }
+    };
+  }
+  try {
+    const chart = new Chart(ctx, cfg);
+    chartInstances.set(el.id, chart);
+  } catch (e) { console.error('Chart error:', e); }
+}
+
+// ===== RENDER: CURRENT SLIDE =====
+function renderSlide() {
+  const slide = curSlide();
+  if (!slide) return;
+  renderSlideToContainer(slide, slideCanvas, false);
+
+  // Attach canvas interaction events
+  slideCanvas.querySelectorAll('.slide-element').forEach(dom => {
+    const id = dom.dataset.id;
+    dom.addEventListener('mousedown', (e) => onElementMouseDown(e, id));
+    dom.addEventListener('dblclick', (e) => onElementDblClick(e, id));
+  });
+
+  // Render charts after DOM is ready
+  requestAnimationFrame(() => {
+    slide.elements.filter(e => e.type === 'chart').forEach(renderChartElement);
+  });
+
+  $('slideInfo').textContent = `Slide ${currentSlideIdx + 1} of ${pres.slides.length}`;
+}
+
+function renderAll() {
+  renderThumbnails();
+  renderSlide();
+  updateProps();
+  $('presTitle').value = pres.meta.title || '';
+}
+
+// ===== CANVAS SCALING =====
+function scaleCanvas() {
+  const vp = canvasViewport;
+  const pw = vp.clientWidth - 48;
+  const ph = vp.clientHeight - 48;
+  const scale = Math.min(pw / SLIDE_W, ph / SLIDE_H, 1);
+  slideCanvas.style.transform = `scale(${scale})`;
+  slideCanvas.style.width = SLIDE_W + 'px';
+  slideCanvas.style.height = SLIDE_H + 'px';
+}
+
+// ===== ELEMENT INTERACTION =====
+function getCanvasCoords(e) {
+  const rect = slideCanvas.getBoundingClientRect();
+  const scaleX = SLIDE_W / rect.width;
+  const scaleY = SLIDE_H / rect.height;
+  return {
+    px: (e.clientX - rect.left) * scaleX,
+    py: (e.clientY - rect.top) * scaleY,
+    pctX: ((e.clientX - rect.left) * scaleX / SLIDE_W) * 100,
+    pctY: ((e.clientY - rect.top) * scaleY / SLIDE_H) * 100
+  };
+}
+
+function onElementMouseDown(e, id) {
+  if (isEditing && selectedElementId === id) return; // let contenteditable handle it
+  const handle = e.target.closest('.resize-handle');
+  if (handle) {
+    startResize(e, id, handle.dataset.handle);
+    return;
+  }
+  e.preventDefault();
+  selectElement(id);
+
+  const slide = curSlide();
+  const el = slide.elements.find(x => x.id === id);
+  if (!el || el.locked) return;
+
+  const coords = getCanvasCoords(e);
+  dragData = { id, startX: coords.pctX, startY: coords.pctY, origX: el.x, origY: el.y };
+  isDragging = true;
+}
+
+function onMouseMove(e) {
+  if (isDragging && dragData) {
+    const coords = getCanvasCoords(e);
+    const dx = coords.pctX - dragData.startX;
+    const dy = coords.pctY - dragData.startY;
+    const slide = curSlide();
+    const el = slide.elements.find(x => x.id === dragData.id);
+    if (!el) return;
+    el.x = clamp(dragData.origX + dx, -10, 110 - el.w);
+    el.y = clamp(dragData.origY + dy, -10, 110 - el.h);
+
+    const dom = slideCanvas.querySelector(`[data-id="${el.id}"]`);
+    if (dom) { dom.style.left = el.x + '%'; dom.style.top = el.y + '%'; }
+  }
+  if (isResizing && dragData) {
+    handleResize(e);
+  }
+}
+
+function onMouseUp(e) {
+  if (isDragging && dragData) {
+    isDragging = false;
+    pushUndo();
+    dragData = null;
+    renderThumbnails();
+    scheduleSave();
+  }
+  if (isResizing && dragData) {
+    isResizing = false;
+    pushUndo();
+    dragData = null;
+    renderThumbnails();
+    scheduleSave();
+  }
+}
+
+function startResize(e, id, handle) {
+  e.preventDefault();
+  e.stopPropagation();
+  const slide = curSlide();
+  const el = slide.elements.find(x => x.id === id);
+  if (!el) return;
+  const coords = getCanvasCoords(e);
+  dragData = { id, handle, startX: coords.pctX, startY: coords.pctY, origX: el.x, origY: el.y, origW: el.w, origH: el.h };
+  isResizing = true;
+  selectElement(id);
+}
+
+function handleResize(e) {
+  const coords = getCanvasCoords(e);
+  const dx = coords.pctX - dragData.startX;
+  const dy = coords.pctY - dragData.startY;
+  const slide = curSlide();
+  const el = slide.elements.find(x => x.id === dragData.id);
+  if (!el) return;
+  const h = dragData.handle;
+  let x = dragData.origX, y = dragData.origY, w = dragData.origW, hh = dragData.origH;
+
+  if (h.includes('r')) w = Math.max(5, dragData.origW + dx);
+  if (h.includes('l')) { w = Math.max(5, dragData.origW - dx); x = dragData.origX + dx; }
+  if (h.includes('b')) hh = Math.max(5, dragData.origH + dy);
+  if (h.includes('t')) { hh = Math.max(5, dragData.origH - dy); y = dragData.origY + dy; }
+
+  el.x = x; el.y = y; el.w = w; el.h = hh;
+  const dom = slideCanvas.querySelector(`[data-id="${el.id}"]`);
+  if (dom) {
+    dom.style.left = x + '%'; dom.style.top = y + '%';
+    dom.style.width = w + '%'; dom.style.height = hh + '%';
+  }
+}
+
+function selectElement(id) {
+  if (isEditing) stopEditing();
+  selectedElementId = id;
+  slideCanvas.querySelectorAll('.slide-element').forEach(d => d.classList.toggle('selected', d.dataset.id === id));
+  updateProps();
+}
+
+function deselectAll() {
+  if (isEditing) stopEditing();
+  selectedElementId = null;
+  slideCanvas.querySelectorAll('.slide-element').forEach(d => d.classList.remove('selected'));
+  updateProps();
+}
+
+function onElementDblClick(e, id) {
+  const slide = curSlide();
+  const el = slide.elements.find(x => x.id === id);
+  if (!el) return;
+  if (el.type === 'text') startEditing(id);
+}
+
+function startEditing(id) {
+  isEditing = true;
+  selectedElementId = id;
+  const dom = slideCanvas.querySelector(`[data-id="${id}"]`);
+  if (!dom) return;
+  dom.classList.add('editing');
+  dom.setAttribute('contenteditable', 'true');
+  dom.focus();
+  // Select all text
+  const range = document.createRange();
+  range.selectNodeContents(dom);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function stopEditing() {
+  if (!isEditing) return;
+  const dom = slideCanvas.querySelector(`[data-id="${selectedElementId}"]`);
+  if (dom) {
+    dom.classList.remove('editing');
+    dom.removeAttribute('contenteditable');
+    // Save content back
+    const slide = curSlide();
+    const el = slide.elements.find(x => x.id === selectedElementId);
+    if (el && el.type === 'text') {
+      pushUndo();
+      // Strip inline styles that are managed by the data model to prevent overrides
+      const tmp = document.createElement('div');
+      tmp.innerHTML = dom.innerHTML;
+      tmp.querySelectorAll('[style]').forEach(node => {
+        node.style.removeProperty('font-size');
+        node.style.removeProperty('font-family');
+        node.style.removeProperty('color');
+        node.style.removeProperty('text-align');
+        if (!node.getAttribute('style')?.trim()) node.removeAttribute('style');
+      });
+      el.content = tmp.innerHTML;
+      scheduleSave();
+      renderThumbnails();
+    }
+  }
+  isEditing = false;
+}
+
+// ===== PROPERTIES PANEL =====
+function updateProps() {
+  if (!selectedElementId) {
+    propsContent.innerHTML = renderSlideProps();
+    attachSlidePropsEvents();
+    return;
+  }
+  const slide = curSlide();
+  const el = slide.elements.find(x => x.id === selectedElementId);
+  if (!el) { propsContent.innerHTML = ''; return; }
+
+  if (el.type === 'text') propsContent.innerHTML = renderTextProps(el);
+  else if (el.type === 'image') propsContent.innerHTML = renderImageProps(el);
+  else if (el.type === 'chart') propsContent.innerHTML = renderChartProps(el);
+  else propsContent.innerHTML = '';
+
+  attachElementPropsEvents(el);
+}
+
+function renderSlideProps() {
+  const slide = curSlide();
+  if (!slide) return '';
+  return `
+    <div class="props-section">
+      <div class="props-section-title">Slide</div>
+      <div class="props-row">
+        <span class="props-label">Type</span>
+        <select class="props-select" id="propSlideType">
+          <option value="default" ${slide.type === 'default' ? 'selected' : ''}>Default</option>
+          <option value="full" ${slide.type === 'full' ? 'selected' : ''}>Full</option>
+        </select>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Layout</span>
+        <button class="btn btn-sm" id="propChangeLayout" style="flex:1"><i class="fa-solid fa-table-cells-large"></i> Change</button>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Trans.</span>
+        <select class="props-select" id="propTransition">
+          <option value="fade" ${slide.transition === 'fade' ? 'selected' : ''}>Fade</option>
+          <option value="slide" ${slide.transition === 'slide' ? 'selected' : ''}>Slide</option>
+        </select>
+      </div>
+    </div>
+    <div class="props-section">
+      <div class="props-section-title">Background</div>
+      <div class="bg-preview" id="propBgPreview" style="background-color:${slide.background.color || pres.theme.background};${slide.background.image ? 'background-image:url(' + slide.background.image + ');background-size:' + slide.background.fit : ''}"></div>
+      <div class="props-row">
+        <span class="props-label">Color</span>
+        <div class="color-swatches" id="propBgSwatches">
+          ${activeScheme().swatches.map(c => `<div class="color-swatch${(slide.background.color) === c ? ' active' : ''}" data-color="${c}" style="background:${c}"></div>`).join('')}
+          <button class="color-more-btn" id="propBgMore" title="Custom color"><i class="fa-solid fa-ellipsis"></i></button>
+          <input type="color" id="propBgColor" value="${slide.background.color || pres.theme.background}" class="color-input-hidden">
+        </div>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Image</span>
+        <button class="btn btn-sm" id="propBgImage" style="flex:1"><i class="fa-solid fa-upload"></i> Upload</button>
+      </div>
+      ${slide.background.image ? '<div class="props-row"><span class="props-label"></span><button class="btn btn-sm" id="propBgClear" style="flex:1;color:var(--danger)"><i class="fa-solid fa-xmark"></i> Remove</button></div>' : ''}
+      <div class="props-row">
+        <span class="props-label">Fit</span>
+        <select class="props-select" id="propBgFit">
+          <option value="cover" ${slide.background.fit === 'cover' ? 'selected' : ''}>Cover</option>
+          <option value="contain" ${slide.background.fit === 'contain' ? 'selected' : ''}>Contain</option>
+        </select>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Opacity</span>
+        <input type="range" id="propBgOpacity" min="0" max="1" step="0.05" value="${slide.background.opacity ?? 1}" style="flex:1">
+      </div>
+    </div>`;
+}
+
+function attachSlidePropsEvents() {
+  const slide = curSlide();
+  if (!slide) return;
+  const st = $('propSlideType');
+  if (st) st.onchange = () => { pushUndo(); slide.type = st.value; renderSlide(); renderThumbnails(); scheduleSave(); };
+  const cl = $('propChangeLayout');
+  if (cl) cl.onclick = () => { layoutModalMode = 'change'; openModal('layoutModal'); };
+  const tr = $('propTransition');
+  if (tr) tr.onchange = () => { slide.transition = tr.value; scheduleSave(); };
+  const bgSwatches = $('propBgSwatches');
+  if (bgSwatches) {
+    bgSwatches.querySelectorAll('.color-swatch').forEach(sw => {
+      sw.onclick = () => { pushUndo(); slide.background.color = sw.dataset.color; renderSlide(); renderThumbnails(); updateProps(); scheduleSave(); };
+    });
+    const moreBtn = $('propBgMore');
+    const hiddenPicker = $('propBgColor');
+    if (moreBtn && hiddenPicker) {
+      moreBtn.onclick = () => hiddenPicker.click();
+      hiddenPicker.oninput = () => { slide.background.color = hiddenPicker.value; renderSlide(); renderThumbnails(); scheduleSave(); };
+      hiddenPicker.onchange = () => { pushUndo(); updateProps(); };
+    }
+  }
+  const bi = $('propBgImage');
+  if (bi) bi.onclick = () => { fileInput.dataset.mode = 'bg'; fileInput.accept = '.png,.jpg,.jpeg,.gif,.webp,.svg'; fileInput.click(); };
+  const bcl = $('propBgClear');
+  if (bcl) bcl.onclick = () => { pushUndo(); slide.background.image = null; renderSlide(); renderThumbnails(); updateProps(); scheduleSave(); };
+  const bf = $('propBgFit');
+  if (bf) bf.onchange = () => { slide.background.fit = bf.value; renderSlide(); renderThumbnails(); scheduleSave(); };
+  const bo = $('propBgOpacity');
+  if (bo) bo.oninput = () => { slide.background.opacity = parseFloat(bo.value); renderSlide(); scheduleSave(); };
+}
+
+function renderTextProps(el) {
+  return `
+    <div class="props-section">
+      <div class="props-section-title">Text</div>
+      <div class="props-row">
+        <span class="props-label">Font</span>
+        <select class="props-select" id="propFont">
+          <option value="Plus Jakarta Sans" ${el.style.fontFamily === 'Plus Jakarta Sans' ? 'selected' : ''}>Jakarta Sans</option>
+          <option value="JetBrains Mono" ${el.style.fontFamily === 'JetBrains Mono' ? 'selected' : ''}>JetBrains Mono</option>
+          <option value="Georgia, serif" ${el.style.fontFamily?.includes('Georgia') ? 'selected' : ''}>Georgia</option>
+          <option value="system-ui" ${el.style.fontFamily === 'system-ui' ? 'selected' : ''}>System UI</option>
+        </select>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Size</span>
+        <input type="number" class="props-input" id="propFontSize" value="${el.style.fontSize || 24}" min="8" max="200" style="width:60px">
+      </div>
+      <div class="props-row">
+        <span class="props-label">Color</span>
+        <div class="color-swatches" id="propTextSwatches">
+          ${activeScheme().swatches.map(c => `<div class="color-swatch${(el.style.color || activeScheme().textColor) === c ? ' active' : ''}" data-color="${c}" style="background:${c}"></div>`).join('')}
+          <button class="color-more-btn" id="propTextMore" title="Custom color"><i class="fa-solid fa-ellipsis"></i></button>
+          <input type="color" id="propTextColor" value="${el.style.color || activeScheme().textColor}" class="color-input-hidden">
+        </div>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Align</span>
+        <div style="display:flex;gap:4px;">
+          <button class="btn-icon btn-sm ${el.style.align === 'left' ? 'active' : ''}" data-align="left"><i class="fa-solid fa-align-left"></i></button>
+          <button class="btn-icon btn-sm ${el.style.align === 'center' ? 'active' : ''}" data-align="center"><i class="fa-solid fa-align-center"></i></button>
+          <button class="btn-icon btn-sm ${el.style.align === 'right' ? 'active' : ''}" data-align="right"><i class="fa-solid fa-align-right"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="props-section">
+      <div class="props-section-title">Position</div>
+      <div class="props-row"><span class="props-label">X</span><input type="number" class="props-input" id="propX" value="${Math.round(el.x)}" step="1"></div>
+      <div class="props-row"><span class="props-label">Y</span><input type="number" class="props-input" id="propY" value="${Math.round(el.y)}" step="1"></div>
+      <div class="props-row"><span class="props-label">W</span><input type="number" class="props-input" id="propW" value="${Math.round(el.w)}" step="1"></div>
+      <div class="props-row"><span class="props-label">H</span><input type="number" class="props-input" id="propH" value="${Math.round(el.h)}" step="1"></div>
+    </div>`;
+}
+
+function renderImageProps(el) {
+  return `
+    <div class="props-section">
+      <div class="props-section-title">Image</div>
+      <div class="props-row">
+        <button class="btn btn-sm" id="propImgUpload" style="flex:1"><i class="fa-solid fa-upload"></i> Upload Image</button>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Fit</span>
+        <select class="props-select" id="propImgFit">
+          <option value="contain" ${el.style.objectFit === 'contain' ? 'selected' : ''}>Contain</option>
+          <option value="cover" ${el.style.objectFit === 'cover' ? 'selected' : ''}>Cover</option>
+          <option value="fill" ${el.style.objectFit === 'fill' ? 'selected' : ''}>Fill</option>
+        </select>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Radius</span>
+        <input type="number" class="props-input" id="propImgRadius" value="${el.style.borderRadius || 0}" min="0" max="100">
+      </div>
+      <div class="props-row">
+        <span class="props-label">Opacity</span>
+        <input type="range" id="propImgOpacity" min="0" max="1" step="0.05" value="${el.style.opacity ?? 1}" style="flex:1">
+      </div>
+    </div>
+    <div class="props-section">
+      <div class="props-section-title">Position</div>
+      <div class="props-row"><span class="props-label">X</span><input type="number" class="props-input" id="propX" value="${Math.round(el.x)}" step="1"></div>
+      <div class="props-row"><span class="props-label">Y</span><input type="number" class="props-input" id="propY" value="${Math.round(el.y)}" step="1"></div>
+      <div class="props-row"><span class="props-label">W</span><input type="number" class="props-input" id="propW" value="${Math.round(el.w)}" step="1"></div>
+      <div class="props-row"><span class="props-label">H</span><input type="number" class="props-input" id="propH" value="${Math.round(el.h)}" step="1"></div>
+    </div>`;
+}
+
+function renderChartProps(el) {
+  let tableRows = '';
+  const labels = el.content.labels || [];
+  const data = el.content.datasets[0]?.data || [];
+  const colors = el.content.datasets[0]?.backgroundColor || [];
+  for (let i = 0; i < labels.length; i++) {
+    tableRows += `<tr>
+      <td><input value="${escHtml(labels[i])}" data-idx="${i}" class="chart-label"></td>
+      <td><input type="number" value="${data[i] || 0}" data-idx="${i}" class="chart-value"></td>
+      <td style="position:relative"><div class="chart-color-swatch" data-idx="${i}" style="background:${colors[i] || activeScheme().swatches[i % activeScheme().swatches.length]}"><div class="chart-color-dropdown">${activeScheme().swatches.map(c => `<div class="color-swatch" data-color="${c}" style="background:${c}"></div>`).join('')}<button class="color-more-btn" title="Custom"><i class="fa-solid fa-ellipsis"></i></button><input type="color" value="${colors[i] || activeScheme().swatches[i % activeScheme().swatches.length]}" class="color-input-hidden chart-color-hidden"></div></div></td>
+      <td><button class="chart-row-del" data-idx="${i}"><i class="fa-solid fa-xmark"></i></button></td>
+    </tr>`;
+  }
+  return `
+    <div class="props-section">
+      <div class="props-section-title">Chart</div>
+      <div class="props-row">
+        <span class="props-label">Type</span>
+        <select class="props-select" id="propChartType">
+          <option value="pie" ${el.content.chartType === 'pie' ? 'selected' : ''}>Pie</option>
+          <option value="doughnut" ${el.content.chartType === 'doughnut' ? 'selected' : ''}>Doughnut</option>
+          <option value="bar" ${el.content.chartType === 'bar' ? 'selected' : ''}>Bar</option>
+          <option value="line" ${el.content.chartType === 'line' ? 'selected' : ''}>Line</option>
+        </select>
+      </div>
+      <table class="chart-table" id="chartDataTable">
+        <thead><tr><th>Label</th><th>Value</th><th>Color</th><th></th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <button class="btn btn-sm" id="propChartAddRow" style="margin-top:6px;width:100%"><i class="fa-solid fa-plus"></i> Add Row</button>
+      <button class="btn btn-accent btn-sm" id="propChartUpdate" style="margin-top:6px;width:100%"><i class="fa-solid fa-refresh"></i> Update Chart</button>
+    </div>
+    <div class="props-section">
+      <div class="props-section-title">Position</div>
+      <div class="props-row"><span class="props-label">X</span><input type="number" class="props-input" id="propX" value="${Math.round(el.x)}" step="1"></div>
+      <div class="props-row"><span class="props-label">Y</span><input type="number" class="props-input" id="propY" value="${Math.round(el.y)}" step="1"></div>
+      <div class="props-row"><span class="props-label">W</span><input type="number" class="props-input" id="propW" value="${Math.round(el.w)}" step="1"></div>
+      <div class="props-row"><span class="props-label">H</span><input type="number" class="props-input" id="propH" value="${Math.round(el.h)}" step="1"></div>
+    </div>`;
+}
+
+function attachElementPropsEvents(el) {
+  // Position inputs (common)
+  ['X','Y','W','H'].forEach(key => {
+    const inp = $('prop' + key);
+    if (inp) inp.onchange = () => {
+      pushUndo();
+      el[key.toLowerCase()] = parseFloat(inp.value);
+      renderSlide(); renderThumbnails(); scheduleSave();
+    };
+  });
+
+  if (el.type === 'text') {
+    const pf = $('propFont');
+    if (pf) pf.onchange = () => { pushUndo(); el.style.fontFamily = pf.value; renderSlide(); scheduleSave(); };
+    const ps = $('propFontSize');
+    if (ps) ps.onchange = () => { pushUndo(); el.style.fontSize = parseInt(ps.value); renderSlide(); scheduleSave(); };
+    const textSwatches = $('propTextSwatches');
+    if (textSwatches) {
+      textSwatches.querySelectorAll('.color-swatch').forEach(sw => {
+        sw.onclick = () => { pushUndo(); el.style.color = sw.dataset.color; renderSlide(); updateProps(); scheduleSave(); };
+      });
+      const moreBtn = $('propTextMore');
+      const hiddenPicker = $('propTextColor');
+      if (moreBtn && hiddenPicker) {
+        moreBtn.onclick = () => hiddenPicker.click();
+        hiddenPicker.oninput = () => { el.style.color = hiddenPicker.value; renderSlide(); scheduleSave(); };
+        hiddenPicker.onchange = () => { pushUndo(); updateProps(); };
+      }
+    }
+    propsContent.querySelectorAll('[data-align]').forEach(btn => {
+      btn.onclick = () => { pushUndo(); el.style.align = btn.dataset.align; renderSlide(); updateProps(); scheduleSave(); };
+    });
+  }
+  if (el.type === 'image') {
+    const iu = $('propImgUpload');
+    if (iu) iu.onclick = () => { fileInput.dataset.mode = 'image'; fileInput.dataset.elid = el.id; fileInput.accept = '.png,.jpg,.jpeg,.gif,.webp,.svg'; fileInput.click(); };
+    const fi = $('propImgFit');
+    if (fi) fi.onchange = () => { el.style.objectFit = fi.value; renderSlide(); scheduleSave(); };
+    const ir = $('propImgRadius');
+    if (ir) ir.onchange = () => { el.style.borderRadius = parseInt(ir.value); renderSlide(); scheduleSave(); };
+    const io = $('propImgOpacity');
+    if (io) io.oninput = () => { el.style.opacity = parseFloat(io.value); renderSlide(); scheduleSave(); };
+  }
+  if (el.type === 'chart') {
+    const ct = $('propChartType');
+    if (ct) ct.onchange = () => { pushUndo(); el.content.chartType = ct.value; renderSlide(); scheduleSave(); };
+    const addRow = $('propChartAddRow');
+    if (addRow) addRow.onclick = () => {
+      pushUndo();
+      el.content.labels.push('New');
+      el.content.datasets[0].data.push(10);
+      el.content.datasets[0].backgroundColor.push(activeScheme().swatches[el.content.labels.length % activeScheme().swatches.length]);
+      updateProps(); renderSlide(); scheduleSave();
+    };
+    const update = $('propChartUpdate');
+    if (update) update.onclick = () => {
+      pushUndo();
+      // Read data from table
+      const labels = []; const data = []; const colors = [];
+      propsContent.querySelectorAll('.chart-label').forEach(inp => labels.push(inp.value));
+      propsContent.querySelectorAll('.chart-value').forEach(inp => data.push(parseFloat(inp.value) || 0));
+      propsContent.querySelectorAll('.chart-color-swatch').forEach(sw => colors.push(sw.style.background ? rgbToHex(sw.style.background) : '#d1d5db'));
+      el.content.labels = labels;
+      el.content.datasets[0].data = data;
+      el.content.datasets[0].backgroundColor = colors;
+      renderSlide(); renderThumbnails(); scheduleSave();
+    };
+    propsContent.querySelectorAll('.chart-row-del').forEach(btn => {
+      btn.onclick = () => {
+        const idx = parseInt(btn.dataset.idx);
+        pushUndo();
+        el.content.labels.splice(idx, 1);
+        el.content.datasets[0].data.splice(idx, 1);
+        el.content.datasets[0].backgroundColor.splice(idx, 1);
+        updateProps(); renderSlide(); scheduleSave();
+      };
+    });
+    // Chart swatch dropdowns
+    propsContent.querySelectorAll('.chart-color-swatch').forEach(sw => {
+      const dropdown = sw.querySelector('.chart-color-dropdown');
+      sw.addEventListener('click', (e) => {
+        if (e.target.closest('.chart-color-dropdown')) return;
+        propsContent.querySelectorAll('.chart-color-dropdown.visible').forEach(d => d.classList.remove('visible'));
+        dropdown.classList.toggle('visible');
+        e.stopPropagation();
+      });
+      dropdown.querySelectorAll('.color-swatch').forEach(csw => {
+        csw.onclick = (e) => {
+          e.stopPropagation();
+          sw.style.background = csw.dataset.color;
+          dropdown.classList.remove('visible');
+        };
+      });
+      const moreBtn = dropdown.querySelector('.color-more-btn');
+      const hiddenPicker = dropdown.querySelector('.chart-color-hidden');
+      if (moreBtn && hiddenPicker) {
+        moreBtn.onclick = (e) => { e.stopPropagation(); hiddenPicker.click(); };
+        hiddenPicker.oninput = (e) => { e.stopPropagation(); sw.style.background = hiddenPicker.value; };
+        hiddenPicker.onchange = (e) => { e.stopPropagation(); dropdown.classList.remove('visible'); };
+      }
+    });
+    // Close chart dropdowns on outside click
+    const closeDropdowns = () => propsContent.querySelectorAll('.chart-color-dropdown.visible').forEach(d => d.classList.remove('visible'));
+    document.addEventListener('click', closeDropdowns, { once: true });
+  }
+}
+
+// ===== MODALS =====
+function openModal(id) {
+  $(id).classList.add('visible');
+  if (id === 'layoutModal') buildLayoutGrid();
+  if (id === 'bgModal') buildBgEditor();
+  if (id === 'themeModal') buildThemeEditor();
+}
+
+function closeModal(id) {
+  $(id).classList.remove('visible');
+}
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.remove('visible'); });
+});
+// Close modals via data-close-modal buttons
+document.querySelectorAll('[data-close-modal]').forEach(btn => {
+  btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+});
+
+function buildLayoutGrid() {
+  const grid = $('layoutGrid');
+  const heading = $('layoutModal').querySelector('h3');
+  grid.innerHTML = '';
+  if (layoutModalMode === 'new') {
+    heading.textContent = 'New Slide — Choose Layout';
+  } else {
+    heading.textContent = 'Choose Layout';
+  }
+  Object.entries(LAYOUTS).forEach(([key, val]) => {
+    const opt = document.createElement('div');
+    opt.className = 'layout-option' + (layoutModalMode === 'change' && curSlide()?.layout === key ? ' selected' : '');
+    opt.innerHTML = `<i class="fa-solid ${val.icon}"></i><span>${val.name}</span>`;
+    opt.onclick = () => {
+      closeModal('layoutModal');
+      if (layoutModalMode === 'new') {
+        addSlide(key, 'default');
+      } else {
+        pushUndo();
+        const slide = curSlide();
+        slide.layout = key;
+        slide.elements = getLayoutDefaults(key, slide.type);
+        selectedElementId = null;
+        renderAll();
+        scheduleSave();
+      }
+    };
+    grid.appendChild(opt);
+  });
+}
+
+function buildBgEditor() {
+  $('bgEditor').innerHTML = '<p style="font-size:13px;color:var(--text-secondary)">Use the properties panel on the right to customize the slide background.</p>';
+}
+
+function buildThemeEditor() {
+  const editor = $('themeEditor');
+  editor.innerHTML = `
+    <div class="props-section" style="padding:0;border:none;">
+      <div class="props-section-title">Color Scheme</div>
+      <div class="scheme-grid" id="themeSchemeGrid">
+        ${Object.entries(COLOR_SCHEMES).map(([key, s]) => `
+          <div class="scheme-card${(pres.colorScheme || 'nibset') === key ? ' active' : ''}" data-scheme="${key}">
+            <div class="scheme-card-preview" style="background:${s.suggestedBackground}">
+              <div class="scheme-card-dots">
+                ${s.swatches.slice(0, 4).map(c => `<div class="scheme-card-dot" style="background:${c}"></div>`).join('')}
+              </div>
+            </div>
+            <div class="scheme-card-name">${s.name}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="props-section" style="padding:0;border:none;margin-top:16px;">
+      <div class="props-section-title">Custom Theme</div>
+      <div class="props-row">
+        <span class="props-label">Background</span>
+        <div class="color-swatches">
+          <div style="background:${pres.theme.background};width:22px;height:22px;border-radius:50%;border:2px solid var(--border)"></div>
+          <input type="color" id="themeModalBg" value="${pres.theme.background}" style="width:60px;height:22px;border:none;background:none;cursor:pointer;padding:0">
+        </div>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Text</span>
+        <div class="color-swatches">
+          <div style="background:${pres.theme.textColor};width:22px;height:22px;border-radius:50%;border:2px solid var(--border)"></div>
+          <input type="color" id="themeModalText" value="${pres.theme.textColor}" style="width:60px;height:22px;border:none;background:none;cursor:pointer;padding:0">
+        </div>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Image</span>
+        <div style="display:flex;gap:6px;flex:1">
+          <button class="btn btn-sm" id="themeModalImgUpload" style="flex:1"><i class="fa-solid fa-upload"></i> Upload</button>
+          ${pres.theme.backgroundImage ? '<button class="btn btn-sm" id="themeModalImgClear" style="color:var(--danger)"><i class="fa-solid fa-xmark"></i></button>' : ''}
+        </div>
+      </div>
+      ${pres.theme.backgroundImage ? `
+      <div class="bg-preview" style="background-color:${pres.theme.background};background-image:url(${pres.theme.backgroundImage});background-size:${pres.theme.backgroundFit};background-position:center;margin-bottom:8px"></div>
+      <div class="props-row">
+        <span class="props-label">Fit</span>
+        <select class="props-select" id="themeModalImgFit">
+          <option value="cover" ${pres.theme.backgroundFit === 'cover' ? 'selected' : ''}>Cover</option>
+          <option value="contain" ${pres.theme.backgroundFit === 'contain' ? 'selected' : ''}>Contain</option>
+        </select>
+      </div>
+      <div class="props-row">
+        <span class="props-label">Opacity</span>
+        <input type="range" id="themeModalImgOpacity" min="0" max="1" step="0.05" value="${pres.theme.backgroundOpacity ?? 1}" style="flex:1">
+      </div>` : ''}
+      <button class="btn btn-sm" id="themeModalApply" style="width:100%;margin-top:8px"><i class="fa-solid fa-paint-roller"></i> Apply to All Slides</button>
+    </div>`;
+
+  // Wire scheme cards
+  editor.querySelectorAll('.scheme-card').forEach(card => {
+    card.onclick = () => {
+      applyScheme(card.dataset.scheme);
+      buildThemeEditor();
+      updateProps();
+    };
+  });
+
+  // Wire custom theme inputs
+  const themeBg = $('themeModalBg');
+  if (themeBg) {
+    themeBg.oninput = () => { pres.theme.background = themeBg.value; buildThemeEditor(); scheduleSave(); };
+    themeBg.onchange = () => { pushUndo(); };
+  }
+  const themeText = $('themeModalText');
+  if (themeText) {
+    themeText.oninput = () => { pres.theme.textColor = themeText.value; buildThemeEditor(); scheduleSave(); };
+    themeText.onchange = () => { pushUndo(); };
+  }
+  // Wire image controls
+  const imgUpload = $('themeModalImgUpload');
+  if (imgUpload) {
+    imgUpload.onclick = () => { fileInput.dataset.mode = 'theme-bg'; fileInput.accept = '.png,.jpg,.jpeg,.gif,.webp,.svg'; fileInput.click(); };
+  }
+  const imgClear = $('themeModalImgClear');
+  if (imgClear) {
+    imgClear.onclick = () => { pushUndo(); pres.theme.backgroundImage = null; buildThemeEditor(); scheduleSave(); };
+  }
+  const imgFit = $('themeModalImgFit');
+  if (imgFit) {
+    imgFit.onchange = () => { pres.theme.backgroundFit = imgFit.value; buildThemeEditor(); scheduleSave(); };
+  }
+  const imgOpacity = $('themeModalImgOpacity');
+  if (imgOpacity) {
+    imgOpacity.oninput = () => { pres.theme.backgroundOpacity = parseFloat(imgOpacity.value); buildThemeEditor(); scheduleSave(); };
+  }
+  const applyBtn = $('themeModalApply');
+  if (applyBtn) {
+    applyBtn.onclick = () => { applyThemeToAll(); buildThemeEditor(); updateProps(); };
+  }
+}
+
+// ===== CONTEXT MENU =====
+function showSlideContextMenu(e, idx) {
+  const menu = $('ctxMenu');
+  menu.innerHTML = `
+    <div class="ctx-item" data-action="duplicate"><i class="fa-solid fa-copy"></i> Duplicate Slide</div>
+    <div class="ctx-item" data-action="layout"><i class="fa-solid fa-table-cells-large"></i> Change Layout</div>
+    <div class="ctx-item" data-action="type"><i class="fa-solid fa-expand"></i> Toggle Full/Default</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item danger" data-action="delete"><i class="fa-solid fa-trash"></i> Delete Slide</div>
+  `;
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+  menu.classList.add('visible');
+
+  menu.querySelectorAll('.ctx-item').forEach(item => {
+    item.onclick = () => {
+      menu.classList.remove('visible');
+      const action = item.dataset.action;
+      if (action === 'duplicate') duplicateSlide(idx);
+      if (action === 'delete') deleteSlide(idx);
+      if (action === 'layout') { currentSlideIdx = idx; renderAll(); layoutModalMode = 'change'; openModal('layoutModal'); }
+      if (action === 'type') {
+        pushUndo();
+        pres.slides[idx].type = pres.slides[idx].type === 'full' ? 'default' : 'full';
+        renderAll(); scheduleSave();
+      }
+    };
+  });
+}
+
+document.addEventListener('click', () => $('ctxMenu').classList.remove('visible'));
+
+// ===== TOOLBAR ACTIONS =====
+$('tbAddText').onclick = () => addElement(createTextElement(20, 30, 60, 20, 'New text'));
+$('tbAddImage').onclick = () => {
+  const el = createImageElement(20, 20, 40, 50, '');
+  addElement(el);
+  fileInput.dataset.mode = 'image';
+  fileInput.dataset.elid = el.id;
+  fileInput.accept = '.png,.jpg,.jpeg,.gif,.webp,.svg';
+  fileInput.click();
+};
+$('tbAddChart').onclick = () => addElement(createChartElement(10, 15, 80, 70, 'pie'));
+
+$('tbBold').onclick = () => document.execCommand('bold');
+$('tbItalic').onclick = () => document.execCommand('italic');
+$('tbUnderline').onclick = () => document.execCommand('underline');
+$('tbAlignL').onclick = () => { if (selectedElementId) { const el = curSlide().elements.find(e => e.id === selectedElementId); if (el?.type === 'text') { el.style.align = 'left'; renderSlide(); updateProps(); scheduleSave(); } } };
+$('tbAlignC').onclick = () => { if (selectedElementId) { const el = curSlide().elements.find(e => e.id === selectedElementId); if (el?.type === 'text') { el.style.align = 'center'; renderSlide(); updateProps(); scheduleSave(); } } };
+$('tbAlignR').onclick = () => { if (selectedElementId) { const el = curSlide().elements.find(e => e.id === selectedElementId); if (el?.type === 'text') { el.style.align = 'right'; renderSlide(); updateProps(); scheduleSave(); } } };
+
+$('tbBringFwd').onclick = () => { if (selectedElementId) bringForward(selectedElementId); };
+$('tbSendBack').onclick = () => { if (selectedElementId) sendBackward(selectedElementId); };
+$('tbDuplicate').onclick = () => {
+  if (selectedElementId) {
+    const el = curSlide().elements.find(e => e.id === selectedElementId);
+    if (el) { pushUndo(); const dup = deepClone(el); dup.id = uid(); dup.x += 3; dup.y += 3; curSlide().elements.push(dup); selectedElementId = dup.id; renderSlide(); updateProps(); scheduleSave(); }
+  }
+};
+$('tbDelete').onclick = () => { if (selectedElementId) deleteElement(selectedElementId); };
+
+// ===== HEADER ACTIONS =====
+$('btnPresent').onclick = startPresentation;
+$('btnExportHTML').onclick = exportAsHTML;
+$('btnImport').onclick = () => { fileInput.dataset.mode = 'import'; fileInput.accept = '.html,.json'; fileInput.click(); };
+$('btnThemeModal').onclick = () => openModal('themeModal');
+$('btnAddSlide').onclick = () => { layoutModalMode = 'new'; openModal('layoutModal'); };
+$('presTitle').onchange = scheduleSave;
+
+// Theme toggle
+$('btnTheme').onclick = () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('nibset-theme', next);
+};
+
+// ===== FILE INPUT HANDLER =====
+fileInput.onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const mode = fileInput.dataset.mode;
+
+  if (mode === 'import') {
+    const reader = new FileReader();
+    reader.onload = () => importData(reader.result, file.name);
+    reader.readAsText(file);
+  } else if (mode === 'bg') {
+    const reader = new FileReader();
+    reader.onload = () => {
+      pushUndo();
+      curSlide().background.image = reader.result;
+      renderSlide(); renderThumbnails(); updateProps(); scheduleSave();
+    };
+    reader.readAsDataURL(file);
+  } else if (mode === 'theme-bg') {
+    const reader = new FileReader();
+    reader.onload = () => {
+      pushUndo();
+      pres.theme.backgroundImage = reader.result;
+      buildThemeEditor(); scheduleSave();
+    };
+    reader.readAsDataURL(file);
+  } else if (mode === 'image') {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const elId = fileInput.dataset.elid;
+      const el = curSlide().elements.find(x => x.id === elId);
+      if (el && el.type === 'image') {
+        pushUndo();
+        el.content.src = reader.result;
+        renderSlide(); renderThumbnails(); updateProps(); scheduleSave();
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+  fileInput.value = '';
+};
+
+// ===== DRAG & DROP IMAGES ONTO CANVAS =====
+slideCanvas.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  if (e.dataTransfer.types.includes('Files')) slideCanvas.classList.add('drop-target');
+});
+slideCanvas.addEventListener('dragleave', () => slideCanvas.classList.remove('drop-target'));
+slideCanvas.addEventListener('drop', (e) => {
+  e.preventDefault();
+  slideCanvas.classList.remove('drop-target');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  if (files.length === 0) return;
+  const coords = getCanvasCoords(e);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const el = createImageElement(
+        clamp(coords.pctX - 20, 0, 60),
+        clamp(coords.pctY - 15, 0, 70),
+        40, 30, reader.result
+      );
+      addElement(el);
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+// Canvas click to deselect
+slideCanvas.addEventListener('mousedown', (e) => {
+  if (e.target === slideCanvas || e.target.classList.contains('slide-bg') || e.target.classList.contains('slide-design-line') || e.target.classList.contains('slide-title-footer') || e.target.classList.contains('slide-number')) {
+    deselectAll();
+  }
+});
+
+// Global mouse events for drag/resize
+document.addEventListener('mousemove', onMouseMove);
+document.addEventListener('mouseup', onMouseUp);
+
+// ===== KEYBOARD SHORTCUTS =====
+document.addEventListener('keydown', (e) => {
+  // Don't capture when editing text
+  if (isEditing) {
+    if (e.key === 'Escape') { stopEditing(); e.preventDefault(); }
+    return;
+  }
+  // Don't capture when typing in inputs
+  if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  // Prevent in presentation mode
+  if (presentOverlay.classList.contains('active')) return;
+
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (selectedElementId) { deleteElement(selectedElementId); e.preventDefault(); }
+  }
+  if (e.key === 'Escape') {
+    if (selectedElementId) deselectAll();
+    else closeAllModals();
+  }
+  if (e.ctrlKey && e.key === 'z') { undo(); e.preventDefault(); }
+  if (e.ctrlKey && e.key === 'y') { redo(); e.preventDefault(); }
+  if (e.ctrlKey && e.key === 'd') { e.preventDefault(); duplicateSlide(currentSlideIdx); }
+  if (e.ctrlKey && e.key === 'm') { e.preventDefault(); layoutModalMode = 'new'; openModal('layoutModal'); }
+  if (e.key === 'F5') { e.preventDefault(); startPresentation(); }
+  if (e.key === '?') openModal('shortcutsModal');
+});
+
+function closeAllModals() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('visible'));
+}
+
+// ===== PRESENTATION MODE =====
+let presentIdx = 0;
+
+function startPresentation() {
+  if (pres.slides.length === 0) return;
+  presentIdx = 0;
+  presentOverlay.classList.add('active');
+  renderPresentSlide();
+  try { document.documentElement.requestFullscreen(); } catch (e) {}
+  document.addEventListener('keydown', presentKeyHandler);
+  presentOverlay.addEventListener('click', presentClickHandler);
+}
+
+function stopPresentation() {
+  presentOverlay.classList.remove('active');
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  document.removeEventListener('keydown', presentKeyHandler);
+  presentOverlay.removeEventListener('click', presentClickHandler);
+  // Cleanup presentation charts
+  presentSlide.querySelectorAll('canvas').forEach(c => {
+    const id = c.id?.replace('present-chart-', '');
+    if (chartInstances.has('present-' + id)) { chartInstances.get('present-' + id).destroy(); chartInstances.delete('present-' + id); }
+  });
+}
+
+function presentKeyHandler(e) {
+  if (e.key === 'Escape') { stopPresentation(); e.preventDefault(); e.stopPropagation(); return; }
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { presentNext(); e.preventDefault(); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { presentPrev(); e.preventDefault(); }
+}
+
+function presentClickHandler(e) {
+  const rect = presentOverlay.getBoundingClientRect();
+  if (e.clientX < rect.width / 3) presentPrev();
+  else presentNext();
+}
+
+function presentNext() {
+  if (presentIdx >= pres.slides.length - 1) return;
+  presentSlide.classList.add('fade-out');
+  setTimeout(() => {
+    presentIdx++;
+    renderPresentSlide();
+    presentSlide.classList.remove('fade-out');
+  }, 200);
+}
+
+function presentPrev() {
+  if (presentIdx <= 0) return;
+  presentSlide.classList.add('fade-out');
+  setTimeout(() => {
+    presentIdx--;
+    renderPresentSlide();
+    presentSlide.classList.remove('fade-out');
+  }, 200);
+}
+
+function renderPresentSlide() {
+  const slide = pres.slides[presentIdx];
+  if (!slide) return;
+
+  // Scale to fill viewport
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const scale = Math.min(vw / SLIDE_W, vh / SLIDE_H);
+  presentSlide.style.width = SLIDE_W + 'px';
+  presentSlide.style.height = SLIDE_H + 'px';
+  presentSlide.style.transform = `scale(${scale})`;
+  presentSlide.style.transformOrigin = 'center center';
+
+  // Render
+  presentSlide.innerHTML = '';
+  renderSlideToContainer(slide, presentSlide, false);
+  // Remove resize handles and selection
+  presentSlide.querySelectorAll('.resize-handle').forEach(h => h.remove());
+  presentSlide.querySelectorAll('.slide-element').forEach(el => {
+    el.classList.remove('selected');
+    el.style.cursor = 'default';
+  });
+
+  // Render charts in presentation
+  requestAnimationFrame(() => {
+    slide.elements.filter(e => e.type === 'chart').forEach(el => {
+      const canvasEl = presentSlide.querySelector('#chart-' + el.id);
+      if (!canvasEl) return;
+      canvasEl.id = 'present-chart-' + el.id;
+      const ctx = canvasEl.getContext('2d');
+      const cfg = {
+        type: el.content.chartType || 'pie',
+        data: { labels: el.content.labels, datasets: deepClone(el.content.datasets) },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: '#e8e8ec' } } }, scales: {} }
+      };
+      if (['bar','line'].includes(cfg.type)) {
+        cfg.options.scales = { x: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(255,255,255,0.06)' } }, y: { ticks: { color: '#8b8b95' }, grid: { color: 'rgba(255,255,255,0.06)' } } };
+      }
+      try {
+        const key = 'present-' + el.id;
+        if (chartInstances.has(key)) { chartInstances.get(key).destroy(); chartInstances.delete(key); }
+        chartInstances.set(key, new Chart(ctx, cfg));
+      } catch (e) { console.error(e); }
+    });
+  });
+}
+
+// ===== EXPORT AS HTML =====
+function exportAsHTML() {
+  const data = deepClone(pres);
+  const hasCharts = data.slides.some(s => s.elements.some(e => e.type === 'chart'));
+  const title = escHtml(data.meta.title || 'Presentation');
+  const accentColor = activeScheme().swatches[0];
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+${hasCharts ? `<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"><\/script>` : ''}
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100vh;overflow:hidden;background:#000;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#e8e8ec}
+.viewer{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;cursor:default}
+.slide{position:relative;overflow:hidden;width:960px;height:540px;transform-origin:center center}
+.slide-bg{position:absolute;inset:0;z-index:-1;background-size:cover;background-position:center}
+.slide-design-line{position:absolute;top:14%;left:24px;right:24px;height:1px;background:${accentColor};opacity:0.35;z-index:1}
+.slide-title-footer{position:absolute;bottom:8px;left:16px;font-size:11px;color:rgba(255,255,255,0.3);z-index:1}
+.slide-number{position:absolute;bottom:8px;right:16px;font-size:11px;color:rgba(255,255,255,0.3);z-index:1}
+.slide-element{position:absolute;user-select:none}
+.el-text{padding:4px 8px;line-height:1.4;word-wrap:break-word}
+.el-image{display:flex;align-items:center;justify-content:center;overflow:hidden}
+.el-image img{width:100%;height:100%;object-fit:contain;pointer-events:none}
+.el-chart{display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px}
+.el-chart canvas{max-width:100%;max-height:100%}
+.slide-counter{position:fixed;bottom:16px;right:16px;font-size:13px;color:rgba(255,255,255,0.3);z-index:10}
+.fade-out{opacity:0;transition:opacity 0.2s}
+.fade-in{opacity:1;transition:opacity 0.2s}
+</style>
+</head>
+<body>
+<div class="viewer" id="viewer">
+<div class="slide" id="slide"></div>
+</div>
+<div class="slide-counter" id="counter"></div>
+<script id="slide-data" type="application/json">${JSON.stringify(data)}<\/script>
+<script>
+(function(){
+var data=JSON.parse(document.getElementById('slide-data').textContent);
+var slides=data.slides,idx=0;
+var slideEl=document.getElementById('slide');
+var counter=document.getElementById('counter');
+function scale(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  var s=Math.min(vw/960,vh/540);
+  slideEl.style.transform='scale('+s+')';
+}
+function render(){
+  var s=slides[idx];if(!s)return;
+  slideEl.innerHTML='';
+  slideEl.style.backgroundColor=s.background.color||'#1a1a2e';
+  var bg=document.createElement('div');
+  bg.className='slide-bg';
+  bg.style.backgroundColor=s.background.color||'#1a1a2e';
+  if(s.background.image){bg.style.backgroundImage='url('+s.background.image+')';bg.style.backgroundSize=s.background.fit||'cover';bg.style.opacity=s.background.opacity??1;}
+  slideEl.appendChild(bg);
+  if(s.type==='default'){
+    var dl=document.createElement('div');dl.className='slide-design-line';slideEl.appendChild(dl);
+    var tf=document.createElement('div');tf.className='slide-title-footer';tf.textContent=data.meta.title||'';slideEl.appendChild(tf);
+    var sn=document.createElement('div');sn.className='slide-number';sn.textContent=(idx+1);slideEl.appendChild(sn);
+  }
+  s.elements.forEach(function(el){
+    var d=document.createElement('div');
+    d.className='slide-element';
+    d.style.cssText='left:'+el.x+'%;top:'+el.y+'%;width:'+el.w+'%;height:'+el.h+'%;z-index:'+el.zIndex+';';
+    if(el.type==='text'){
+      d.classList.add('el-text');d.innerHTML=el.content;
+      d.style.fontSize=(el.style.fontSize||24)+'px';d.style.fontFamily=el.style.fontFamily||'Plus Jakarta Sans';
+      d.style.color=el.style.color||data.theme.textColor||'#e8e8ec';d.style.textAlign=el.style.align||'left';
+      d.style.lineHeight=el.style.lineHeight||1.4;
+      if(el.style.bold)d.style.fontWeight='700';if(el.style.italic)d.style.fontStyle='italic';
+    }else if(el.type==='image'){
+      d.classList.add('el-image');
+      if(el.content.src){var img=document.createElement('img');img.src=el.content.src;img.style.objectFit=el.style.objectFit||'contain';img.style.borderRadius=(el.style.borderRadius||0)+'px';img.style.opacity=el.style.opacity??1;d.appendChild(img);}
+    }else if(el.type==='chart'){
+      d.classList.add('el-chart');var cv=document.createElement('canvas');cv.id='c-'+el.id;d.appendChild(cv);d.dataset.chart=JSON.stringify(el.content);
+    }
+    slideEl.appendChild(d);
+  });
+  counter.textContent=(idx+1)+' / '+slides.length;
+  ${hasCharts ? `
+  slideEl.querySelectorAll('.el-chart[data-chart]').forEach(function(d){
+    var cfg=JSON.parse(d.dataset.chart);var cv=d.querySelector('canvas');if(!cv)return;
+    new Chart(cv.getContext('2d'),{type:cfg.chartType||'pie',data:{labels:cfg.labels,datasets:cfg.datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e8e8ec'}}}}});
+  });` : ''}
+}
+scale();render();
+window.addEventListener('resize',scale);
+document.addEventListener('keydown',function(e){
+  if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){if(idx<slides.length-1){slideEl.classList.add('fade-out');setTimeout(function(){idx++;render();slideEl.classList.remove('fade-out');},200);}e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='PageUp'){if(idx>0){slideEl.classList.add('fade-out');setTimeout(function(){idx--;render();slideEl.classList.remove('fade-out');},200);}e.preventDefault();}
+  if(e.key==='f'||e.key==='F5'){try{document.documentElement.requestFullscreen();}catch(x){}e.preventDefault();}
+  if(e.key==='Escape'){if(document.fullscreenElement)document.exitFullscreen();}
+});
+document.getElementById('viewer').addEventListener('click',function(e){
+  var rect=this.getBoundingClientRect();
+  if(e.clientX<rect.width/3){if(idx>0){slideEl.classList.add('fade-out');setTimeout(function(){idx--;render();slideEl.classList.remove('fade-out');},200);}}
+  else{if(idx<slides.length-1){slideEl.classList.add('fade-out');setTimeout(function(){idx++;render();slideEl.classList.remove('fade-out');},200);}}
+});
+})();
+<\/script>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (data.meta.title || 'presentation').replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.html';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Presentation exported!');
+}
+
+// ===== IMPORT =====
+function importData(text, filename) {
+  try {
+    let data;
+    if (filename.endsWith('.json')) {
+      data = JSON.parse(text);
+    } else {
+      // HTML - extract slide data
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'text/html');
+      const script = doc.getElementById('slide-data');
+      if (!script) throw new Error('No slide data found in HTML file');
+      data = JSON.parse(script.textContent);
+    }
+    if (!data.slides || !data.meta) throw new Error('Invalid presentation data');
+    pushUndo();
+    pres = data;
+    currentSlideIdx = 0;
+    selectedElementId = null;
+    renderAll();
+    scheduleSave();
+    toast('Presentation imported!');
+  } catch (e) {
+    toast('Import failed: ' + e.message);
+  }
+}
+
+// ===== TOAST =====
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  toastContainer.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+// ===== CLIPBOARD PASTE =====
+document.addEventListener('paste', (e) => {
+  if (isEditing) return; // let contenteditable handle it
+  if (presentOverlay.classList.contains('active')) return;
+  const items = Array.from(e.clipboardData.items);
+  const imageItem = items.find(i => i.type.startsWith('image/'));
+  if (imageItem) {
+    e.preventDefault();
+    const file = imageItem.getAsFile();
+    const reader = new FileReader();
+    reader.onload = () => {
+      addElement(createImageElement(20, 20, 40, 30, reader.result));
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+// ===== RESIZE OBSERVER =====
+const ro = new ResizeObserver(() => scaleCanvas());
+ro.observe(canvasViewport);
+
+// ===== INIT =====
+function init() {
+  if (!load()) {
+    pres = createPresentation();
+    pres.slides.push(createSlide('full', 'title-body'));
+    pres.slides.push(createSlide('default', 'title-body'));
+  }
+  $('presTitle').value = pres.meta.title || '';
+  renderAll();
+  scaleCanvas();
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>

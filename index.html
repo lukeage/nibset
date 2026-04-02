@@ -645,15 +645,25 @@
       </div>
     </div>
 
-    <div class="tool-card planned">
+    <div class="tool-card available" onclick="window.location.href='present/index.html'">
       <div class="tool-card-top">
         <div class="tool-icon-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         </div>
-        <span class="tool-status planned">Planned</span>
+        <span class="tool-status ready">Live</span>
       </div>
       <h3>Presentation</h3>
-      <p>Create slide decks from text. Present directly in the browser with keyboard navigation.</p>
+      <p>Create slide decks with drag-and-drop editing. Charts, diagrams, and fullscreen presentation mode.</p>
+      <div class="tool-card-footer">
+        <span class="tool-open">
+          Open tool
+          <span class="tool-arrow">&rarr;</span>
+        </span>
+        <a class="tool-dl" href="present/index.html" download="present.html" onclick="event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          .html
+        </a>
+      </div>
     </div>
 
     <div class="tool-card available" onclick="window.location.href='json/index.html'">

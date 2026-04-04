@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regex — NibSet</title>
+    <link rel="icon" type="image/png" href="../assets/logo.png">
+    <meta name="description" content="Test and debug regular expressions with live matching, group highlights, and a quick-reference guide.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+    (function(){
+      var t = localStorage.getItem('nibset-theme');
+      if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #060608;
+            --bg-secondary: #111115;
+            --bg-tertiary: #1c1c24;
+            --bg-hover: #16161c;
+            --text-primary: #e8e8ec;
+            --text-secondary: #8b8b95;
+            --text-muted: #55555e;
+            --accent: #c9f270;
+            --accent-hover: #b8e35f;
+            --accent-text: #060608;
+            --border: rgba(255,255,255,0.06);
+            --header-bg: rgba(6,6,8,0.85);
+            --header-border: rgba(255,255,255,0.05);
+            --divider: #55555e;
+            --success: #c9f270;
+            --danger: #ef4444;
+            --warning: #fbbf24;
+            --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            --header-height: 56px;
+            --toolbar-height: 44px;
+            --statusbar-height: 28px;
+            --radius: 8px;
+            --radius-sm: 4px;
+            --match-bg: rgba(201, 242, 112, 0.25);
+            --match-border: rgba(201, 242, 112, 0.6);
+            --group-colors: #60a5fa, #f472b6, #fb923c, #a78bfa, #34d399;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #eaeaee;
+            --bg-tertiary: #dcdce0;
+            --bg-hover: #f0f0f4;
+            --text-primary: #1a1a1e;
+            --text-secondary: #5a5a64;
+            --text-muted: #8b8b95;
+            --accent: #5a8a1a;
+            --accent-hover: #4a7515;
+            --accent-text: #ffffff;
+            --border: rgba(0,0,0,0.08);
+            --header-bg: rgba(245,245,247,0.85);
+            --header-border: rgba(0,0,0,0.08);
+            --divider: #c0c0c8;
+            --success: #5a8a1a;
+            --match-bg: rgba(90, 138, 26, 0.15);
+            --match-border: rgba(90, 138, 26, 0.5);
+        }
+
+        html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
+        .app { display: flex; flex-direction: column; height: 100dvh; }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--header-height); padding: 0 16px;
+            background: var(--header-bg); backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--header-border); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
+        .header-home:hover { opacity: 1; }
+        .header-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+        .header-title i { color: var(--accent); }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* ===== Buttons ===== */
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-secondary);
+            font-family: var(--font-ui); font-size: 13px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+        }
+        .btn:hover { background: var(--bg-hover); border-color: var(--divider); color: var(--text-primary); }
+        .btn i { font-size: 12px; }
+        .btn--icon {
+            padding: 6px 10px;
+        }
+
+        .theme-toggle {
+            display: flex; align-items: center; justify-content: center;
+            width: 36px; height: 36px; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); background: var(--bg-tertiary);
+            color: var(--text-secondary); cursor: pointer; transition: all 0.15s ease;
+        }
+        .theme-toggle:hover { background: var(--bg-hover); border-color: var(--divider); color: var(--text-primary); }
+        .theme-toggle svg { width: 18px; height: 18px; }
+        [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+        /* ===== Toolbar ===== */
+        .toolbar {
+            display: flex; align-items: center; gap: 6px; padding: 0 16px;
+            height: var(--toolbar-height); border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto;
+        }
+        .toolbar-btn {
+            display: flex; align-items: center; gap: 5px; padding: 5px 10px;
+            border: none; border-radius: var(--radius-sm); background: transparent;
+            color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px;
+            font-weight: 500; cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+        }
+        .toolbar-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .toolbar-btn.active { background: var(--accent); color: var(--accent-text); }
+        .toolbar-btn i { font-size: 11px; }
+        .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+        .toolbar-spacer { flex: 1; }
+
+        .flags-group { display: flex; gap: 3px; }
+        .flag-btn {
+            display: flex; align-items: center; justify-content: center;
+            padding: 4px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: transparent; color: var(--text-muted);
+            font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s ease;
+        }
+        .flag-btn:hover { border-color: var(--divider); color: var(--text-secondary); }
+        .flag-btn.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+        /* ===== Main Layout ===== */
+        .main {
+            display: flex; flex: 1; min-height: 0;
+        }
+
+        /* ===== Left Panel ===== */
+        .left-panel {
+            display: flex; flex-direction: column; flex: 1; min-width: 0;
+        }
+
+        /* Pattern Section */
+        .pattern-section {
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary); flex-shrink: 0;
+        }
+        .pattern-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px;
+        }
+        .pattern-input-wrap {
+            display: flex; align-items: center; gap: 0;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-primary); transition: border-color 0.15s;
+            overflow: hidden;
+        }
+        .pattern-input-wrap:focus-within { border-color: var(--accent); }
+        .pattern-input-wrap.error { border-color: var(--danger); }
+        .pattern-delimiter {
+            padding: 0 10px; font-family: var(--font-mono); font-size: 18px;
+            color: var(--text-muted); user-select: none; line-height: 40px;
+            flex-shrink: 0;
+        }
+        #patternInput {
+            flex: 1; height: 40px; padding: 0 4px; border: none; outline: none;
+            background: transparent; color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 14px;
+        }
+        #patternInput::placeholder { color: var(--text-muted); }
+        .pattern-flags-display {
+            padding: 0 10px; font-family: var(--font-mono); font-size: 13px;
+            color: var(--accent); user-select: none; line-height: 40px;
+            flex-shrink: 0; min-width: 32px;
+        }
+        .pattern-error {
+            margin-top: 6px; font-size: 12px; color: var(--danger); display: none;
+        }
+        .pattern-error.visible { display: block; }
+
+        /* Test String Section */
+        .test-section {
+            display: flex; flex-direction: column; flex: 1; min-height: 0;
+        }
+        .section-label {
+            height: 28px; padding: 0 16px; background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-muted); display: flex; align-items: center;
+        }
+        .test-input-container {
+            position: relative; flex: 1; min-height: 0; overflow: hidden;
+        }
+        /* Highlight layer behind textarea */
+        #highlightLayer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 16px; overflow: hidden; pointer-events: none;
+            font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+            white-space: pre-wrap; word-wrap: break-word;
+            color: transparent; /* text invisible, only backgrounds show */
+            z-index: 0;
+        }
+        #highlightLayer mark.match {
+            background: var(--match-bg);
+            border-radius: 2px;
+            color: transparent;
+            outline: 1px solid var(--match-border);
+        }
+        /* Group 1-5 colored underlines */
+        #highlightLayer mark.group { color: transparent; border-radius: 1px; }
+        #highlightLayer mark.group-1 { background: rgba(96, 165, 250, 0.22); outline: 1px solid rgba(96,165,250,0.5); }
+        #highlightLayer mark.group-2 { background: rgba(244, 114, 182, 0.22); outline: 1px solid rgba(244,114,182,0.5); }
+        #highlightLayer mark.group-3 { background: rgba(251, 146, 60, 0.22); outline: 1px solid rgba(251,146,60,0.5); }
+        #highlightLayer mark.group-4 { background: rgba(167, 139, 250, 0.22); outline: 1px solid rgba(167,139,250,0.5); }
+        #highlightLayer mark.group-5 { background: rgba(52, 211, 153, 0.22); outline: 1px solid rgba(52,211,153,0.5); }
+        #testInput {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 16px; border: none; outline: none; resize: none;
+            background: transparent; color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+            white-space: pre-wrap; word-wrap: break-word;
+            z-index: 1; overflow: auto;
+        }
+        #testInput::placeholder { color: var(--text-muted); }
+
+        /* ===== Pane Divider ===== */
+        .pane-divider {
+            width: 6px; background: var(--bg-secondary);
+            border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+            cursor: col-resize; transition: background 0.15s ease; flex-shrink: 0;
+        }
+        .pane-divider:hover, .pane-divider.dragging { background: var(--accent); }
+
+        /* ===== Right Panel (Results) ===== */
+        .right-panel {
+            display: flex; flex-direction: column; flex: 1; min-width: 0;
+            background: var(--bg-primary); overflow: hidden;
+        }
+        .results-header {
+            height: 28px; padding: 0 16px; background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-muted); display: flex; align-items: center;
+            justify-content: space-between; flex-shrink: 0;
+        }
+        .results-count { color: var(--accent); font-size: 11px; font-weight: 600; }
+        .results-body {
+            flex: 1; overflow-y: auto; padding: 8px 0;
+        }
+        .empty-state {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100%; color: var(--text-muted); font-size: 13px; gap: 8px; padding: 32px;
+            text-align: center;
+        }
+        .empty-state i { font-size: 28px; opacity: 0.3; }
+        .empty-state p { opacity: 0.7; line-height: 1.5; }
+
+        .match-card {
+            margin: 4px 12px; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); overflow: hidden;
+            transition: border-color 0.15s;
+        }
+        .match-card:hover { border-color: var(--divider); }
+        .match-header {
+            display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+            background: var(--bg-secondary); cursor: pointer; user-select: none;
+        }
+        .match-index {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            color: var(--text-muted); min-width: 28px;
+        }
+        .match-value {
+            font-family: var(--font-mono); font-size: 12px; color: var(--text-primary);
+            flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .match-position {
+            font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .match-groups {
+            padding: 8px 12px; display: flex; flex-direction: column; gap: 4px;
+            background: var(--bg-primary);
+        }
+        .group-row {
+            display: flex; align-items: baseline; gap: 8px;
+            font-family: var(--font-mono); font-size: 12px;
+        }
+        .group-label {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            flex-shrink: 0; padding: 1px 5px; border-radius: 3px;
+        }
+        .group-1 .group-label { background: rgba(96,165,250,0.15); color: #60a5fa; }
+        .group-2 .group-label { background: rgba(244,114,182,0.15); color: #f472b6; }
+        .group-3 .group-label { background: rgba(251,146,60,0.15); color: #fb923c; }
+        .group-4 .group-label { background: rgba(167,139,250,0.15); color: #a78bfa; }
+        .group-5 .group-label { background: rgba(52,211,153,0.15); color: #34d399; }
+        .group-row:not(.group-1):not(.group-2):not(.group-3):not(.group-4):not(.group-5) .group-label {
+            background: rgba(139,139,149,0.15); color: var(--text-secondary);
+        }
+        .group-val { color: var(--text-primary); }
+        .group-null { color: var(--text-muted); font-style: italic; }
+
+        /* ===== Status Bar ===== */
+        .statusbar {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--statusbar-height); padding: 0 16px;
+            background: var(--bg-secondary); border-top: 1px solid var(--border);
+            font-size: 11px; color: var(--text-muted); flex-shrink: 0;
+        }
+        .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+        .statusbar-right { font-family: var(--font-mono); }
+        .status-valid { color: var(--success); }
+        .status-error { color: var(--danger); }
+        .status-empty { color: var(--text-muted); }
+
+        /* ===== Toast ===== */
+        .toast-container {
+            position: fixed; bottom: 48px; right: 16px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .toast {
+            padding: 10px 16px; background: var(--bg-tertiary); border: 1px solid var(--border);
+            border-radius: var(--radius); color: var(--text-primary); font-size: 13px;
+            font-weight: 500; display: flex; align-items: center; gap: 8px;
+            animation: toastIn 0.25s ease; box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        }
+        .toast i { color: var(--accent); font-size: 14px; }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ===== Quick Reference Modal ===== */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            z-index: 1000; display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal {
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: var(--radius); width: 660px; max-width: calc(100vw - 32px);
+            max-height: calc(100vh - 64px); display: flex; flex-direction: column;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+            transform: translateY(12px); transition: transform 0.2s;
+        }
+        .modal-overlay.open .modal { transform: translateY(0); }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .modal-title { font-size: 15px; font-weight: 600; }
+        .modal-close {
+            display: flex; align-items: center; justify-content: center;
+            width: 32px; height: 32px; border: none; background: transparent;
+            color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm);
+            font-size: 16px; transition: all 0.15s;
+        }
+        .modal-close:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .modal-body { overflow-y: auto; padding: 20px; }
+        .ref-section { margin-bottom: 20px; }
+        .ref-section:last-child { margin-bottom: 0; }
+        .ref-section-title {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--accent); margin-bottom: 10px;
+        }
+        .ref-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px;
+        }
+        .ref-row {
+            display: flex; align-items: baseline; gap: 10px;
+            padding: 4px 0; border-bottom: 1px solid var(--border);
+        }
+        .ref-token {
+            font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+            color: var(--text-primary); min-width: 60px; flex-shrink: 0;
+        }
+        .ref-desc { font-size: 12px; color: var(--text-secondary); }
+
+        /* ===== Mobile ===== */
+        @media (max-width: 768px) {
+            .pane-divider { display: none; }
+            .left-panel, .right-panel { display: none; }
+            .left-panel.mobile-active, .right-panel.mobile-active { display: flex; flex: 1; }
+            .mobile-tabs {
+                display: flex; height: 38px; background: var(--bg-secondary);
+                border-bottom: 1px solid var(--border);
+            }
+            .mobile-tabs button {
+                flex: 1; border: none; background: transparent; color: var(--text-muted);
+                font-family: var(--font-ui); font-size: 12px; font-weight: 600;
+                cursor: pointer; padding: 0 12px; white-space: nowrap;
+                border-bottom: 2px solid transparent;
+            }
+            .mobile-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+        }
+        @media (min-width: 769px) {
+            .mobile-tabs { display: none; }
+            .left-panel, .right-panel { display: flex !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="../index.html" class="header-home" title="Back to NibSet">
+                <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="22">
+                    <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+                    <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#nhg)" stroke="var(--border)" stroke-width="0.5"/>
+                    <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#nhg)" />
+                    <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+                    <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+                    <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <line x1="10" y1="33" x2="22" y2="33" stroke="url(#nhg)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#nhg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                    <defs><linearGradient id="nhg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text-primary)"/><stop offset="100%" stop-color="var(--text-muted)"/></linearGradient></defs>
+                </svg>
+            </a>
+            <div class="header-title">
+                <i class="fas fa-terminal"></i>
+                Regex
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn" id="refBtn" title="Quick Reference"><i class="fas fa-book-open"></i> <span class="btn-label">Reference</span></button>
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;flex-shrink:0;">Flags</span>
+        <div class="flags-group">
+            <button class="flag-btn active" data-flag="g" title="Global — find all matches">g</button>
+            <button class="flag-btn" data-flag="i" title="Case insensitive">i</button>
+            <button class="flag-btn" data-flag="m" title="Multiline — ^ and $ match line boundaries">m</button>
+            <button class="flag-btn" data-flag="s" title="Dotall — dot matches newline">s</button>
+        </div>
+        <div class="tb-sep"></div>
+        <button class="toolbar-btn" id="copyPatternBtn" title="Copy pattern"><i class="fas fa-copy"></i> Pattern</button>
+        <button class="toolbar-btn" id="copyMatchesBtn" title="Copy matches as JSON (Ctrl+Shift+C)"><i class="fas fa-download"></i> Matches</button>
+        <div class="tb-sep"></div>
+        <button class="toolbar-btn" id="clearBtn" title="Clear all"><i class="fas fa-eraser"></i> Clear</button>
+    </div>
+
+    <!-- Mobile Tabs -->
+    <div class="mobile-tabs">
+        <button class="active" data-panel="left">Pattern &amp; Test</button>
+        <button data-panel="right">Matches</button>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+        <!-- Left: Pattern + Test -->
+        <div class="left-panel mobile-active" id="leftPanel">
+            <!-- Pattern input -->
+            <div class="pattern-section">
+                <div class="pattern-label">Pattern</div>
+                <div class="pattern-input-wrap" id="patternWrap">
+                    <span class="pattern-delimiter">/</span>
+                    <input type="text" id="patternInput" placeholder="e.g. (\w+)" spellcheck="false" autocomplete="off">
+                    <span class="pattern-delimiter">/</span>
+                    <span class="pattern-flags-display" id="patternFlagsDisplay">g</span>
+                </div>
+                <div class="pattern-error" id="patternError"></div>
+            </div>
+
+            <!-- Test string -->
+            <div class="test-section">
+                <div class="section-label">Test String</div>
+                <div class="test-input-container">
+                    <div id="highlightLayer" aria-hidden="true"></div>
+                    <textarea id="testInput" spellcheck="false" placeholder="Type or paste your test string here…"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="pane-divider" id="paneDivider"></div>
+
+        <!-- Right: Results -->
+        <div class="right-panel" id="rightPanel">
+            <div class="results-header">
+                <span>Matches</span>
+                <span class="results-count" id="resultsCount"></span>
+            </div>
+            <div class="results-body" id="resultsBody">
+                <div class="empty-state" id="emptyState">
+                    <i class="fas fa-search"></i>
+                    <p>Enter a pattern and test string<br>to see matches here</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+        <div class="statusbar-left">
+            <span id="statusMsg" class="status-empty">Ready</span>
+        </div>
+        <div class="statusbar-right">
+            <span id="charCount">0 chars</span>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Quick Reference Modal -->
+<div class="modal-overlay" id="refModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">Regex Quick Reference</span>
+            <button class="modal-close" id="refModalClose"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="ref-section">
+                <div class="ref-section-title">Character Classes</div>
+                <div class="ref-grid">
+                    <div class="ref-row"><span class="ref-token">.</span><span class="ref-desc">Any character except newline</span></div>
+                    <div class="ref-row"><span class="ref-token">\w</span><span class="ref-desc">Word character [a-zA-Z0-9_]</span></div>
+                    <div class="ref-row"><span class="ref-token">\d</span><span class="ref-desc">Digit [0-9]</span></div>
+                    <div class="ref-row"><span class="ref-token">\s</span><span class="ref-desc">Whitespace (space, tab, newline)</span></div>
+                    <div class="ref-row"><span class="ref-token">\W</span><span class="ref-desc">Non-word character</span></div>
+                    <div class="ref-row"><span class="ref-token">\D</span><span class="ref-desc">Non-digit</span></div>
+                    <div class="ref-row"><span class="ref-token">\S</span><span class="ref-desc">Non-whitespace</span></div>
+                    <div class="ref-row"><span class="ref-token">[abc]</span><span class="ref-desc">Character set — a, b, or c</span></div>
+                    <div class="ref-row"><span class="ref-token">[^abc]</span><span class="ref-desc">Negated set — not a, b, or c</span></div>
+                    <div class="ref-row"><span class="ref-token">[a-z]</span><span class="ref-desc">Character range a through z</span></div>
+                </div>
+            </div>
+            <div class="ref-section">
+                <div class="ref-section-title">Anchors</div>
+                <div class="ref-grid">
+                    <div class="ref-row"><span class="ref-token">^</span><span class="ref-desc">Start of string (or line with m flag)</span></div>
+                    <div class="ref-row"><span class="ref-token">$</span><span class="ref-desc">End of string (or line with m flag)</span></div>
+                    <div class="ref-row"><span class="ref-token">\b</span><span class="ref-desc">Word boundary</span></div>
+                    <div class="ref-row"><span class="ref-token">\B</span><span class="ref-desc">Non-word boundary</span></div>
+                </div>
+            </div>
+            <div class="ref-section">
+                <div class="ref-section-title">Quantifiers</div>
+                <div class="ref-grid">
+                    <div class="ref-row"><span class="ref-token">*</span><span class="ref-desc">0 or more (greedy)</span></div>
+                    <div class="ref-row"><span class="ref-token">+</span><span class="ref-desc">1 or more (greedy)</span></div>
+                    <div class="ref-row"><span class="ref-token">?</span><span class="ref-desc">0 or 1 (greedy)</span></div>
+                    <div class="ref-row"><span class="ref-token">*?</span><span class="ref-desc">0 or more (lazy)</span></div>
+                    <div class="ref-row"><span class="ref-token">+?</span><span class="ref-desc">1 or more (lazy)</span></div>
+                    <div class="ref-row"><span class="ref-token">{n}</span><span class="ref-desc">Exactly n times</span></div>
+                    <div class="ref-row"><span class="ref-token">{n,}</span><span class="ref-desc">n or more times</span></div>
+                    <div class="ref-row"><span class="ref-token">{n,m}</span><span class="ref-desc">Between n and m times</span></div>
+                </div>
+            </div>
+            <div class="ref-section">
+                <div class="ref-section-title">Groups &amp; Alternation</div>
+                <div class="ref-grid">
+                    <div class="ref-row"><span class="ref-token">(abc)</span><span class="ref-desc">Capture group</span></div>
+                    <div class="ref-row"><span class="ref-token">(?:abc)</span><span class="ref-desc">Non-capturing group</span></div>
+                    <div class="ref-row"><span class="ref-token">(?&lt;name&gt;)</span><span class="ref-desc">Named capture group</span></div>
+                    <div class="ref-row"><span class="ref-token">a|b</span><span class="ref-desc">Alternation — a or b</span></div>
+                    <div class="ref-row"><span class="ref-token">\1</span><span class="ref-desc">Backreference to group 1</span></div>
+                    <div class="ref-row"><span class="ref-token">(?=abc)</span><span class="ref-desc">Positive lookahead</span></div>
+                    <div class="ref-row"><span class="ref-token">(?!abc)</span><span class="ref-desc">Negative lookahead</span></div>
+                    <div class="ref-row"><span class="ref-token">(?&lt;=abc)</span><span class="ref-desc">Positive lookbehind</span></div>
+                </div>
+            </div>
+            <div class="ref-section">
+                <div class="ref-section-title">Flags</div>
+                <div class="ref-grid">
+                    <div class="ref-row"><span class="ref-token">g</span><span class="ref-desc">Global — find all matches</span></div>
+                    <div class="ref-row"><span class="ref-token">i</span><span class="ref-desc">Case insensitive</span></div>
+                    <div class="ref-row"><span class="ref-token">m</span><span class="ref-desc">Multiline — ^ $ match line edges</span></div>
+                    <div class="ref-row"><span class="ref-token">s</span><span class="ref-desc">Dotall — . matches newline too</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // ===== State =====
+    const state = {
+        pattern: '',
+        flags: new Set(['g']),
+        test: '',
+        matches: [],
+        error: null,
+        regex: null
+    };
+
+    // ===== DOM refs =====
+    const $ = id => document.getElementById(id);
+    const patternInput = $('patternInput');
+    const patternWrap = $('patternWrap');
+    const patternError = $('patternError');
+    const patternFlagsDisplay = $('patternFlagsDisplay');
+    const testInput = $('testInput');
+    const highlightLayer = $('highlightLayer');
+    const resultsBody = $('resultsBody');
+    const resultsCount = $('resultsCount');
+    const emptyState = $('emptyState');
+    const statusMsg = $('statusMsg');
+    const charCount = $('charCount');
+    const toastContainer = $('toastContainer');
+    const refModal = $('refModal');
+    const paneDivider = $('paneDivider');
+    const leftPanel = $('leftPanel');
+    const rightPanel = $('rightPanel');
+
+    // ===== Toast =====
+    function showToast(msg, icon) {
+        icon = icon || 'fa-check';
+        const t = document.createElement('div');
+        t.className = 'toast';
+        t.innerHTML = '<i class="fas ' + icon + '"></i> ' + escapeHtml(msg);
+        toastContainer.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+    }
+
+    // ===== Clipboard =====
+    function copy(text, label) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => showToast(label || 'Copied'));
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast(label || 'Copied');
+        }
+    }
+
+    // ===== Helpers =====
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function escapeRegex(s) {
+        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function getFlags() {
+        return [...state.flags].join('');
+    }
+
+    // ===== Core: run regex =====
+    function runRegex() {
+        const pattern = state.pattern;
+        const test = state.test;
+
+        if (!pattern) {
+            state.regex = null;
+            state.error = null;
+            state.matches = [];
+            render();
+            return;
+        }
+
+        // Build regex
+        let flags = getFlags();
+        // Ensure 'd' flag if available (for indices) — not critical, skip for compat
+        let regex;
+        try {
+            regex = new RegExp(pattern, flags);
+            state.regex = regex;
+            state.error = null;
+        } catch (e) {
+            state.regex = null;
+            state.error = e.message;
+            state.matches = [];
+            render();
+            return;
+        }
+
+        // Collect matches
+        const matches = [];
+        if (state.flags.has('g')) {
+            // Global: iterate all matches
+            let m;
+            // Reset lastIndex
+            regex.lastIndex = 0;
+            while ((m = regex.exec(test)) !== null) {
+                matches.push({ index: m.index, value: m[0], groups: Array.from(m).slice(1), namedGroups: m.groups || null });
+                // Avoid infinite loop on zero-length match
+                if (m[0].length === 0) regex.lastIndex++;
+            }
+        } else {
+            // Non-global: single match
+            const m = regex.exec(test);
+            if (m) {
+                matches.push({ index: m.index, value: m[0], groups: Array.from(m).slice(1), namedGroups: m.groups || null });
+            }
+        }
+
+        state.matches = matches;
+        render();
+    }
+
+    // ===== Render: highlight layer =====
+    function buildHighlightHtml(text, matches) {
+        if (!matches.length) return escapeHtml(text);
+
+        // Build a list of ranges to highlight
+        // Each range: { start, end, type: 'match'|'group', groupIndex }
+        // We render from start to end, layering match first, then groups on top
+        // For simplicity: render segment by segment using the match positions
+
+        // Collect all character-level annotations
+        // Use a simple approach: for each match, mark the full match span
+        // then for each capture group, mark its span
+        // Render left-to-right, closest span wins on overlap
+
+        // Build segments via interval painting
+        // We'll build an array of {start,end,cls} sorted by priority (groups > matches)
+        const spans = [];
+        for (const m of matches) {
+            const matchEnd = m.index + m.value.length;
+            spans.push({ start: m.index, end: matchEnd, cls: 'match' });
+            // Named groups
+            if (m.namedGroups) {
+                // iterate named groups
+                for (const [name, val] of Object.entries(m.namedGroups)) {
+                    if (val === undefined || val === null) continue;
+                    // Find position of this named group within match
+                    const idx = text.indexOf(val, m.index);
+                    if (idx !== -1 && idx < matchEnd) {
+                        spans.push({ start: idx, end: idx + val.length, cls: 'group group-1' });
+                    }
+                }
+            }
+            // Numbered groups
+            m.groups.forEach((g, i) => {
+                if (g === undefined || g === null) return;
+                // Find group position: simple approach — search within match
+                const idx = text.indexOf(g, m.index);
+                if (idx !== -1 && idx + g.length <= matchEnd) {
+                    spans.push({ start: idx, end: idx + g.length, cls: 'group group-' + (i + 1) });
+                }
+            });
+        }
+
+        // Sort: match spans first, then group spans (groups render on top)
+        // We actually do a simpler flat render: just mark match regions
+        // For perfect group highlighting we'd need regex with indices ('d' flag)
+        // Use the match-level highlighting only for broad compat
+        // Groups: use the namedGroups/groups values as hints
+
+        // Simplest correct approach: render char-by-char using a coverage array
+        // But that's slow. Instead build sorted non-overlapping intervals for matches only,
+        // then for groups within each match
+        const n = text.length;
+        // coverage: array of class names per char, '' means no class
+        // Use match for whole match, then override with group class for group chars
+        const coverage = new Array(n).fill('');
+        // Apply matches first (lower priority)
+        for (const m of matches) {
+            for (let i = m.index; i < m.index + m.value.length; i++) {
+                if (i < n) coverage[i] = 'match';
+            }
+        }
+        // Apply groups on top (higher priority)
+        for (const m of matches) {
+            // We need actual positions of groups — use regex with d flag if available
+            // Fallback: if group value is non-empty and unique within match, find it
+            // For production correctness we use a second exec pass with indices if available
+            const matchStr = m.value;
+            m.groups.forEach((g, gi) => {
+                if (!g) return;
+                // Find all occurrences of g in matchStr, use first one
+                let pos = matchStr.indexOf(g);
+                if (pos !== -1) {
+                    const abs = m.index + pos;
+                    const groupClass = 'group group-' + (gi + 1);
+                    for (let i = abs; i < abs + g.length && i < n; i++) {
+                        coverage[i] = groupClass;
+                    }
+                }
+            });
+        }
+
+        // Build HTML from coverage array
+        let html = '';
+        let i = 0;
+        while (i < n) {
+            const cls = coverage[i];
+            if (!cls) {
+                // Find run of no-coverage
+                let j = i;
+                while (j < n && !coverage[j]) j++;
+                html += escapeHtml(text.slice(i, j));
+                i = j;
+            } else {
+                // Find run of same class
+                let j = i;
+                while (j < n && coverage[j] === cls) j++;
+                html += '<mark class="' + cls + '">' + escapeHtml(text.slice(i, j)) + '</mark>';
+                i = j;
+            }
+        }
+        return html;
+    }
+
+    function updateHighlight() {
+        const text = state.test;
+        const matches = state.matches;
+        highlightLayer.innerHTML = buildHighlightHtml(text, matches);
+        // Sync scroll
+        highlightLayer.scrollTop = testInput.scrollTop;
+        highlightLayer.scrollLeft = testInput.scrollLeft;
+    }
+
+    // ===== Render: results panel =====
+    function renderResults() {
+        const matches = state.matches;
+        if (!matches.length) {
+            resultsBody.innerHTML = '';
+            resultsBody.appendChild(emptyState);
+            resultsCount.textContent = '';
+            if (!state.pattern) {
+                emptyState.querySelector('p').innerHTML = 'Enter a pattern and test string<br>to see matches here';
+                emptyState.querySelector('i').className = 'fas fa-search';
+            } else if (state.error) {
+                emptyState.querySelector('p').innerHTML = 'Fix the pattern error to see matches';
+                emptyState.querySelector('i').className = 'fas fa-exclamation-triangle';
+            } else {
+                emptyState.querySelector('p').innerHTML = 'No matches found';
+                emptyState.querySelector('i').className = 'fas fa-times-circle';
+            }
+            return;
+        }
+
+        resultsCount.textContent = matches.length + (matches.length === 1 ? ' match' : ' matches');
+
+        const frag = document.createDocumentFragment();
+        matches.forEach((m, idx) => {
+            const card = document.createElement('div');
+            card.className = 'match-card';
+
+            const header = document.createElement('div');
+            header.className = 'match-header';
+            header.innerHTML =
+                '<span class="match-index">#' + (idx + 1) + '</span>' +
+                '<span class="match-value">' + escapeHtml(m.value || '(empty)') + '</span>' +
+                '<span class="match-position">@' + m.index + '</span>';
+
+            card.appendChild(header);
+
+            // Groups
+            const capGroups = m.groups.filter(g => g !== undefined);
+            const hasNamedGroups = m.namedGroups && Object.keys(m.namedGroups).length > 0;
+            if (capGroups.length > 0 || hasNamedGroups) {
+                const groupsEl = document.createElement('div');
+                groupsEl.className = 'match-groups';
+
+                if (hasNamedGroups) {
+                    Object.entries(m.namedGroups).forEach(([name, val], i) => {
+                        const row = document.createElement('div');
+                        row.className = 'group-row group-' + (i + 1);
+                        row.innerHTML = '<span class="group-label">' + escapeHtml(name) + '</span>' +
+                            (val !== undefined && val !== null
+                                ? '<span class="group-val">' + escapeHtml(val) + '</span>'
+                                : '<span class="group-null">undefined</span>');
+                        groupsEl.appendChild(row);
+                    });
+                } else {
+                    m.groups.forEach((g, i) => {
+                        const row = document.createElement('div');
+                        row.className = 'group-row group-' + (i + 1);
+                        row.innerHTML = '<span class="group-label">$' + (i + 1) + '</span>' +
+                            (g !== undefined && g !== null
+                                ? '<span class="group-val">' + escapeHtml(g) + '</span>'
+                                : '<span class="group-null">undefined</span>');
+                        groupsEl.appendChild(row);
+                    });
+                }
+                card.appendChild(groupsEl);
+            }
+
+            frag.appendChild(card);
+        });
+
+        resultsBody.innerHTML = '';
+        resultsBody.appendChild(frag);
+    }
+
+    // ===== Render: status bar =====
+    function renderStatus() {
+        charCount.textContent = state.test.length.toLocaleString() + ' chars';
+        if (!state.pattern) {
+            statusMsg.className = 'status-empty';
+            statusMsg.textContent = 'Ready';
+        } else if (state.error) {
+            statusMsg.className = 'status-error';
+            statusMsg.textContent = 'Invalid pattern';
+        } else if (!state.test) {
+            statusMsg.className = 'status-empty';
+            statusMsg.textContent = 'No test string';
+        } else if (state.matches.length === 0) {
+            statusMsg.className = 'status-error';
+            statusMsg.textContent = 'No matches';
+        } else {
+            statusMsg.className = 'status-valid';
+            statusMsg.textContent = state.matches.length + (state.matches.length === 1 ? ' match' : ' matches');
+        }
+    }
+
+    // ===== Render: pattern input decoration =====
+    function renderPatternState() {
+        const flagStr = getFlags() || '';
+        patternFlagsDisplay.textContent = flagStr;
+
+        if (!state.pattern) {
+            patternWrap.className = 'pattern-input-wrap';
+            patternError.className = 'pattern-error';
+            patternError.textContent = '';
+        } else if (state.error) {
+            patternWrap.className = 'pattern-input-wrap error';
+            patternError.className = 'pattern-error visible';
+            patternError.textContent = state.error;
+        } else {
+            patternWrap.className = 'pattern-input-wrap';
+            patternError.className = 'pattern-error';
+            patternError.textContent = '';
+        }
+    }
+
+    // ===== Master render =====
+    function render() {
+        renderPatternState();
+        updateHighlight();
+        renderResults();
+        renderStatus();
+    }
+
+    // ===== Event: pattern input =====
+    patternInput.addEventListener('input', () => {
+        state.pattern = patternInput.value;
+        runRegex();
+    });
+
+    // ===== Event: test input =====
+    testInput.addEventListener('input', () => {
+        state.test = testInput.value;
+        runRegex();
+    });
+
+    testInput.addEventListener('scroll', () => {
+        highlightLayer.scrollTop = testInput.scrollTop;
+        highlightLayer.scrollLeft = testInput.scrollLeft;
+    });
+
+    // ===== Event: flag toggles =====
+    document.querySelectorAll('.flag-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const flag = btn.dataset.flag;
+            if (state.flags.has(flag)) {
+                state.flags.delete(flag);
+                btn.classList.remove('active');
+            } else {
+                state.flags.add(flag);
+                btn.classList.add('active');
+            }
+            runRegex();
+        });
+    });
+
+    // ===== Event: copy pattern =====
+    $('copyPatternBtn').addEventListener('click', () => {
+        if (!state.pattern) { showToast('No pattern to copy', 'fa-exclamation'); return; }
+        copy('/' + state.pattern + '/' + getFlags(), 'Pattern copied');
+    });
+
+    // ===== Event: copy matches =====
+    function copyMatches() {
+        if (!state.matches.length) { showToast('No matches to copy', 'fa-exclamation'); return; }
+        const data = state.matches.map((m, i) => ({
+            index: i + 1,
+            value: m.value,
+            position: m.index,
+            groups: m.groups,
+            namedGroups: m.namedGroups || undefined
+        }));
+        copy(JSON.stringify(data, null, 2), 'Matches copied as JSON');
+    }
+    $('copyMatchesBtn').addEventListener('click', copyMatches);
+
+    // ===== Event: clear =====
+    $('clearBtn').addEventListener('click', () => {
+        patternInput.value = '';
+        testInput.value = '';
+        state.pattern = '';
+        state.test = '';
+        state.flags = new Set(['g']);
+        document.querySelectorAll('.flag-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.flag === 'g');
+        });
+        runRegex();
+    });
+
+    // ===== Event: quick ref modal =====
+    $('refBtn').addEventListener('click', () => refModal.classList.add('open'));
+    $('refModalClose').addEventListener('click', () => refModal.classList.remove('open'));
+    refModal.addEventListener('click', e => { if (e.target === refModal) refModal.classList.remove('open'); });
+
+    // ===== Event: keyboard shortcuts =====
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') refModal.classList.remove('open');
+        if (e.ctrlKey && e.shiftKey && e.key === 'C') { e.preventDefault(); copyMatches(); }
+    });
+
+    // ===== Event: theme toggle =====
+    $('themeToggle').addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('nibset-theme', next);
+    });
+
+    // ===== Event: pane divider drag =====
+    let dragging = false, startX = 0, startLeft = 0, startRight = 0;
+    paneDivider.addEventListener('mousedown', e => {
+        dragging = true;
+        startX = e.clientX;
+        startLeft = leftPanel.getBoundingClientRect().width;
+        startRight = rightPanel.getBoundingClientRect().width;
+        paneDivider.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        const totalW = startLeft + startRight;
+        const newLeft = Math.max(200, Math.min(totalW - 200, startLeft + dx));
+        leftPanel.style.flex = 'none';
+        leftPanel.style.width = newLeft + 'px';
+        rightPanel.style.flex = '1';
+    });
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        paneDivider.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    });
+
+    // ===== Mobile tabs =====
+    document.querySelectorAll('.mobile-tabs button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.mobile-tabs button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const panel = btn.dataset.panel;
+            leftPanel.classList.toggle('mobile-active', panel === 'left');
+            rightPanel.classList.toggle('mobile-active', panel === 'right');
+        });
+    });
+
+    // ===== Init =====
+    render();
+})();
+</script>
+</body>
+</html>

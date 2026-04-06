@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diff — NibSet</title>
+    <link rel="icon" type="image/png" href="../assets/logo.png">
+    <meta name="description" content="Compare two texts side by side with clear highlights showing every difference. Paste, compare, done.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+    (function(){
+        var t = localStorage.getItem('nibset-theme');
+        if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #060608;
+            --bg-secondary: #111115;
+            --bg-tertiary: #1c1c24;
+            --bg-hover: #16161c;
+            --text-primary: #e8e8ec;
+            --text-secondary: #8b8b95;
+            --text-muted: #55555e;
+            --accent: #c9f270;
+            --accent-hover: #b8e35f;
+            --accent-text: #060608;
+            --border: rgba(255,255,255,0.06);
+            --header-bg: rgba(6,6,8,0.85);
+            --header-border: rgba(255,255,255,0.05);
+            --divider-color: #55555e;
+            --success: #c9f270;
+            --danger: #ef4444;
+            --warning: #fbbf24;
+            --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            --header-height: 56px;
+            --toolbar-height: 44px;
+            --statusbar-height: 28px;
+            --radius: 8px;
+            --radius-sm: 4px;
+            --add-bg: rgba(201,242,112,0.1);
+            --add-num-bg: rgba(201,242,112,0.2);
+            --del-bg: rgba(239,68,68,0.1);
+            --del-num-bg: rgba(239,68,68,0.2);
+            --mod-bg: rgba(251,191,36,0.08);
+            --mod-num-bg: rgba(251,191,36,0.2);
+            --lh: 21px;
+            --gutter: 48px;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #eaeaee;
+            --bg-tertiary: #dcdce0;
+            --bg-hover: #f0f0f4;
+            --text-primary: #1a1a1e;
+            --text-secondary: #5a5a64;
+            --text-muted: #8b8b95;
+            --accent: #5a8a1a;
+            --accent-hover: #4a7515;
+            --accent-text: #ffffff;
+            --border: rgba(0,0,0,0.08);
+            --header-bg: rgba(245,245,247,0.85);
+            --header-border: rgba(0,0,0,0.08);
+            --divider-color: #c0c0c8;
+            --success: #5a8a1a;
+            --add-bg: rgba(90,138,26,0.1);
+            --add-num-bg: rgba(90,138,26,0.2);
+        }
+
+        html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
+        .app { display: flex; flex-direction: column; height: 100dvh; }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--header-height); padding: 0 16px;
+            background: var(--header-bg); backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--header-border); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
+        .header-home:hover { opacity: 1; }
+        .header-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+        .header-title i { color: var(--accent); }
+        .header-center { display: flex; align-items: center; }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* ===== View Switcher ===== */
+        .view-switcher { display: flex; gap: 2px; background: var(--bg-tertiary); border-radius: var(--radius-sm); padding: 3px; border: 1px solid var(--border); }
+        .view-btn { padding: 5px 14px; border: none; background: transparent; color: var(--text-muted); font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer; border-radius: 3px; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
+        .view-btn:hover { color: var(--text-secondary); }
+        .view-btn.active { background: var(--accent); color: var(--accent-text); }
+        .view-btn i { font-size: 11px; }
+
+        /* ===== Theme Toggle ===== */
+        .theme-toggle { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+        .theme-toggle:hover { background: var(--bg-hover); border-color: var(--divider-color); color: var(--text-primary); }
+        .theme-toggle svg { width: 18px; height: 18px; }
+        [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+        /* ===== Toolbar ===== */
+        .toolbar { display: flex; align-items: center; gap: 6px; padding: 0 16px; height: var(--toolbar-height); border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto; }
+        .toolbar-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .toolbar-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .toolbar-btn i { font-size: 11px; }
+        .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+        .toolbar-spacer { flex: 1; }
+
+        /* ===== Main ===== */
+        .main { display: flex; flex: 1; min-height: 0; }
+
+        /* ===== Split View ===== */
+        .split-view { display: flex; flex: 1; min-height: 0; }
+        .split-view.hidden { display: none; }
+        .diff-pane { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .pane-label { height: 28px; padding: 0 16px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; flex-shrink: 0; }
+
+        /* Pane body: relative container for hl-layer + textarea */
+        .pane-body { position: relative; flex: 1; overflow: hidden; background: var(--bg-primary); }
+
+        /* Permanent gutter line */
+        .pane-body::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: var(--gutter);
+            height: 100%;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Highlight layer (behind textarea) */
+        .hl-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 16px 0;
+            overflow-y: scroll; overflow-x: hidden;
+            scrollbar-width: none;
+            z-index: 2; pointer-events: none;
+        }
+        .hl-layer::-webkit-scrollbar { display: none; }
+        .hl-row { height: var(--lh); display: flex; align-items: stretch; }
+        .hl-row.hl-del { background: var(--del-bg); }
+        .hl-row.hl-add { background: var(--add-bg); }
+        .hl-row.hl-mod { background: var(--mod-bg); }
+        .hl-num {
+            width: var(--gutter); min-width: var(--gutter);
+            display: flex; align-items: center; justify-content: flex-end;
+            padding-right: 10px;
+            font-family: var(--font-mono); font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+        }
+        .hl-row.hl-del .hl-num { color: var(--danger); background: var(--del-num-bg); }
+        .hl-row.hl-add .hl-num { color: var(--success); background: var(--add-num-bg); }
+        .hl-row.hl-mod .hl-num { color: var(--warning); background: var(--mod-num-bg); }
+
+        /* Textarea */
+        .diff-ta {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 16px 16px 16px calc(var(--gutter) + 16px);
+            border: none; outline: none; resize: none;
+            background: transparent; color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 13px; line-height: var(--lh);
+            tab-size: 4; white-space: pre; overflow: auto; z-index: 3;
+            caret-color: var(--accent);
+        }
+        .diff-ta::placeholder { color: var(--text-muted); }
+        .diff-ta::selection { background: rgba(201,242,112,0.2); }
+        [data-theme="light"] .diff-ta::selection { background: rgba(90,138,26,0.15); }
+
+        /* ===== Pane Divider ===== */
+        .pane-divider { width: 6px; background: var(--bg-secondary); border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: col-resize; transition: background 0.15s; flex-shrink: 0; }
+        .pane-divider:hover, .pane-divider.dragging { background: var(--accent); }
+
+        /* ===== Unified View ===== */
+        .unified-view { display: none; flex: 1; flex-direction: column; min-height: 0; }
+        .unified-view.visible { display: flex; }
+        .unified-scroll { flex: 1; overflow: auto; background: var(--bg-primary); }
+        .unified-lines { min-width: max-content; padding: 8px 0; }
+
+        .u-line {
+            display: flex; align-items: stretch;
+            min-height: var(--lh);
+            font-family: var(--font-mono); font-size: 13px; line-height: var(--lh);
+        }
+        .u-line.u-add { background: var(--add-bg); }
+        .u-line.u-del { background: var(--del-bg); }
+        .u-num {
+            width: 44px; min-width: 44px;
+            display: flex; align-items: center; justify-content: flex-end;
+            padding: 0 8px;
+            font-size: 11px; color: var(--text-muted);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            flex-shrink: 0; user-select: none;
+        }
+        .u-line.u-add .u-num-right { color: var(--success); background: var(--add-num-bg); }
+        .u-line.u-del .u-num-left { color: var(--danger); background: var(--del-num-bg); }
+        .u-marker {
+            width: 22px; min-width: 22px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; flex-shrink: 0; user-select: none;
+            border-right: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+        .u-line.u-add .u-marker { color: var(--success); background: var(--add-num-bg); }
+        .u-line.u-del .u-marker { color: var(--danger); background: var(--del-num-bg); }
+        .u-content { flex: 1; padding: 0 16px; white-space: pre; }
+
+        /* Char-level marks (unified view) */
+        mark { background: none; color: inherit; }
+        mark.ca { background: rgba(201,242,112,0.45); border-radius: 2px; }
+        mark.cd { background: rgba(239,68,68,0.45); border-radius: 2px; }
+        [data-theme="light"] mark.ca { background: rgba(90,138,26,0.3); }
+
+        /* ===== Empty State ===== */
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 13px; gap: 8px; padding: 32px; text-align: center; }
+        .empty-state i { font-size: 28px; opacity: 0.3; }
+        .empty-state p { opacity: 0.7; line-height: 1.5; }
+
+        /* ===== Status Bar ===== */
+        .statusbar { display: flex; align-items: center; justify-content: space-between; height: var(--statusbar-height); padding: 0 16px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+        .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+        .stat-add { color: var(--success); }
+        .stat-del { color: var(--danger); }
+        .stat-mod { color: var(--warning); }
+
+        /* ===== Toast ===== */
+        .toast-container { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
+        .toast { padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="../index.html" class="header-home" title="Back to NibSet">
+                <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="22">
+                    <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+                    <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#nhg)" stroke="var(--border)" stroke-width="0.5"/>
+                    <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#nhg)" />
+                    <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+                    <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+                    <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <line x1="10" y1="33" x2="22" y2="33" stroke="url(#nhg)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#nhg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                    <defs><linearGradient id="nhg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text-primary)"/><stop offset="100%" stop-color="var(--text-muted)"/></linearGradient></defs>
+                </svg>
+            </a>
+            <div class="header-title">
+                <i class="fa-solid fa-code-compare"></i>
+                Diff
+            </div>
+        </div>
+        <div class="header-center">
+            <div class="view-switcher">
+                <button class="view-btn active" data-view="split"><i class="fas fa-columns"></i> Split</button>
+                <button class="view-btn" data-view="unified"><i class="fas fa-list"></i> Unified</button>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="toolbar-btn" id="swapBtn" title="Swap original and modified"><i class="fas fa-arrows-left-right"></i> Swap</button>
+        <button class="toolbar-btn" id="clearBtn" title="Clear both panes"><i class="fas fa-eraser"></i> Clear</button>
+        <div class="tb-sep"></div>
+        <button class="toolbar-btn" id="copyBtn" title="Copy unified diff to clipboard"><i class="fas fa-copy"></i> Copy diff</button>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+
+        <!-- Split View -->
+        <div class="split-view" id="splitView">
+            <div class="diff-pane" id="leftPane">
+                <div class="pane-label">Original</div>
+                <div class="pane-body">
+                    <div class="hl-layer" id="leftHL"></div>
+                    <textarea class="diff-ta" id="leftTA" spellcheck="false" placeholder="Paste original text here…"></textarea>
+                </div>
+            </div>
+            <div class="pane-divider" id="paneDivider"></div>
+            <div class="diff-pane" id="rightPane">
+                <div class="pane-label">Modified</div>
+                <div class="pane-body">
+                    <div class="hl-layer" id="rightHL"></div>
+                    <textarea class="diff-ta" id="rightTA" spellcheck="false" placeholder="Paste modified text here…"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unified View -->
+        <div class="unified-view" id="unifiedView">
+            <div class="pane-label">Unified Diff</div>
+            <div class="unified-scroll">
+                <div class="unified-lines" id="unifiedLines">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-code-compare"></i>
+                        <p>Paste text in both panes (Split view)<br>to see the unified diff here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+        <div class="statusbar-left">
+            <span id="statusMsg">Paste text in both panes to compare</span>
+        </div>
+        <div class="statusbar-right">
+            <span id="lineCountMsg"></span>
+        </div>
+    </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ===== DOM =====
+const $ = id => document.getElementById(id);
+const leftTA = $('leftTA'), rightTA = $('rightTA');
+const leftHL = $('leftHL'), rightHL = $('rightHL');
+const splitView = $('splitView'), unifiedView = $('unifiedView');
+const unifiedLines = $('unifiedLines');
+const statusMsg = $('statusMsg'), lineCountMsg = $('lineCountMsg');
+const toastContainer = $('toastContainer');
+
+// ===== State =====
+let currentView = 'split';
+let diffOps = null;
+let debounceTimer = null;
+
+// ===== Diff Algorithm (LCS-based) =====
+function computeLineDiff(L, R) {
+    const m = L.length, n = R.length;
+    // Performance guard for very large inputs
+    if (m * n > 4_000_000) {
+        return [...L.map(l => ({ op: '-', left: l })), ...R.map(r => ({ op: '+', right: r }))];
+    }
+    // Build LCS table (backwards)
+    const dp = [];
+    for (let i = 0; i <= m; i++) dp[i] = new Int32Array(n + 1);
+    for (let i = m - 1; i >= 0; i--)
+        for (let j = n - 1; j >= 0; j--)
+            dp[i][j] = L[i] === R[j] ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+    // Backtrack
+    const ops = [];
+    let i = 0, j = 0;
+    while (i < m && j < n) {
+        if (L[i] === R[j]) { ops.push({ op: '=', left: L[i], right: R[j] }); i++; j++; }
+        else if (dp[i+1][j] >= dp[i][j+1]) { ops.push({ op: '-', left: L[i++] }); }
+        else { ops.push({ op: '+', right: R[j++] }); }
+    }
+    while (i < m) ops.push({ op: '-', left: L[i++] });
+    while (j < n) ops.push({ op: '+', right: R[j++] });
+    return ops;
+}
+
+function groupOps(ops) {
+    // Pair consecutive deletions + insertions as modifications (~)
+    const result = [];
+    let i = 0;
+    while (i < ops.length) {
+        if (ops[i].op === '-') {
+            const dels = [], ins = [];
+            while (i < ops.length && ops[i].op === '-') dels.push(ops[i++].left);
+            while (i < ops.length && ops[i].op === '+') ins.push(ops[i++].right);
+            const pairs = Math.min(dels.length, ins.length);
+            for (let p = 0; p < pairs; p++) result.push({ op: '~', left: dels[p], right: ins[p] });
+            for (let p = pairs; p < dels.length; p++) result.push({ op: '-', left: dels[p] });
+            for (let p = pairs; p < ins.length; p++) result.push({ op: '+', right: ins[p] });
+        } else {
+            result.push(ops[i++]);
+        }
+    }
+    return result;
+}
+
+// ===== HTML escape =====
+function h(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ===== Char-level diff (for unified view) =====
+function diffChars(a, b) {
+    if (a === b) return [h(a), h(b)];
+    if (a.length > 400 || b.length > 400) return [h(a), h(b)];
+    const m = a.length, n = b.length;
+    const dp = [];
+    for (let i = 0; i <= m; i++) dp[i] = new Uint16Array(n + 1);
+    for (let i = m - 1; i >= 0; i--)
+        for (let j = n - 1; j >= 0; j--)
+            dp[i][j] = a[i] === b[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
+    let i = 0, j = 0;
+    const lh = [], rh = [];
+    while (i < m && j < n) {
+        if (a[i] === b[j]) { lh.push(h(a[i])); rh.push(h(b[j])); i++; j++; }
+        else if (dp[i+1][j] >= dp[i][j+1]) { lh.push(`<mark class="cd">${h(a[i++])}</mark>`); }
+        else { rh.push(`<mark class="ca">${h(b[j++])}</mark>`); }
+    }
+    while (i < m) lh.push(`<mark class="cd">${h(a[i++])}</mark>`);
+    while (j < n) rh.push(`<mark class="ca">${h(b[j++])}</mark>`);
+    return [lh.join(''), rh.join('')];
+}
+
+// ===== Core Compute =====
+function compute() {
+    const left = leftTA.value, right = rightTA.value;
+    if (!left && !right) {
+        diffOps = null;
+        leftHL.innerHTML = '';
+        rightHL.innerHTML = '';
+        updateStatus(null);
+        if (currentView === 'unified') renderUnified(null);
+        return;
+    }
+    const lLines = left === '' ? [''] : left.split('\n');
+    const rLines = right === '' ? [''] : right.split('\n');
+    const raw = computeLineDiff(lLines, rLines);
+    diffOps = groupOps(raw);
+    updateHighlights(diffOps);
+    if (currentView === 'unified') renderUnified(diffOps);
+    updateStatus(diffOps);
+}
+
+// ===== Highlight Layer (split view) =====
+function updateHighlights(ops) {
+    const lRows = [], rRows = [];
+    let ln = 0, rn = 0;
+    for (const op of ops) {
+        if (op.op === '=') {
+            ln++; rn++;
+            lRows.push(`<div class="hl-row"><span class="hl-num">${ln}</span></div>`);
+            rRows.push(`<div class="hl-row"><span class="hl-num">${rn}</span></div>`);
+        } else if (op.op === '-') {
+            ln++;
+            lRows.push(`<div class="hl-row hl-del"><span class="hl-num">${ln}</span></div>`);
+        } else if (op.op === '+') {
+            rn++;
+            rRows.push(`<div class="hl-row hl-add"><span class="hl-num">${rn}</span></div>`);
+        } else if (op.op === '~') {
+            ln++; rn++;
+            lRows.push(`<div class="hl-row hl-mod"><span class="hl-num">${ln}</span></div>`);
+            rRows.push(`<div class="hl-row hl-mod"><span class="hl-num">${rn}</span></div>`);
+        }
+    }
+    leftHL.innerHTML = lRows.join('');
+    rightHL.innerHTML = rRows.join('');
+    leftHL.scrollTop = leftTA.scrollTop;
+    rightHL.scrollTop = rightTA.scrollTop;
+}
+
+// ===== Unified View =====
+function renderUnified(ops) {
+    if (!ops) {
+        unifiedLines.innerHTML = '<div class="empty-state"><i class="fa-solid fa-code-compare"></i><p>Paste text in both panes (Split view)<br>to see the unified diff here</p></div>';
+        return;
+    }
+    let ln = 0, rn = 0;
+    const html = [];
+    for (const op of ops) {
+        if (op.op === '=') {
+            ln++; rn++;
+            html.push(`<div class="u-line"><span class="u-num u-num-left">${ln}</span><span class="u-num u-num-right">${rn}</span><span class="u-marker"> </span><span class="u-content">${h(op.left)}</span></div>`);
+        } else if (op.op === '-') {
+            ln++;
+            html.push(`<div class="u-line u-del"><span class="u-num u-num-left">${ln}</span><span class="u-num u-num-right"></span><span class="u-marker">−</span><span class="u-content">${h(op.left)}</span></div>`);
+        } else if (op.op === '+') {
+            rn++;
+            html.push(`<div class="u-line u-add"><span class="u-num u-num-left"></span><span class="u-num u-num-right">${rn}</span><span class="u-marker">+</span><span class="u-content">${h(op.right)}</span></div>`);
+        } else if (op.op === '~') {
+            ln++; rn++;
+            const [lc, rc] = diffChars(op.left, op.right);
+            html.push(`<div class="u-line u-del"><span class="u-num u-num-left">${ln}</span><span class="u-num u-num-right"></span><span class="u-marker">−</span><span class="u-content">${lc}</span></div>`);
+            html.push(`<div class="u-line u-add"><span class="u-num u-num-left"></span><span class="u-num u-num-right">${rn}</span><span class="u-marker">+</span><span class="u-content">${rc}</span></div>`);
+        }
+    }
+    unifiedLines.innerHTML = html.join('');
+}
+
+// ===== Status Bar =====
+function updateStatus(ops) {
+    if (!ops) {
+        statusMsg.textContent = 'Paste text in both panes to compare';
+        lineCountMsg.textContent = '';
+        return;
+    }
+    let added = 0, removed = 0, modified = 0, unchanged = 0;
+    for (const op of ops) {
+        if (op.op === '=') unchanged++;
+        else if (op.op === '+') added++;
+        else if (op.op === '-') removed++;
+        else if (op.op === '~') modified++;
+    }
+    const lc = leftTA.value ? leftTA.value.split('\n').length : 0;
+    const rc = rightTA.value ? rightTA.value.split('\n').length : 0;
+    lineCountMsg.textContent = `${lc} / ${rc} lines`;
+    if (!added && !removed && !modified) {
+        statusMsg.innerHTML = '<span style="color:var(--success)">Files are identical</span>';
+        return;
+    }
+    const parts = [];
+    if (added) parts.push(`<span class="stat-add">+${added} added</span>`);
+    if (removed) parts.push(`<span class="stat-del">−${removed} removed</span>`);
+    if (modified) parts.push(`<span class="stat-mod">~${modified} changed</span>`);
+    if (unchanged) parts.push(`${unchanged} unchanged`);
+    statusMsg.innerHTML = parts.join(' &middot; ');
+}
+
+// ===== Copy Unified Diff =====
+function getCopyText() {
+    if (!diffOps) return '';
+    const lines = [];
+    for (const op of diffOps) {
+        if (op.op === '=') lines.push(' ' + op.left);
+        else if (op.op === '-') lines.push('-' + op.left);
+        else if (op.op === '+') lines.push('+' + op.right);
+        else if (op.op === '~') { lines.push('-' + op.left); lines.push('+' + op.right); }
+    }
+    return lines.join('\n');
+}
+
+// ===== Toast =====
+function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    toastContainer.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2000);
+}
+
+// ===== View Switcher =====
+function setView(v) {
+    currentView = v;
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+    if (v === 'split') {
+        splitView.classList.remove('hidden');
+        unifiedView.classList.remove('visible');
+    } else {
+        splitView.classList.add('hidden');
+        unifiedView.classList.add('visible');
+        renderUnified(diffOps);
+    }
+}
+
+// ===== Pane Divider =====
+function initDivider() {
+    const divider = $('paneDivider');
+    const lPane = $('leftPane'), rPane = $('rightPane');
+    let dragging = false, startX = 0, startLW = 0, startRW = 0;
+    divider.addEventListener('mousedown', e => {
+        dragging = true;
+        startX = e.clientX;
+        startLW = lPane.getBoundingClientRect().width;
+        startRW = rPane.getBoundingClientRect().width;
+        divider.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const dx = e.clientX - startX;
+        const total = startLW + startRW;
+        const newL = Math.max(80, Math.min(total - 80, startLW + dx));
+        lPane.style.flex = 'none'; lPane.style.width = newL + 'px';
+        rPane.style.flex = '1'; rPane.style.width = '';
+    });
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        divider.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    });
+}
+
+// ===== Tab Key =====
+function handleTab(ta, e) {
+    e.preventDefault();
+    const s = ta.selectionStart, end = ta.selectionEnd;
+    ta.value = ta.value.substring(0, s) + '\t' + ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = s + 1;
+    scheduleCompute();
+}
+
+// ===== Debounced Compute =====
+function scheduleCompute() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(compute, 150);
+}
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', () => {
+    // Input listeners
+    leftTA.addEventListener('input', scheduleCompute);
+    rightTA.addEventListener('input', scheduleCompute);
+
+    // Tab key
+    leftTA.addEventListener('keydown', e => { if (e.key === 'Tab') handleTab(leftTA, e); });
+    rightTA.addEventListener('keydown', e => { if (e.key === 'Tab') handleTab(rightTA, e); });
+
+    // Scroll sync: textarea → hl-layer
+    leftTA.addEventListener('scroll', () => { leftHL.scrollTop = leftTA.scrollTop; });
+    rightTA.addEventListener('scroll', () => { rightHL.scrollTop = rightTA.scrollTop; });
+
+    // Toolbar
+    $('swapBtn').addEventListener('click', () => {
+        const tmp = leftTA.value;
+        leftTA.value = rightTA.value;
+        rightTA.value = tmp;
+        compute();
+    });
+
+    $('clearBtn').addEventListener('click', () => {
+        leftTA.value = '';
+        rightTA.value = '';
+        diffOps = null;
+        leftHL.innerHTML = '';
+        rightHL.innerHTML = '';
+        updateStatus(null);
+        if (currentView === 'unified') renderUnified(null);
+    });
+
+    $('copyBtn').addEventListener('click', () => {
+        const txt = getCopyText();
+        if (!txt) { toast('Nothing to copy'); return; }
+        navigator.clipboard.writeText(txt)
+            .then(() => toast('Diff copied!'))
+            .catch(() => toast('Copy failed'));
+    });
+
+    // View switcher
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', () => setView(btn.dataset.view));
+    });
+
+    // Theme toggle
+    $('themeToggle').addEventListener('click', () => {
+        const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem('nibset-theme', t);
+    });
+
+    // Divider drag
+    initDivider();
+});
+</script>
+</body>
+</html>

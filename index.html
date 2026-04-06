@@ -729,15 +729,25 @@
       </div>
     </div>
 
-    <div class="tool-card planned">
+    <div class="tool-card available" onclick="window.location.href='diff/index.html'">
       <div class="tool-card-top">
         <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 3H5a2 2 0 00-2 2v4"/><path d="M9 21H5a2 2 0 01-2-2v-4"/><path d="M15 3h4a2 2 0 012 2v4"/><path d="M15 21h4a2 2 0 002-2v-4"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
         </div>
-        <span class="tool-status planned">Planned</span>
+        <span class="tool-status ready">Live</span>
       </div>
       <h3>Diff</h3>
       <p>Compare two texts side by side with clear highlights showing every difference. Paste, compare, done.</p>
+      <div class="tool-card-footer">
+        <span class="tool-open">
+          Open tool
+          <span class="tool-arrow">&rarr;</span>
+        </span>
+        <a class="tool-dl" href="diff/index.html" download="diff.html" onclick="event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          .html
+        </a>
+      </div>
     </div>
 
     <div class="tool-card planned">

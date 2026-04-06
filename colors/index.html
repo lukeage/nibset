@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colors — NibSet</title>
+    <link rel="icon" type="image/png" href="../assets/logo.png">
+    <meta name="description" content="Pick colors, convert between formats, generate palettes, and check contrast accessibility.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+    (function(){
+        var t = localStorage.getItem('nibset-theme');
+        if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #060608;
+            --bg-secondary: #111115;
+            --bg-tertiary: #1c1c24;
+            --bg-hover: #16161c;
+            --text-primary: #e8e8ec;
+            --text-secondary: #8b8b95;
+            --text-muted: #55555e;
+            --accent: #c9f270;
+            --accent-hover: #b8e35f;
+            --accent-text: #060608;
+            --border: rgba(255,255,255,0.06);
+            --border-hover: rgba(255,255,255,0.12);
+            --header-bg: rgba(6,6,8,0.85);
+            --header-border: rgba(255,255,255,0.05);
+            --divider: #55555e;
+            --success: #c9f270;
+            --danger: #ef4444;
+            --warning: #fbbf24;
+            --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            --header-height: 56px;
+            --toolbar-height: 44px;
+            --statusbar-height: 28px;
+            --radius: 8px;
+            --radius-sm: 4px;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #eaeaee;
+            --bg-tertiary: #dcdce0;
+            --bg-hover: #f0f0f4;
+            --text-primary: #1a1a1e;
+            --text-secondary: #5a5a64;
+            --text-muted: #8b8b95;
+            --accent: #5a8a1a;
+            --accent-hover: #4a7515;
+            --accent-text: #ffffff;
+            --border: rgba(0,0,0,0.08);
+            --border-hover: rgba(0,0,0,0.16);
+            --header-bg: rgba(245,245,247,0.85);
+            --header-border: rgba(0,0,0,0.08);
+            --divider: #c0c0c8;
+            --success: #5a8a1a;
+        }
+
+        html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
+        .app { display: flex; flex-direction: column; height: 100dvh; }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--header-height); padding: 0 16px;
+            background: var(--header-bg); backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--header-border); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
+        .header-home:hover { opacity: 1; }
+        .header-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+        .header-title i { color: var(--accent); }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* ===== Theme Toggle ===== */
+        .theme-toggle { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+        .theme-toggle:hover { background: var(--bg-hover); border-color: var(--divider); color: var(--text-primary); }
+        .theme-toggle svg { width: 18px; height: 18px; }
+        [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+        /* ===== Toolbar ===== */
+        .toolbar { display: flex; align-items: center; gap: 6px; padding: 0 16px; height: var(--toolbar-height); border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto; }
+        .toolbar-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .toolbar-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .toolbar-btn i { font-size: 11px; }
+        .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+        .toolbar-spacer { flex: 1; }
+
+        /* ===== Main ===== */
+        .main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+        /* ===== Left Panel ===== */
+        .left-panel {
+            width: 340px; min-width: 280px; max-width: 400px;
+            display: flex; flex-direction: column;
+            border-right: 1px solid var(--border);
+            background: var(--bg-primary);
+            overflow-y: auto;
+        }
+
+        /* Color swatch + picker */
+        .swatch-area {
+            position: relative;
+            height: 160px;
+            flex-shrink: 0;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            overflow: hidden;
+        }
+        .swatch-area input[type="color"] {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer; border: none; padding: 0;
+        }
+        .swatch-preview {
+            position: absolute; inset: 0;
+            pointer-events: none;
+            transition: background 0.1s;
+        }
+        .swatch-hint {
+            position: absolute; bottom: 10px; right: 12px;
+            font-size: 11px; font-weight: 500;
+            background: rgba(0,0,0,0.35);
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 4px;
+            pointer-events: none;
+            letter-spacing: 0.02em;
+        }
+
+        /* Hex input row */
+        .hex-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .hex-label {
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            letter-spacing: 0.1em; text-transform: uppercase;
+            width: 36px; flex-shrink: 0;
+        }
+        .hex-input {
+            flex: 1;
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 6px 10px;
+            outline: none;
+            transition: border-color 0.15s;
+            text-transform: uppercase;
+        }
+        .hex-input:focus { border-color: var(--accent); }
+        .hex-input.invalid { border-color: var(--danger); }
+
+        /* Format rows */
+        .formats { display: flex; flex-direction: column; flex: 1; }
+        .format-section-label {
+            padding: 10px 16px 6px;
+            font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+            text-transform: uppercase; color: var(--text-muted);
+        }
+        .format-row {
+            display: flex; align-items: center;
+            padding: 8px 16px;
+            gap: 10px;
+            cursor: pointer;
+            transition: background 0.12s;
+            border-radius: 0;
+        }
+        .format-row:hover { background: var(--bg-secondary); }
+        .format-row:hover .format-copy { opacity: 1; }
+        .format-name {
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            letter-spacing: 0.08em; text-transform: uppercase;
+            width: 46px; flex-shrink: 0;
+        }
+        .format-value {
+            flex: 1; font-family: var(--font-mono); font-size: 13px;
+            color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .format-copy {
+            opacity: 0; color: var(--text-muted); font-size: 11px;
+            transition: opacity 0.15s; flex-shrink: 0;
+        }
+
+        /* ===== Right Panel ===== */
+        .right-panel {
+            flex: 1; min-width: 0;
+            display: flex; flex-direction: column;
+            overflow-y: auto;
+            background: var(--bg-primary);
+        }
+
+        .panel-section {
+            border-bottom: 1px solid var(--border);
+            padding: 16px;
+        }
+        .section-title {
+            font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+            text-transform: uppercase; color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        /* Palette */
+        .harmony-group { margin-bottom: 14px; }
+        .harmony-group:last-child { margin-bottom: 0; }
+        .harmony-name {
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            margin-bottom: 6px; letter-spacing: 0.04em;
+        }
+        .harmony-swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+        .swatch-btn {
+            width: 44px; height: 44px;
+            border-radius: var(--radius-sm);
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.15s, border-color 0.15s;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .swatch-btn:hover { transform: scale(1.1); border-color: var(--border-hover); }
+        .swatch-btn.active { border-color: var(--accent) !important; }
+        .swatch-btn .swatch-hex-tip {
+            display: none;
+            position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+            background: var(--bg-tertiary); border: 1px solid var(--border);
+            color: var(--text-primary); font-family: var(--font-mono); font-size: 10px;
+            padding: 2px 6px; border-radius: 3px; white-space: nowrap; z-index: 10;
+        }
+        .swatch-btn:hover .swatch-hex-tip { display: block; }
+
+        /* ===== Tabs ===== */
+        .tab-bar {
+            display: flex; border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary); flex-shrink: 0;
+        }
+        .tab-btn {
+            padding: 10px 18px; border: none; background: transparent;
+            color: var(--text-secondary); font-family: var(--font-ui);
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            border-bottom: 2px solid transparent; margin-bottom: -1px;
+            transition: color 0.15s, border-color 0.15s; letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .tab-btn:hover { color: var(--text-primary); }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Swatch random button */
+        .swatch-random-btn {
+            position: absolute; bottom: 10px; left: 12px;
+            display: flex; align-items: center; gap: 5px;
+            padding: 3px 8px; border-radius: 4px;
+            background: rgba(0,0,0,0.35); color: #fff;
+            border: none; cursor: pointer;
+            font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+            font-family: var(--font-ui); transition: background 0.15s;
+        }
+        .swatch-random-btn:hover { background: rgba(0,0,0,0.55); }
+
+        /* Contrast checker */
+        .contrast-inputs { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .contrast-field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 140px; }
+        .contrast-field label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+        .contrast-swatch {
+            width: 100%; height: 52px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            overflow: hidden; cursor: pointer; flex-shrink: 0;
+        }
+        .contrast-swatch input[type="color"] {
+            width: 100%; height: 100%;
+            border: none; cursor: pointer; padding: 4px;
+            background: transparent; display: block;
+            -webkit-appearance: none;
+        }
+        .contrast-swatch input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        .contrast-swatch input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+        .contrast-hex {
+            width: 100%; font-family: var(--font-mono); font-size: 13px;
+            color: var(--text-primary); background: var(--bg-secondary);
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 5px 8px; outline: none; transition: border-color 0.15s;
+            text-transform: uppercase;
+        }
+        .contrast-hex:focus { border-color: var(--accent); }
+
+        /* WCAG legend */
+        .wcag-legend {
+            margin-top: 14px; padding: 10px 12px;
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); font-size: 11px; color: var(--text-muted);
+            line-height: 1.7;
+        }
+        .wcag-legend strong { color: var(--text-secondary); font-weight: 600; }
+        .wcag-legend-row { display: flex; gap: 6px; }
+        .wcag-legend-key { flex-shrink: 0; width: 62px; }
+
+        .contrast-preview {
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            margin-bottom: 14px;
+            border: 1px solid var(--border);
+            font-size: 14px; font-weight: 500;
+            transition: background 0.15s, color 0.15s;
+        }
+        .contrast-preview-label { font-size: 11px; margin-bottom: 4px; opacity: 0.7; }
+
+        .contrast-results { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .contrast-ratio {
+            font-family: var(--font-mono); font-size: 22px; font-weight: 700;
+            color: var(--text-primary); margin-right: 4px;
+        }
+        .contrast-ratio-label { font-size: 11px; color: var(--text-muted); margin-right: 12px; }
+        .wcag-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 8px; border-radius: var(--radius-sm);
+            font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+        }
+        .wcag-badge.pass { background: rgba(201,242,112,0.15); color: var(--success); border: 1px solid rgba(201,242,112,0.25); }
+        .wcag-badge.fail { background: rgba(239,68,68,0.1); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
+        [data-theme="light"] .wcag-badge.pass { background: rgba(90,138,26,0.12); border-color: rgba(90,138,26,0.25); }
+
+        /* Sync button */
+        .sync-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 4px 10px; border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); border: 1px solid var(--border);
+            color: var(--text-muted); font-family: var(--font-ui); font-size: 11px;
+            font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+        }
+        .sync-btn:hover { background: var(--bg-hover); color: var(--text-secondary); border-color: var(--border-hover); }
+
+        /* ===== Status Bar ===== */
+        .statusbar { display: flex; align-items: center; justify-content: space-between; height: var(--statusbar-height); padding: 0 16px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+        .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+        .status-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+        /* ===== Toast ===== */
+        .toast-container { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
+        .toast { padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+
+        /* ===== Mobile ===== */
+        @media (max-width: 640px) {
+            .left-panel { width: 100%; max-width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+            .main { flex-direction: column; overflow-y: auto; }
+            .right-panel { overflow-y: visible; }
+            html, body { height: auto; overflow: auto; }
+            .app { height: auto; min-height: 100dvh; }
+            .swatch-area { height: 120px; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="../index.html" class="header-home" title="Back to NibSet">
+                <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="22">
+                    <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+                    <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#nhg)" stroke="var(--border)" stroke-width="0.5"/>
+                    <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#nhg)" />
+                    <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+                    <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+                    <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <line x1="10" y1="33" x2="22" y2="33" stroke="url(#nhg)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#nhg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                    <defs><linearGradient id="nhg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text-primary)"/><stop offset="100%" stop-color="var(--text-muted)"/></linearGradient></defs>
+                </svg>
+            </a>
+            <div class="header-title">
+                <i class="fa-solid fa-palette"></i>
+                Colors
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="toolbar-btn" id="pasteBtn" title="Paste hex color from clipboard"><i class="fas fa-clipboard"></i> <span class="btn-label">Paste</span></button>
+        <div class="toolbar-spacer"></div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+
+        <!-- Left Panel: Picker + Formats -->
+        <div class="left-panel">
+            <!-- Swatch -->
+            <div class="swatch-area" id="swatchArea">
+                <div class="swatch-preview" id="swatchPreview"></div>
+                <input type="color" id="colorPicker" value="#c9f270">
+                <button class="swatch-random-btn" id="randomBtn" title="Pick a random color"><i class="fas fa-shuffle"></i> Random</button>
+                <span class="swatch-hint">Click to pick</span>
+            </div>
+
+            <!-- Hex input -->
+            <div class="hex-row">
+                <span class="hex-label">HEX</span>
+                <input type="text" class="hex-input" id="hexInput" value="#C9F270" spellcheck="false" maxlength="9" placeholder="#000000">
+            </div>
+
+            <!-- Format rows -->
+            <div class="formats">
+                <div class="format-section-label">Formats</div>
+                <div class="format-row" id="row-hex" title="Click to copy">
+                    <span class="format-name">HEX</span>
+                    <span class="format-value" id="val-hex"></span>
+                    <i class="fas fa-copy format-copy"></i>
+                </div>
+                <div class="format-row" id="row-rgb" title="Click to copy">
+                    <span class="format-name">RGB</span>
+                    <span class="format-value" id="val-rgb"></span>
+                    <i class="fas fa-copy format-copy"></i>
+                </div>
+                <div class="format-row" id="row-hsl" title="Click to copy">
+                    <span class="format-name">HSL</span>
+                    <span class="format-value" id="val-hsl"></span>
+                    <i class="fas fa-copy format-copy"></i>
+                </div>
+                <div class="format-row" id="row-hsb" title="Click to copy">
+                    <span class="format-name">HSB</span>
+                    <span class="format-value" id="val-hsb"></span>
+                    <i class="fas fa-copy format-copy"></i>
+                </div>
+                <div class="format-row" id="row-css-rgb" title="Click to copy">
+                    <span class="format-name">CSS</span>
+                    <span class="format-value" id="val-css-rgb"></span>
+                    <i class="fas fa-copy format-copy"></i>
+                </div>
+                <div class="format-row" id="row-css-hsl" title="Click to copy">
+                    <span class="format-name">HSL</span>
+                    <span class="format-value" id="val-css-hsl"></span>
+                    <i class="fas fa-copy format-copy"></i>
+                </div>
+                <div class="format-row" id="row-named" title="Click to copy" style="display:none">
+                    <span class="format-name">Name</span>
+                    <span class="format-value" id="val-named"></span>
+                    <i class="fas fa-copy format-copy"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Tabs -->
+        <div class="right-panel">
+
+            <!-- Tab Bar -->
+            <div class="tab-bar">
+                <button class="tab-btn active" data-tab="harmonies">Color Harmonies</button>
+                <button class="tab-btn" data-tab="contrast">Contrast Checker</button>
+            </div>
+
+            <!-- Harmonies Tab -->
+            <div class="tab-panel active" id="tab-harmonies">
+                <div class="panel-section" id="paletteSection">
+                    <div class="harmony-group">
+                        <div class="harmony-name">Complementary</div>
+                        <div class="harmony-swatches" id="pal-complementary"></div>
+                    </div>
+                    <div class="harmony-group">
+                        <div class="harmony-name">Analogous</div>
+                        <div class="harmony-swatches" id="pal-analogous"></div>
+                    </div>
+                    <div class="harmony-group">
+                        <div class="harmony-name">Triadic</div>
+                        <div class="harmony-swatches" id="pal-triadic"></div>
+                    </div>
+                    <div class="harmony-group">
+                        <div class="harmony-name">Split-complementary</div>
+                        <div class="harmony-swatches" id="pal-split"></div>
+                    </div>
+                    <div class="harmony-group">
+                        <div class="harmony-name">Tetradic</div>
+                        <div class="harmony-swatches" id="pal-tetradic"></div>
+                    </div>
+                    <div class="harmony-group">
+                        <div class="harmony-name">Shades</div>
+                        <div class="harmony-swatches" id="pal-shades"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contrast Checker Tab -->
+            <div class="tab-panel" id="tab-contrast">
+                <div class="panel-section">
+
+                    <div class="contrast-inputs">
+                        <div class="contrast-field">
+                            <label>Foreground</label>
+                            <div class="contrast-swatch">
+                                <input type="color" id="fgPicker" value="#ffffff">
+                            </div>
+                            <input type="text" class="contrast-hex" id="fgHex" value="#FFFFFF" maxlength="9" spellcheck="false">
+                        </div>
+                        <div class="contrast-field">
+                            <label>Background</label>
+                            <div class="contrast-swatch">
+                                <input type="color" id="bgPicker" value="#000000">
+                            </div>
+                            <input type="text" class="contrast-hex" id="bgHex" value="#000000" maxlength="9" spellcheck="false">
+                        </div>
+                    </div>
+
+                    <div class="contrast-preview" id="contrastPreview">
+                        <div class="contrast-preview-label">The quick brown fox jumps over the lazy dog</div>
+                        <div>Aa Bb Cc 0123 !@#</div>
+                    </div>
+
+                    <div class="contrast-results">
+                        <span class="contrast-ratio" id="contrastRatio">21.00</span>
+                        <span class="contrast-ratio-label">:1</span>
+                        <span class="wcag-badge" id="wcagAA" title="Normal text ≥4.5:1 · Large text ≥3:1">AA</span>
+                        <span class="wcag-badge" id="wcagAAA" title="Normal text ≥7:1 · Large text ≥4.5:1">AAA</span>
+                        <span class="wcag-badge" id="wcagAALarge" title="Large text (18pt+ or 14pt+ bold) ≥3:1">AA Large</span>
+                        <span class="wcag-badge" id="wcagAAALarge" title="Large text (18pt+ or 14pt+ bold) ≥4.5:1">AAA Large</span>
+                        <button class="sync-btn" id="syncFgBtn" title="Use current color as foreground"><i class="fas fa-arrow-left"></i> Use as FG</button>
+                        <button class="sync-btn" id="syncBgBtn" title="Use current color as background">Use as BG <i class="fas fa-arrow-right"></i></button>
+                    </div>
+
+                    <div class="wcag-legend">
+                        <div class="wcag-legend-row"><span class="wcag-legend-key"><strong>AA</strong></span><span>Normal text ≥ 4.5:1 contrast ratio (WCAG 2.1 Level AA)</span></div>
+                        <div class="wcag-legend-row"><span class="wcag-legend-key"><strong>AAA</strong></span><span>Normal text ≥ 7:1 — enhanced readability (Level AAA)</span></div>
+                        <div class="wcag-legend-row"><span class="wcag-legend-key"><strong>AA Large</strong></span><span>Large text ≥ 3:1 — 18pt+ regular or 14pt+ bold</span></div>
+                        <div class="wcag-legend-row"><span class="wcag-legend-key"><strong>AAA Large</strong></span><span>Large text ≥ 4.5:1 — enhanced large text (Level AAA)</span></div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+        <div class="statusbar-left">
+            <span class="status-swatch" id="statusSwatch"></span>
+            <span id="statusHex">#C9F270</span>
+            <span id="statusRgb"></span>
+        </div>
+        <div class="statusbar-right">
+            <span id="statusContrast"></span>
+        </div>
+    </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+(function () {
+'use strict';
+
+// ===== DOM =====
+const $ = id => document.getElementById(id);
+
+const colorPicker   = $('colorPicker');
+const hexInput      = $('hexInput');
+const swatchPreview = $('swatchPreview');
+
+const fgPicker = $('fgPicker'), fgHex = $('fgHex');
+const bgPicker = $('bgPicker'), bgHex = $('bgHex');
+const contrastPreview = $('contrastPreview');
+const contrastRatio = $('contrastRatio');
+
+const toastContainer = $('toastContainer');
+
+// ===== State =====
+const state = {
+    hex: '#c9f270',
+    fg:  '#ffffff',
+    bg:  '#000000',
+};
+
+// ===== Color Math =====
+
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+function hexToRgb(hex) {
+    hex = hex.replace(/^#/, '');
+    if (hex.length === 3) hex = hex.split('').map(c => c+c).join('');
+    if (hex.length !== 6) return null;
+    const n = parseInt(hex, 16);
+    if (isNaN(n)) return null;
+    return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
+}
+
+function rgbToHex({ r, g, b }) {
+    return '#' + [r, g, b].map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+}
+
+function rgbToHsl({ r, g, b }) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+    if (max === min) { h = s = 0; }
+    else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+            case g: h = ((b - r) / d + 2) / 6; break;
+            case b: h = ((r - g) / d + 4) / 6; break;
+        }
+    }
+    return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
+function hslToRgb({ h, s, l }) {
+    s /= 100; l /= 100;
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return { r: Math.round(f(0) * 255), g: Math.round(f(8) * 255), b: Math.round(f(4) * 255) };
+}
+
+function hslToHex(hsl) { return rgbToHex(hslToRgb(hsl)); }
+
+function rgbToHsb({ r, g, b }) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    let h = 0, s = max === 0 ? 0 : d / max, v = max;
+    if (d !== 0) {
+        switch (max) {
+            case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+            case g: h = ((b - r) / d + 2) / 6; break;
+            case b: h = ((r - g) / d + 4) / 6; break;
+        }
+    }
+    return { h: Math.round(h * 360), s: Math.round(s * 100), b: Math.round(v * 100) };
+}
+
+// WCAG relative luminance
+function luminance(hex) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return 0;
+    const vals = [rgb.r, rgb.g, rgb.b].map(v => {
+        const c = v / 255;
+        return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * vals[0] + 0.7152 * vals[1] + 0.0722 * vals[2];
+}
+
+function contrastRatioOf(hex1, hex2) {
+    const l1 = luminance(hex1), l2 = luminance(hex2);
+    const lighter = Math.max(l1, l2), darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Named colors lookup (common subset)
+const NAMED = {
+    '#000000':'black','#ffffff':'white','#ff0000':'red','#00ff00':'lime',
+    '#0000ff':'blue','#ffff00':'yellow','#00ffff':'cyan','#ff00ff':'magenta',
+    '#c0c0c0':'silver','#808080':'gray','#800000':'maroon','#808000':'olive',
+    '#008000':'green','#800080':'purple','#008080':'teal','#000080':'navy',
+    '#ffa500':'orange','#ffc0cb':'pink','#a52a2a':'brown','#f5f5dc':'beige',
+    '#ffe4c4':'bisque','#fffacd':'lemonchiffon','#add8e6':'lightblue',
+    '#90ee90':'lightgreen','#ffb6c1':'lightpink','#20b2aa':'lightseagreen',
+    '#87ceeb':'skyblue','#6a5acd':'slateblue','#2e8b57':'seagreen',
+    '#ff6347':'tomato','#40e0d0':'turquoise','#ee82ee':'violet',
+    '#f5deb3':'wheat','#9acd32':'yellowgreen','#dc143c':'crimson',
+    '#00ced1':'darkturquoise','#ff8c00':'darkorange','#8b0000':'darkred',
+    '#006400':'darkgreen','#00008b':'darkblue','#8b008b':'darkmagenta',
+    '#b8860b':'darkgoldenrod','#ff1493':'deeppink','#1e90ff':'dodgerblue',
+    '#228b22':'forestgreen','#ff69b4':'hotpink','#cd5c5c':'indianred',
+    '#4b0082':'indigo','#f0e68c':'khaki','#e0e0e0':'lightgray',
+    '#32cd32':'limegreen','#ff00ff':'fuchsia','#daa520':'goldenrod',
+    '#adff2f':'greenyellow','#7b68ee':'mediumslateblue','#00fa9a':'mediumspringgreen',
+};
+
+function cssNamedColor(hex) {
+    return NAMED[hex.toLowerCase()] || null;
+}
+
+// ===== Palette Generators =====
+
+function getHarmony(hex, offsets) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return [];
+    const { h, s, l } = rgbToHsl(rgb);
+    return offsets.map(offset => {
+        const nh = ((h + offset) % 360 + 360) % 360;
+        return hslToHex({ h: nh, s, l });
+    });
+}
+
+function getShades(hex) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return [];
+    const { h, s } = rgbToHsl(rgb);
+    return [90, 75, 60, 45, 30, 15].map(l => hslToHex({ h, s, l }));
+}
+
+const HARMONIES = [
+    { id: 'complementary',  label: 'Complementary',      offsets: [0, 180] },
+    { id: 'analogous',      label: 'Analogous',          offsets: [-30, -15, 0, 15, 30] },
+    { id: 'triadic',        label: 'Triadic',            offsets: [0, 120, 240] },
+    { id: 'split',          label: 'Split-complementary', offsets: [0, 150, 210] },
+    { id: 'tetradic',       label: 'Tetradic',           offsets: [0, 90, 180, 270] },
+];
+
+// ===== Render =====
+
+function parseHex(raw) {
+    let s = raw.trim();
+    if (!s.startsWith('#')) s = '#' + s;
+    s = s.toLowerCase();
+    if (/^#[0-9a-f]{3}$/.test(s)) {
+        s = '#' + s[1]+s[1]+s[2]+s[2]+s[3]+s[3];
+    }
+    return /^#[0-9a-f]{6}$/.test(s) ? s : null;
+}
+
+function updateAll(hex) {
+    state.hex = hex;
+    const rgb = hexToRgb(hex);
+    const hsl = rgbToHsl(rgb);
+    const hsb = rgbToHsb(rgb);
+    const upper = hex.toUpperCase();
+
+    // Picker + swatch
+    colorPicker.value = hex;
+    swatchPreview.style.background = hex;
+    hexInput.value = upper;
+    hexInput.classList.remove('invalid');
+
+    // Format rows
+    $('val-hex').textContent    = upper;
+    $('val-rgb').textContent    = `${rgb.r}, ${rgb.g}, ${rgb.b}`;
+    $('val-hsl').textContent    = `${hsl.h}°, ${hsl.s}%, ${hsl.l}%`;
+    $('val-hsb').textContent    = `${hsb.h}°, ${hsb.s}%, ${hsb.b}%`;
+    $('val-css-rgb').textContent = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+    $('val-css-hsl').textContent = `hsl(${hsl.h}, ${hsl.s}%, ${hsl.l}%)`;
+
+    const named = cssNamedColor(hex);
+    if (named) {
+        $('val-named').textContent = named;
+        $('row-named').style.display = 'flex';
+    } else {
+        $('row-named').style.display = 'none';
+    }
+
+    // Status bar
+    $('statusSwatch').style.background = hex;
+    $('statusHex').textContent = upper;
+    $('statusRgb').textContent = `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+
+    // Palettes
+    for (const h of HARMONIES) {
+        const colors = getHarmony(hex, h.offsets);
+        renderSwatches($('pal-' + h.id), colors, hex);
+    }
+    renderSwatches($('pal-shades'), getShades(hex), hex);
+
+    updateContrast();
+}
+
+function renderSwatches(container, colors, activeHex) {
+    container.innerHTML = '';
+    for (const c of colors) {
+        const btn = document.createElement('button');
+        btn.className = 'swatch-btn' + (c.toLowerCase() === activeHex.toLowerCase() ? ' active' : '');
+        btn.style.background = c;
+        btn.title = c;
+        const tip = document.createElement('span');
+        tip.className = 'swatch-hex-tip';
+        tip.textContent = c.toUpperCase();
+        btn.appendChild(tip);
+        btn.addEventListener('click', () => updateAll(c));
+        container.appendChild(btn);
+    }
+}
+
+function updateContrast() {
+    const fgValid = parseHex(fgHex.value) || state.fg;
+    const bgValid = parseHex(bgHex.value) || state.bg;
+    const ratio = contrastRatioOf(fgValid, bgValid);
+    const ratioStr = ratio.toFixed(2);
+
+    contrastRatio.textContent = ratioStr;
+    contrastPreview.style.background = bgValid;
+    contrastPreview.style.color = fgValid;
+
+    function setBadge(id, pass) {
+        const el = $(id);
+        el.className = 'wcag-badge ' + (pass ? 'pass' : 'fail');
+        el.innerHTML = (pass ? '<i class="fas fa-check"></i> ' : '<i class="fas fa-times"></i> ') + el.textContent.replace(/^[✓✗] ?/, '').trim();
+        // Rebuild text cleanly
+        el.textContent = '';
+        const icon = document.createElement('i');
+        icon.className = pass ? 'fas fa-check' : 'fas fa-times';
+        el.appendChild(icon);
+        el.appendChild(document.createTextNode(' ' + id.replace('wcag', '')));
+    }
+
+    // WCAG thresholds: AA normal=4.5, AA large=3, AAA normal=7, AAA large=4.5
+    setBadge('wcagAA',      ratio >= 4.5);
+    setBadge('wcagAAA',     ratio >= 7);
+    setBadge('wcagAALarge', ratio >= 3);
+    setBadge('wcagAAALarge',ratio >= 4.5);
+
+    $('statusContrast').textContent = `Contrast ${ratioStr}:1`;
+}
+
+// ===== Clipboard =====
+
+function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => showToast('Copied: ' + text));
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('Copied: ' + text);
+    }
+}
+
+// ===== Toast =====
+
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    toastContainer.appendChild(t);
+    requestAnimationFrame(() => { requestAnimationFrame(() => t.classList.add('show')); });
+    setTimeout(() => {
+        t.classList.remove('show');
+        setTimeout(() => t.remove(), 250);
+    }, 2000);
+}
+
+// ===== Events =====
+
+// Picker
+colorPicker.addEventListener('input', () => {
+    updateAll(colorPicker.value);
+});
+
+// Hex text input
+hexInput.addEventListener('input', () => {
+    const parsed = parseHex(hexInput.value);
+    if (parsed) {
+        hexInput.classList.remove('invalid');
+        updateAll(parsed);
+    } else {
+        hexInput.classList.toggle('invalid', hexInput.value.length > 1);
+    }
+});
+hexInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+        const parsed = parseHex(hexInput.value);
+        if (parsed) updateAll(parsed);
+    }
+});
+
+// Format row click-to-copy
+function bindFormatRow(rowId, getValue) {
+    $(rowId).addEventListener('click', () => {
+        const v = getValue();
+        if (v) copyToClipboard(v);
+    });
+}
+
+bindFormatRow('row-hex',     () => $('val-hex').textContent);
+bindFormatRow('row-rgb',     () => $('val-rgb').textContent);
+bindFormatRow('row-hsl',     () => $('val-hsl').textContent);
+bindFormatRow('row-hsb',     () => $('val-hsb').textContent);
+bindFormatRow('row-css-rgb', () => $('val-css-rgb').textContent);
+bindFormatRow('row-css-hsl', () => $('val-css-hsl').textContent);
+bindFormatRow('row-named',   () => $('val-named').textContent);
+
+// Toolbar
+$('pasteBtn').addEventListener('click', async () => {
+    try {
+        const text = await navigator.clipboard.readText();
+        const parsed = parseHex(text.trim());
+        if (parsed) { updateAll(parsed); showToast('Pasted ' + parsed.toUpperCase()); }
+        else showToast('No valid hex color in clipboard');
+    } catch {
+        showToast('Clipboard read not permitted');
+    }
+});
+
+$('randomBtn').addEventListener('click', e => {
+    e.stopPropagation(); // don't open the color picker behind it
+    const hex = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
+    updateAll(hex);
+});
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        $('tab-' + btn.dataset.tab).classList.add('active');
+    });
+});
+
+// Sync buttons
+$('syncFgBtn').addEventListener('click', () => {
+    state.fg = state.hex;
+    fgHex.value = state.hex.toUpperCase();
+    fgPicker.value = state.hex;
+    updateContrast();
+    showToast('Set foreground to ' + state.hex.toUpperCase());
+});
+
+$('syncBgBtn').addEventListener('click', () => {
+    state.bg = state.hex;
+    bgHex.value = state.hex.toUpperCase();
+    bgPicker.value = state.hex;
+    updateContrast();
+    showToast('Set background to ' + state.hex.toUpperCase());
+});
+
+// Contrast pickers + inputs
+fgPicker.addEventListener('input', () => {
+    state.fg = fgPicker.value;
+    fgHex.value = fgPicker.value.toUpperCase();
+    updateContrast();
+});
+bgPicker.addEventListener('input', () => {
+    state.bg = bgPicker.value;
+    bgHex.value = bgPicker.value.toUpperCase();
+    updateContrast();
+});
+
+fgHex.addEventListener('input', () => {
+    const parsed = parseHex(fgHex.value);
+    if (parsed) { state.fg = parsed; fgPicker.value = parsed; updateContrast(); }
+});
+bgHex.addEventListener('input', () => {
+    const parsed = parseHex(bgHex.value);
+    if (parsed) { state.bg = parsed; bgPicker.value = parsed; updateContrast(); }
+});
+
+// Theme toggle
+$('themeToggle').addEventListener('click', () => {
+    const curr = document.documentElement.getAttribute('data-theme');
+    const next = curr === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('nibset-theme', next);
+});
+
+// ===== WCAG badge label fix =====
+// Rewrite badge text nodes cleanly after initial render
+function initBadge(id, text) {
+    const el = $(id);
+    el.innerHTML = '';
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-check';
+    el.appendChild(icon);
+    el.appendChild(document.createTextNode(' ' + text));
+}
+initBadge('wcagAA',       'AA');
+initBadge('wcagAAA',      'AAA');
+initBadge('wcagAALarge',  'AA Large');
+initBadge('wcagAAALarge', 'AAA Large');
+
+// ===== Init =====
+updateAll(state.hex);
+
+})();
+</script>
+</body>
+</html>

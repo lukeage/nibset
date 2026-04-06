@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encode / Decode — NibSet</title>
+    <link rel="icon" type="image/png" href="../assets/logo.png">
+    <meta name="description" content="Base64, URL encoding, hash generation, and other common text transformations in one place.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+    (function(){
+        var t = localStorage.getItem('nibset-theme');
+        if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #060608;
+            --bg-secondary: #111115;
+            --bg-tertiary: #1c1c24;
+            --bg-hover: #16161c;
+            --text-primary: #e8e8ec;
+            --text-secondary: #8b8b95;
+            --text-muted: #55555e;
+            --accent: #c9f270;
+            --accent-hover: #b8e35f;
+            --accent-text: #060608;
+            --border: rgba(255,255,255,0.06);
+            --header-bg: rgba(6,6,8,0.85);
+            --header-border: rgba(255,255,255,0.05);
+            --success: #c9f270;
+            --danger: #ef4444;
+            --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            --header-height: 56px;
+            --toolbar-height: 44px;
+            --statusbar-height: 28px;
+            --radius: 8px;
+            --radius-sm: 4px;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #eaeaee;
+            --bg-tertiary: #dcdce0;
+            --bg-hover: #f0f0f4;
+            --text-primary: #1a1a1e;
+            --text-secondary: #5a5a64;
+            --text-muted: #8b8b95;
+            --accent: #5a8a1a;
+            --accent-hover: #4a7515;
+            --accent-text: #ffffff;
+            --border: rgba(0,0,0,0.08);
+            --header-bg: rgba(245,245,247,0.85);
+            --header-border: rgba(0,0,0,0.08);
+            --success: #5a8a1a;
+            --danger: #c0392b;
+        }
+
+        html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
+        .app { display: flex; flex-direction: column; height: 100dvh; }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--header-height); padding: 0 16px;
+            background: var(--header-bg); backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--header-border); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
+        .header-home:hover { opacity: 1; }
+        .header-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+        .header-title i { color: var(--accent); }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* ===== Theme Toggle ===== */
+        .theme-toggle { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+        .theme-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .theme-toggle svg { width: 18px; height: 18px; }
+        [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+        /* ===== Toolbar ===== */
+        .toolbar { display: flex; align-items: center; gap: 4px; padding: 0 16px; height: var(--toolbar-height); border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto; }
+        .toolbar-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .toolbar-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .toolbar-btn i { font-size: 11px; }
+        .toolbar-btn.mode-btn.active { background: var(--accent); color: var(--accent-text); }
+        .toolbar-btn.mode-btn.active:hover { background: var(--accent-hover); }
+.toolbar-btn.hidden { display: none; }
+        .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+        .toolbar-spacer { flex: 1; }
+
+        /* ===== Main ===== */
+        .main { display: flex; flex: 1; min-height: 0; }
+
+        /* ===== Panes ===== */
+        .pane { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .pane-label {
+            height: 28px; padding: 0 16px;
+            background: var(--bg-secondary); border-bottom: 1px solid var(--border);
+            font-size: 12px; font-weight: 600; color: var(--text-muted);
+            display: flex; align-items: center; justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .pane-body { position: relative; flex: 1; overflow: hidden; background: var(--bg-primary); }
+
+        .pane-ta {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 16px;
+            border: none; outline: none; resize: none;
+            background: transparent; color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 13px; line-height: 21px;
+            tab-size: 4; overflow: auto;
+            caret-color: var(--accent);
+        }
+        .pane-ta::placeholder { color: var(--text-muted); }
+        .pane-ta::selection { background: rgba(201,242,112,0.2); }
+        [data-theme="light"] .pane-ta::selection { background: rgba(90,138,26,0.15); }
+.pane-ta.error { color: var(--danger) !important; }
+
+        /* ===== Copy Button (in pane label) ===== */
+        .copy-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 8px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-secondary);
+            font-family: var(--font-ui); font-size: 11px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: rgba(255,255,255,0.12); }
+        [data-theme="light"] .copy-btn:hover { border-color: rgba(0,0,0,0.15); }
+
+        /* ===== Pane Divider ===== */
+        .pane-divider { width: 6px; background: var(--bg-secondary); border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: col-resize; transition: background 0.15s; flex-shrink: 0; }
+        .pane-divider:hover, .pane-divider.dragging { background: var(--accent); }
+
+        /* ===== Hash Pane ===== */
+        .hash-pane { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .hash-scroll { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg-primary); }
+        .hash-row {
+            display: flex; flex-direction: column; gap: 6px;
+            padding: 10px 12px;
+            border: 1px solid var(--border); border-radius: var(--radius);
+            background: var(--bg-secondary);
+        }
+        .hash-row-header { display: flex; align-items: center; justify-content: space-between; }
+        .hash-algo { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+        .hash-value {
+            font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
+            word-break: break-all; line-height: 1.6;
+        }
+        .hash-value.empty { color: var(--text-muted); font-style: italic; font-family: var(--font-ui); }
+        .hash-value.error { color: var(--danger); font-family: var(--font-ui); }
+
+        /* ===== Status Bar ===== */
+        .statusbar { display: flex; align-items: center; justify-content: space-between; height: var(--statusbar-height); padding: 0 16px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+        .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+
+        /* ===== Toast ===== */
+        .toast-container { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
+        .toast { padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; white-space: nowrap; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="../index.html" class="header-home" title="Back to NibSet">
+                <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="22">
+                    <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+                    <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#nhg)" stroke="var(--border)" stroke-width="0.5"/>
+                    <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#nhg)" />
+                    <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+                    <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+                    <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <line x1="10" y1="33" x2="22" y2="33" stroke="url(#nhg)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#nhg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                    <defs><linearGradient id="nhg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text-primary)"/><stop offset="100%" stop-color="var(--text-muted)"/></linearGradient></defs>
+                </svg>
+            </a>
+            <div class="header-title">
+                <i class="fa-solid fa-shuffle"></i>
+                Encode / Decode
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="toolbar-btn mode-btn active" data-mode="base64"><i class="fa-solid fa-font"></i> Base64</button>
+        <button class="toolbar-btn mode-btn" data-mode="url"><i class="fa-solid fa-link"></i> URL</button>
+        <button class="toolbar-btn mode-btn" data-mode="hex"><i class="fa-solid fa-hashtag"></i> Hex</button>
+        <button class="toolbar-btn mode-btn" data-mode="hash"><i class="fa-solid fa-fingerprint"></i> Hash</button>
+        <div class="toolbar-spacer"></div>
+        <button class="toolbar-btn" id="clearBtn"><i class="fas fa-eraser"></i> Clear</button>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+
+        <!-- Input Pane -->
+        <div class="pane" id="inputPane">
+            <div class="pane-label">Plain</div>
+            <div class="pane-body">
+                <textarea class="pane-ta" id="inputTA" spellcheck="false" placeholder="Type or paste text to encode…"></textarea>
+            </div>
+        </div>
+
+        <div class="pane-divider" id="paneDivider"></div>
+
+        <!-- Output Pane (all modes except hash) -->
+        <div class="pane" id="outputPane">
+            <div class="pane-label">
+                <span>Encoded</span>
+                <button class="copy-btn" id="copyOutputBtn"><i class="fas fa-copy"></i> Copy</button>
+            </div>
+            <div class="pane-body">
+                <textarea class="pane-ta" id="outputTA" spellcheck="false" placeholder="Result will appear here…"></textarea>
+            </div>
+        </div>
+
+        <!-- Hash Pane (hash mode only) -->
+        <div class="hash-pane" id="hashPane" style="display:none">
+            <div class="pane-label">Hash Results</div>
+            <div class="hash-scroll" id="hashResults"></div>
+        </div>
+
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+        <div class="statusbar-left">
+            <span id="statusMsg">Select a mode and type to transform</span>
+        </div>
+        <div class="statusbar-right">
+            <span id="charCountMsg"></span>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const $ = id => document.getElementById(id);
+
+    // ===== DOM refs =====
+    const inputTA        = $('inputTA');
+    const outputTA       = $('outputTA');
+    const outputPane     = $('outputPane');
+    const hashPane       = $('hashPane');
+    const hashResults    = $('hashResults');
+    const statusMsg      = $('statusMsg');
+    const charCountMsg   = $('charCountMsg');
+    const toastContainer = $('toastContainer');
+
+    // ===== State =====
+    let currentMode = 'base64';
+    let syncing     = false;
+    let leftTimer   = null;
+    let rightTimer  = null;
+
+    // ===== Toast =====
+    function toast(msg) {
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = msg;
+        toastContainer.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('show'));
+        setTimeout(() => {
+            el.classList.remove('show');
+            setTimeout(() => el.remove(), 300);
+        }, 2000);
+    }
+
+    // ===== Clipboard =====
+    function copyText(text, label) {
+        if (!text) { toast('Nothing to copy'); return; }
+        navigator.clipboard.writeText(text)
+            .then(() => toast(label ? `${label} copied!` : 'Copied!'))
+            .catch(() => toast('Copy failed'));
+    }
+
+    // ===== Transformations =====
+
+    function base64Encode(s) {
+        const bytes = new TextEncoder().encode(s);
+        let bin = '';
+        bytes.forEach(b => bin += String.fromCharCode(b));
+        return btoa(bin);
+    }
+
+    function base64Decode(s) {
+        const clean = s.trim().replace(/\s/g, '');
+        const bin = atob(clean);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new TextDecoder().decode(bytes);
+    }
+
+    function urlEncode(s) { return encodeURIComponent(s); }
+    function urlDecode(s) { return decodeURIComponent(s); }
+
+    function hexEncode(s) {
+        return Array.from(new TextEncoder().encode(s))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join(' ');
+    }
+    function hexDecode(s) {
+        const hex = s.trim().replace(/\s+/g, '');
+        if (hex.length % 2 !== 0) throw new Error('Odd number of hex digits');
+        const pairs = hex.match(/.{2}/g) || [];
+        const bytes = pairs.map(h => {
+            if (!/^[0-9a-fA-F]{2}$/.test(h)) throw new Error(`Invalid hex byte: ${h}`);
+            return parseInt(h, 16);
+        });
+        return new TextDecoder().decode(new Uint8Array(bytes));
+    }
+
+    async function computeHash(algo, s) {
+        const bytes = new TextEncoder().encode(s);
+        const buf = await crypto.subtle.digest(algo, bytes);
+        return Array.from(new Uint8Array(buf))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+    }
+
+    // ===== Hash UI =====
+    const HASH_ALGOS = [
+        { name: 'SHA-1',   algo: 'SHA-1',   id: 'hash-sha1'   },
+        { name: 'SHA-256', algo: 'SHA-256', id: 'hash-sha256' },
+        { name: 'SHA-384', algo: 'SHA-384', id: 'hash-sha384' },
+        { name: 'SHA-512', algo: 'SHA-512', id: 'hash-sha512' },
+    ];
+
+    function buildHashUI() {
+        hashResults.innerHTML = HASH_ALGOS.map(a => `
+            <div class="hash-row">
+                <div class="hash-row-header">
+                    <span class="hash-algo">${a.name}</span>
+                    <button class="copy-btn" data-hash-id="${a.id}"><i class="fas fa-copy"></i> Copy</button>
+                </div>
+                <div class="hash-value empty" id="${a.id}">—</div>
+            </div>
+        `).join('');
+        hashResults.querySelectorAll('[data-hash-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const el = $(btn.dataset.hashId);
+                if (el && !el.classList.contains('empty') && !el.classList.contains('error')) {
+                    copyText(el.textContent, btn.closest('.hash-row').querySelector('.hash-algo').textContent);
+                }
+            });
+        });
+    }
+
+    async function runHashes(input) {
+        if (!input) {
+            HASH_ALGOS.forEach(a => {
+                const el = $(a.id);
+                el.textContent = '—';
+                el.className = 'hash-value empty';
+            });
+            statusMsg.textContent = 'Type or paste text to hash';
+            return;
+        }
+        statusMsg.textContent = 'Hashing…';
+        await Promise.all(HASH_ALGOS.map(async a => {
+            const el = $(a.id);
+            el.textContent = 'computing…';
+            el.className = 'hash-value empty';
+            try {
+                el.textContent = await computeHash(a.algo, input);
+                el.className = 'hash-value';
+            } catch {
+                el.textContent = 'Error';
+                el.className = 'hash-value error';
+            }
+        }));
+        statusMsg.textContent = 'Hash · Computed';
+    }
+
+    // ===== Encode / Decode helpers =====
+    function encodeValue(s) {
+        if (currentMode === 'base64') return base64Encode(s);
+        if (currentMode === 'url')    return urlEncode(s);
+        if (currentMode === 'hex')    return hexEncode(s);
+    }
+    function decodeValue(s) {
+        if (currentMode === 'base64') return base64Decode(s);
+        if (currentMode === 'url')    return urlDecode(s);
+        if (currentMode === 'hex')    return hexDecode(s);
+    }
+
+    // ===== Bidirectional sync =====
+    function syncLeftToRight() {
+        const input = inputTA.value;
+        const len = input.length;
+        charCountMsg.textContent = len > 0 ? `${len.toLocaleString()} char${len !== 1 ? 's' : ''}` : '';
+        if (!input) {
+            outputTA.value = '';
+            outputTA.classList.remove('error');
+            statusMsg.textContent = 'Type or paste plain text…';
+            return;
+        }
+        try {
+            outputTA.value = encodeValue(input);
+            outputTA.classList.remove('error');
+            statusMsg.textContent = `${{ base64: 'Base64', url: 'URL', hex: 'Hex' }[currentMode]} · Encoded`;
+        } catch (err) {
+            outputTA.value = `Error: ${err.message}`;
+            outputTA.classList.add('error');
+            statusMsg.textContent = `Failed: ${err.message}`;
+        }
+    }
+
+    function syncRightToLeft() {
+        const input = outputTA.value;
+        if (!input) {
+            inputTA.value = '';
+            outputTA.classList.remove('error');
+            charCountMsg.textContent = '';
+            statusMsg.textContent = 'Type or paste encoded text…';
+            return;
+        }
+        try {
+            const decoded = decodeValue(input);
+            inputTA.value = decoded;
+            outputTA.classList.remove('error');
+            const len = decoded.length;
+            charCountMsg.textContent = len > 0 ? `${len.toLocaleString()} char${len !== 1 ? 's' : ''}` : '';
+            statusMsg.textContent = `${{ base64: 'Base64', url: 'URL', hex: 'Hex' }[currentMode]} · Decoded`;
+        } catch (err) {
+            outputTA.classList.add('error');
+            statusMsg.textContent = `Failed: ${err.message}`;
+        }
+    }
+
+    // ===== Mode switching =====
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(b =>
+            b.classList.toggle('active', b.dataset.mode === mode)
+        );
+        const isHash = mode === 'hash';
+        outputPane.style.display = isHash ? 'none' : '';
+        hashPane.style.display   = isHash ? ''     : 'none';
+        inputTA.placeholder  = isHash ? 'Type or paste text to hash…'    : 'Type or paste plain text…';
+        outputTA.placeholder = isHash ? '' : 'Encoded result will appear here…';
+        if (isHash) {
+            runHashes(inputTA.value);
+        } else {
+            syncLeftToRight();
+        }
+    }
+
+    // ===== Pane Divider =====
+    function initDivider() {
+        const divider = $('paneDivider');
+        const container = divider.parentElement;
+        let dragging = false;
+        let startX = 0;
+        let startLeftFlex = 0;
+
+        divider.addEventListener('mousedown', e => {
+            dragging = true;
+            startX = e.clientX;
+            const leftPane = $('inputPane');
+            startLeftFlex = leftPane.getBoundingClientRect().width;
+            divider.classList.add('dragging');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'col-resize';
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!dragging) return;
+            const containerWidth = container.getBoundingClientRect().width - divider.offsetWidth;
+            const delta = e.clientX - startX;
+            const newLeft = Math.max(120, Math.min(containerWidth - 120, startLeftFlex + delta));
+            const leftPct = (newLeft / containerWidth) * 100;
+            $('inputPane').style.flex = `0 0 ${leftPct}%`;
+            const rightPane = currentMode === 'hash' ? $('hashPane') : $('outputPane');
+            rightPane.style.flex = `0 0 ${100 - leftPct}%`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            divider.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+        });
+    }
+
+    // ===== Event bindings =====
+    inputTA.addEventListener('input', () => {
+        if (syncing) return;
+        clearTimeout(leftTimer);
+        leftTimer = setTimeout(() => {
+            syncing = true;
+            if (currentMode === 'hash') runHashes(inputTA.value);
+            else syncLeftToRight();
+            syncing = false;
+        }, 150);
+    });
+
+    outputTA.addEventListener('input', () => {
+        if (syncing) return;
+        clearTimeout(rightTimer);
+        rightTimer = setTimeout(() => {
+            syncing = true;
+            syncRightToLeft();
+            syncing = false;
+        }, 150);
+    });
+
+    document.querySelectorAll('.mode-btn').forEach(btn =>
+        btn.addEventListener('click', () => setMode(btn.dataset.mode))
+    );
+
+    $('clearBtn').addEventListener('click', () => {
+        inputTA.value = '';
+        outputTA.value = '';
+        outputTA.classList.remove('error');
+        HASH_ALGOS.forEach(a => {
+            const el = $(a.id);
+            if (el) { el.textContent = '—'; el.className = 'hash-value empty'; }
+        });
+        charCountMsg.textContent = '';
+        statusMsg.textContent = 'Type or paste text to transform';
+    });
+
+    $('copyOutputBtn').addEventListener('click', () => {
+        if (outputTA.classList.contains('error')) { toast('Nothing to copy'); return; }
+        copyText(outputTA.value, 'Output');
+    });
+
+    $('themeToggle').addEventListener('click', () => {
+        const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem('nibset-theme', t);
+    });
+
+    // ===== Init =====
+    buildHashUI();
+    setMode('base64');
+    initDivider();
+});
+</script>
+</body>
+</html>

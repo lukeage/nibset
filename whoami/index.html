@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Session — NibSet</title>
+<link rel="icon" type="image/png" href="../assets/logo.png">
+<meta name="description" content="See everything your browser exposes: IP, screen, hardware, capabilities, and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+(function(){
+  var t = localStorage.getItem('nibset-theme');
+  if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary: #060608;
+  --bg-secondary: #111115;
+  --bg-tertiary: #1c1c24;
+  --bg-hover: #16161c;
+  --text-primary: #e8e8ec;
+  --text-secondary: #8b8b95;
+  --text-muted: #55555e;
+  --accent: #c9f270;
+  --accent-dim: #a8cc55;
+  --accent-bg: rgba(201,242,112,0.08);
+  --accent-border: rgba(201,242,112,0.15);
+  --border: rgba(255,255,255,0.06);
+  --border-hover: rgba(255,255,255,0.12);
+  --nav-bg: rgba(6,6,8,0.85);
+  --font-ui: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --header-height: 56px;
+  --radius: 12px;
+  --radius-sm: 6px;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #eaeaee;
+  --bg-tertiary: #ffffff;
+  --bg-hover: #f0f0f4;
+  --text-primary: #1a1a1e;
+  --text-secondary: #5a5a64;
+  --text-muted: #8b8b95;
+  --accent: #5a8a1a;
+  --accent-dim: #4a7515;
+  --accent-bg: rgba(90,138,26,0.08);
+  --accent-border: rgba(90,138,26,0.15);
+  --border: rgba(0,0,0,0.08);
+  --border-hover: rgba(0,0,0,0.15);
+  --nav-bg: rgba(245,245,247,0.85);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Nav ── */
+nav {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 100;
+  padding: 0 2rem;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--nav-bg);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nav-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.nav-back:hover { color: var(--text-primary); }
+.nav-back svg { width: 14px; height: 14px; }
+
+.nav-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+}
+
+.nav-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-copy-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: var(--bg-primary);
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  letter-spacing: 0.01em;
+}
+.btn-copy-all:hover { opacity: 0.85; }
+.btn-copy-all svg { width: 13px; height: 13px; }
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, border-color 0.2s;
+}
+.theme-toggle:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.theme-toggle svg { display: none; width: 16px; height: 16px; }
+
+/* ── Status Bar ── */
+.status-bar {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--header-height);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  overflow: hidden;
+}
+
+.status-prompt {
+  color: var(--accent);
+  margin-right: 0.6rem;
+  flex-shrink: 0;
+}
+
+.status-items {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.status-label { color: var(--text-muted); }
+.status-value { color: var(--text-secondary); }
+.status-value.loading { color: var(--text-muted); font-style: italic; }
+
+.pulse-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: pulse 2s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── Main ── */
+main {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 2rem 4rem;
+}
+
+/* ── Section Header ── */
+.page-header {
+  margin-bottom: 2rem;
+  animation: fadeUp 0.4s ease both;
+}
+
+.page-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.page-header p {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* ── Card Grid ── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+/* ── Card ── */
+.card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: fadeUp 0.4s ease both;
+}
+
+.card:nth-child(1) { animation-delay: 0.05s; }
+.card:nth-child(2) { animation-delay: 0.1s; }
+.card:nth-child(3) { animation-delay: 0.15s; }
+.card:nth-child(4) { animation-delay: 0.2s; }
+.card:nth-child(5) { animation-delay: 0.25s; }
+.card:nth-child(6) { animation-delay: 0.3s; }
+.card:nth-child(7) { animation-delay: 0.35s; }
+.card:nth-child(8) { animation-delay: 0.4s; }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.card-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.card-icon svg { width: 14px; height: 14px; }
+
+.card-name {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+}
+.live-badge .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.5s ease infinite;
+}
+
+/* ── Rows ── */
+.card-body {
+  padding: 0.25rem 0;
+}
+
+.info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  transition: background 0.15s;
+}
+
+.info-row:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+[data-theme="light"] .info-row:hover {
+  background: rgba(0,0,0,0.02);
+}
+
+.info-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  min-width: 110px;
+  padding-top: 1px;
+}
+
+.info-value {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.info-value.na {
+  color: var(--text-muted);
+  font-style: italic;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+}
+
+.info-value.loading {
+  color: var(--text-muted);
+}
+
+.copy-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+}
+
+.copy-btn svg { width: 12px; height: 12px; }
+.copy-btn:hover { color: var(--accent); }
+.info-row:hover .copy-btn { opacity: 1; }
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  display: inline-block;
+  height: 0.7em;
+  border-radius: 3px;
+  background: linear-gradient(90deg,
+    var(--bg-secondary) 25%,
+    var(--border-hover) 50%,
+    var(--bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease infinite;
+  min-width: 80px;
+}
+
+/* Geo button */
+.geo-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: var(--accent);
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.geo-trigger:hover { opacity: 0.8; }
+.geo-trigger svg { width: 10px; height: 10px; }
+
+/* ── Footer ── */
+footer {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.footer-brand { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); }
+.footer-tagline { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+.footer-links {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.footer-links a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.footer-links a:hover { color: var(--text-secondary); }
+
+/* ── Animations ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .card-grid { grid-template-columns: 1fr; }
+  nav { padding: 0 1.25rem; }
+  main { padding: 1.5rem 1rem 4rem; }
+  .status-bar { padding: 0 1.25rem; }
+  .status-items { gap: 1rem; }
+  footer { flex-direction: column; gap: 1rem; text-align: center; }
+  .footer-left { flex-direction: column; gap: 0.5rem; }
+  .btn-copy-all span { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-left">
+    <a href="../" class="nav-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      NibSet
+    </a>
+    <div class="nav-sep"></div>
+    <span class="nav-title">My Session</span>
+  </div>
+  <div class="nav-right">
+    <button class="btn-copy-all" id="copyAllBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      <span>Copy all</span>
+    </button>
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+      <svg class="icon-sun" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/></svg>
+      <svg class="icon-moon" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M17 12.5A7.5 7.5 0 017.5 3 7 7 0 1017 12.5z"/></svg>
+    </button>
+  </div>
+</nav>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <span class="status-prompt">$</span>
+  <div class="status-items">
+    <div class="status-item">
+      <div class="pulse-dot"></div>
+      <span class="status-label">ip</span>
+      <span class="status-value loading" id="sb-ip">fetching...</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">tz</span>
+      <span class="status-value" id="sb-tz">—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">browser</span>
+      <span class="status-value" id="sb-browser">—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">screen</span>
+      <span class="status-value" id="sb-screen">—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">time</span>
+      <span class="status-value" id="sb-time">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<main>
+  <div class="page-header">
+    <h1>My Session</h1>
+    <p>Everything your browser exposes about this session — screen, hardware, network, and more.</p>
+  </div>
+
+  <div class="card-grid">
+
+    <!-- 1. Browser -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          </div>
+          <span class="card-name">Browser</span>
+        </div>
+      </div>
+      <div class="card-body" id="card-browser"></div>
+    </div>
+
+    <!-- 2. Screen & Display -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <span class="card-name">Screen & Display</span>
+        </div>
+      </div>
+      <div class="card-body" id="card-screen"></div>
+    </div>
+
+    <!-- 3. Hardware -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="2" x2="9" y2="4"/><line x1="15" y1="2" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="22"/><line x1="15" y1="20" x2="15" y2="22"/><line x1="20" y1="9" x2="22" y2="9"/><line x1="20" y1="14" x2="22" y2="14"/><line x1="2" y1="9" x2="4" y2="9"/><line x1="2" y1="14" x2="4" y2="14"/></svg>
+          </div>
+          <span class="card-name">Hardware</span>
+        </div>
+      </div>
+      <div class="card-body" id="card-hardware"></div>
+    </div>
+
+    <!-- 4. Network -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          </div>
+          <span class="card-name">Network</span>
+        </div>
+        <span class="live-badge"><span class="dot"></span>Live</span>
+      </div>
+      <div class="card-body" id="card-network"></div>
+    </div>
+
+    <!-- 5. Location & Time -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <span class="card-name">Location & Time</span>
+        </div>
+        <span class="live-badge"><span class="dot"></span>Live</span>
+      </div>
+      <div class="card-body" id="card-location"></div>
+    </div>
+
+    <!-- 6. IP Details -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <span class="card-name">IP Details</span>
+        </div>
+      </div>
+      <div class="card-body" id="card-ipdetails"></div>
+    </div>
+
+    <!-- 7. Capabilities -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          </div>
+          <span class="card-name">Capabilities</span>
+        </div>
+      </div>
+      <div class="card-body" id="card-capabilities"></div>
+    </div>
+
+    <!-- 8. Battery -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="13" x2="23" y2="11"/></svg>
+          </div>
+          <span class="card-name">Battery</span>
+        </div>
+        <span class="live-badge" id="battery-live-badge" style="display:none"><span class="dot"></span>Live</span>
+      </div>
+      <div class="card-body" id="card-battery"></div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  <div class="footer-left">
+    <span class="footer-brand">NibSet</span>
+    <span class="footer-tagline">Data &middot; Precision &middot; Structure</span>
+  </div>
+  <div class="footer-links">
+    <a href="https://github.com/lukeage/nibset">GitHub</a>
+    <a href="https://github.com/lukeage/nibset/issues">Issues</a>
+    <a href="https://github.com/lukeage/nibset/blob/main/LICENSE">MIT License</a>
+  </div>
+</footer>
+
+<script>
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function row(label, value, id) {
+  var val = (value === null || value === undefined || value === '') ? null : value;
+  var valHtml = val !== null
+    ? '<span class="info-value" ' + (id ? 'id="' + id + '"' : '') + '>' + escHtml(String(val)) + '</span>'
+    : '<span class="info-value na" ' + (id ? 'id="' + id + '"' : '') + '>not available</span>';
+  return '<div class="info-row">' +
+    '<span class="info-label">' + escHtml(label) + '</span>' +
+    valHtml +
+    (val !== null ? '<button class="copy-btn" onclick="copyVal(this, \'' + escAttr(String(val)) + '\')" title="Copy">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' +
+      '</button>' : '') +
+    '</div>';
+}
+
+function skeletonRow(label, id) {
+  return '<div class="info-row">' +
+    '<span class="info-label">' + escHtml(label) + '</span>' +
+    '<span class="info-value loading" id="' + id + '"><span class="skeleton"></span></span>' +
+    '</div>';
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escAttr(s) {
+  return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n');
+}
+
+function setValue(id, value) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var parent = el.parentElement;
+  if (value === null || value === undefined || value === '') {
+    el.className = 'info-value na';
+    el.textContent = 'not available';
+    // Remove any existing copy btn
+    var cb = parent.querySelector('.copy-btn');
+    if (cb) cb.remove();
+  } else {
+    el.className = 'info-value';
+    el.textContent = String(value);
+    // Add copy btn if not there
+    if (!parent.querySelector('.copy-btn')) {
+      var btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.title = 'Copy';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+      btn.onclick = function() { copyVal(btn, String(value)); };
+      parent.appendChild(btn);
+    } else {
+      var cb2 = parent.querySelector('.copy-btn');
+      cb2.onclick = function() { copyVal(cb2, String(value)); };
+    }
+  }
+}
+
+function copyVal(btn, text) {
+  navigator.clipboard.writeText(text).then(function() {
+    var orig = btn.innerHTML;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--accent)"><polyline points="20 6 9 17 4 12"/></svg>';
+    setTimeout(function() { btn.innerHTML = orig; }, 1200);
+  }).catch(function() {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  });
+}
+
+// ── Browser Detection ────────────────────────────────────────────────────────
+
+function parseBrowser(ua) {
+  if (/Edg\//.test(ua)) {
+    var m = ua.match(/Edg\/([\d.]+)/);
+    return { name: 'Microsoft Edge', version: m ? m[1] : '?' };
+  }
+  if (/OPR\//.test(ua) || /Opera\//.test(ua)) {
+    var m = ua.match(/OPR\/([\d.]+)/) || ua.match(/Opera\/([\d.]+)/);
+    return { name: 'Opera', version: m ? m[1] : '?' };
+  }
+  if (/Chrome\//.test(ua) && !/Chromium\//.test(ua)) {
+    var m = ua.match(/Chrome\/([\d.]+)/);
+    return { name: 'Chrome', version: m ? m[1] : '?' };
+  }
+  if (/Chromium\//.test(ua)) {
+    var m = ua.match(/Chromium\/([\d.]+)/);
+    return { name: 'Chromium', version: m ? m[1] : '?' };
+  }
+  if (/Firefox\//.test(ua)) {
+    var m = ua.match(/Firefox\/([\d.]+)/);
+    return { name: 'Firefox', version: m ? m[1] : '?' };
+  }
+  if (/Safari\//.test(ua) && !/Chrome/.test(ua)) {
+    var m = ua.match(/Version\/([\d.]+)/);
+    return { name: 'Safari', version: m ? m[1] : '?' };
+  }
+  return { name: 'Unknown', version: '?' };
+}
+
+function parseEngine(ua) {
+  if (/Gecko\//.test(ua) && /Firefox\//.test(ua)) return 'Gecko';
+  if (/AppleWebKit\//.test(ua) && !/Chrome/.test(ua)) return 'WebKit';
+  if (/Blink|Chrome\//.test(ua)) return 'Blink';
+  if (/Trident\//.test(ua)) return 'Trident';
+  return 'Unknown';
+}
+
+function parseOS(ua) {
+  if (/Windows NT 10/.test(ua)) return 'Windows 10/11';
+  if (/Windows NT 6\.3/.test(ua)) return 'Windows 8.1';
+  if (/Windows NT 6\.1/.test(ua)) return 'Windows 7';
+  if (/Windows/.test(ua)) return 'Windows';
+  if (/Mac OS X ([\d_]+)/.test(ua)) {
+    var m = ua.match(/Mac OS X ([\d_]+)/);
+    return 'macOS ' + (m ? m[1].replace(/_/g, '.') : '');
+  }
+  if (/Android ([\d.]+)/.test(ua)) {
+    var m = ua.match(/Android ([\d.]+)/);
+    return 'Android ' + (m ? m[1] : '');
+  }
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    var m = ua.match(/OS ([\d_]+)/);
+    return 'iOS ' + (m ? m[1].replace(/_/g, '.') : '');
+  }
+  if (/Linux/.test(ua)) return 'Linux';
+  return navigator.platform || 'Unknown';
+}
+
+// ── WebRTC Local IPs ─────────────────────────────────────────────────────────
+
+function getLocalIPs(cb) {
+  try {
+    var ips = [];
+    var pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel('');
+    pc.createOffer().then(function(o) { return pc.setLocalDescription(o); });
+    pc.onicecandidate = function(e) {
+      if (!e.candidate) {
+        pc.close();
+        cb(ips.length ? ips.join(', ') : null);
+        return;
+      }
+      var match = e.candidate.candidate.match(/(\d{1,3}\.){3}\d{1,3}/);
+      if (match && ips.indexOf(match[0]) === -1) ips.push(match[0]);
+    };
+    setTimeout(function() { pc.close(); cb(ips.length ? ips.join(', ') : null); }, 2000);
+  } catch(e) {
+    cb(null);
+  }
+}
+
+// ── Render Cards ─────────────────────────────────────────────────────────────
+
+var ua = navigator.userAgent;
+var browser = parseBrowser(ua);
+var engine = parseEngine(ua);
+var os = parseOS(ua);
+var langs = navigator.languages ? navigator.languages.join(', ') : navigator.language;
+var dnt = navigator.doNotTrack === '1' ? 'Enabled (1)' : navigator.doNotTrack === '0' ? 'Disabled (0)' : 'Unspecified';
+
+document.getElementById('card-browser').innerHTML =
+  row('User Agent', ua) +
+  row('Browser', browser.name + ' ' + browser.version) +
+  row('Engine', engine) +
+  row('Platform / OS', os) +
+  row('Language(s)', langs) +
+  row('Do Not Track', dnt);
+
+// Status bar
+document.getElementById('sb-browser').textContent = browser.name + ' ' + browser.version.split('.')[0];
+document.getElementById('sb-screen').textContent = screen.width + 'x' + screen.height;
+document.getElementById('sb-tz').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// Screen
+var orientation = screen.orientation ? screen.orientation.type : (window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
+var colorScheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+var reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'Enabled' : 'Disabled';
+
+document.getElementById('card-screen').innerHTML =
+  row('Screen resolution', screen.width + ' × ' + screen.height + ' px') +
+  row('Available resolution', screen.availWidth + ' × ' + screen.availHeight + ' px') +
+  row('Window size', window.innerWidth + ' × ' + window.innerHeight + ' px') +
+  row('Device pixel ratio', window.devicePixelRatio + 'x') +
+  row('Color depth', screen.colorDepth + '-bit') +
+  row('Orientation', orientation) +
+  row('Color scheme', colorScheme) +
+  row('Reduced motion', reducedMotion);
+
+// Hardware
+var pointerFine = matchMedia('(pointer: fine)').matches;
+var pointerCoarse = matchMedia('(pointer: coarse)').matches;
+var pointerType = pointerFine ? 'fine (mouse/trackpad)' : pointerCoarse ? 'coarse (touch)' : 'none';
+var pointerHover = matchMedia('(hover: hover)').matches ? 'Supported' : 'Not supported';
+var deviceMem = navigator.deviceMemory ? navigator.deviceMemory + ' GB' : null;
+
+document.getElementById('card-hardware').innerHTML =
+  row('CPU threads', navigator.hardwareConcurrency ? navigator.hardwareConcurrency + ' logical cores' : null) +
+  row('Device memory', deviceMem) +
+  row('Max touch points', navigator.maxTouchPoints !== undefined ? navigator.maxTouchPoints : null) +
+  row('Pointer type', pointerType) +
+  row('Pointer hover', pointerHover);
+
+// Network (sync parts first, async later)
+var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+var connType = conn ? (conn.effectiveType || conn.type || null) : null;
+var downlink = conn && conn.downlink !== undefined ? conn.downlink + ' Mbps' : null;
+var rtt = conn && conn.rtt !== undefined ? conn.rtt + ' ms' : null;
+var saveData = conn ? (conn.saveData ? 'Enabled' : 'Disabled') : null;
+
+document.getElementById('card-network').innerHTML =
+  skeletonRow('Public IPv4', 'net-public-ip') +
+  skeletonRow('Local IPs (WebRTC)', 'net-local-ip') +
+  row('Connection type', connType) +
+  row('Downlink', downlink) +
+  row('RTT', rtt) +
+  row('Save-data mode', saveData);
+
+// Location & Time
+var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+var tzOffset = new Date().getTimezoneOffset();
+var tzOffsetStr = (tzOffset <= 0 ? '+' : '-') + Math.abs(Math.floor(tzOffset / 60)).toString().padStart(2,'0') + ':' + Math.abs(tzOffset % 60).toString().padStart(2,'0');
+var locale = Intl.DateTimeFormat().resolvedOptions().locale;
+
+document.getElementById('card-location').innerHTML =
+  row('Timezone', tz) +
+  row('UTC offset', 'UTC' + tzOffsetStr) +
+  row('Locale', locale) +
+  '<div class="info-row"><span class="info-label">Current time</span><span class="info-value" id="live-time">—</span></div>' +
+  '<div class="info-row"><span class="info-label">Geolocation</span><span class="info-value" id="geo-status"><button class="geo-trigger" onclick="requestGeo()">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+    'Request location</button></span></div>';
+
+// IP Details skeletons
+document.getElementById('card-ipdetails').innerHTML =
+  skeletonRow('IP', 'ip-ip') +
+  skeletonRow('City', 'ip-city') +
+  skeletonRow('Region', 'ip-region') +
+  skeletonRow('Country', 'ip-country') +
+  skeletonRow('Postal', 'ip-postal') +
+  skeletonRow('ISP / Org', 'ip-org') +
+  skeletonRow('ASN', 'ip-asn') +
+  skeletonRow('Timezone (IP)', 'ip-tz');
+
+// Capabilities
+function testWebGL() {
+  try {
+    var c = document.createElement('canvas');
+    if (c.getContext('webgl2')) return 'WebGL 2';
+    if (c.getContext('webgl') || c.getContext('experimental-webgl')) return 'WebGL 1';
+    return null;
+  } catch(e) { return null; }
+}
+
+function testStorage(type) {
+  try {
+    var s = window[type];
+    s.setItem('__nibset_test', '1');
+    s.removeItem('__nibset_test');
+    return 'Available';
+  } catch(e) { return null; }
+}
+
+function testIndexedDB() {
+  try { return window.indexedDB ? 'Available' : null; } catch(e) { return null; }
+}
+
+var notifPerm = 'Notification' in window ? Notification.permission : null;
+
+document.getElementById('card-capabilities').innerHTML =
+  row('Cookies', navigator.cookieEnabled ? 'Enabled' : 'Disabled') +
+  row('localStorage', testStorage('localStorage')) +
+  row('sessionStorage', testStorage('sessionStorage')) +
+  row('IndexedDB', testIndexedDB()) +
+  row('Service Worker', 'serviceWorker' in navigator ? 'Supported' : null) +
+  row('WebGL', testWebGL()) +
+  row('WebAssembly', typeof WebAssembly !== 'undefined' ? 'Supported' : null) +
+  row('Notifications', notifPerm) +
+  row('Clipboard API', navigator.clipboard ? 'Available' : null);
+
+// Battery
+document.getElementById('card-battery').innerHTML = '<div class="info-row"><span class="info-label">Status</span><span class="info-value na" id="bat-status">checking…</span></div>';
+
+// ── Async: Public IP ─────────────────────────────────────────────────────────
+
+fetch('https://api.ipify.org?format=json')
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    setValue('net-public-ip', d.ip);
+    document.getElementById('sb-ip').textContent = d.ip;
+    document.getElementById('sb-ip').className = 'status-value';
+  })
+  .catch(function() {
+    setValue('net-public-ip', null);
+    document.getElementById('sb-ip').textContent = 'unavailable';
+    document.getElementById('sb-ip').className = 'status-value';
+  });
+
+// ── Async: Local IPs via WebRTC ──────────────────────────────────────────────
+
+getLocalIPs(function(ips) {
+  setValue('net-local-ip', ips);
+});
+
+// ── Async: IP Details ────────────────────────────────────────────────────────
+
+fetch('https://ipapi.co/json/')
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    setValue('ip-ip', d.ip);
+    setValue('ip-city', d.city);
+    setValue('ip-region', d.region);
+    setValue('ip-country', d.country_name + ' (' + d.country_code + ')');
+    setValue('ip-postal', d.postal);
+    setValue('ip-org', d.org);
+    setValue('ip-asn', d.asn);
+    setValue('ip-tz', d.timezone);
+    // Also update status bar IP if not already set
+    if (document.getElementById('sb-ip').textContent === 'fetching...') {
+      document.getElementById('sb-ip').textContent = d.ip;
+      document.getElementById('sb-ip').className = 'status-value';
+    }
+  })
+  .catch(function() {
+    ['ip-ip','ip-city','ip-region','ip-country','ip-postal','ip-org','ip-asn','ip-tz'].forEach(function(id) {
+      setValue(id, null);
+    });
+  });
+
+// ── Async: Battery ───────────────────────────────────────────────────────────
+
+if (navigator.getBattery) {
+  navigator.getBattery().then(function(bat) {
+    document.getElementById('battery-live-badge').style.display = '';
+    function renderBattery() {
+      var level = Math.round(bat.level * 100) + '%';
+      var charging = bat.charging ? 'Charging' : 'Discharging';
+      var timeRaw = bat.charging ? bat.chargingTime : bat.dischargingTime;
+      var timeStr = (timeRaw === Infinity || timeRaw === null) ? null :
+        Math.floor(timeRaw / 3600) + 'h ' + Math.floor((timeRaw % 3600) / 60) + 'm remaining';
+      document.getElementById('card-battery').innerHTML =
+        row('Level', level) +
+        row('Status', charging) +
+        row(bat.charging ? 'Time to full' : 'Time remaining', timeStr);
+    }
+    renderBattery();
+    bat.addEventListener('chargingchange', renderBattery);
+    bat.addEventListener('levelchange', renderBattery);
+    bat.addEventListener('chargingtimechange', renderBattery);
+    bat.addEventListener('dischargingtimechange', renderBattery);
+  }).catch(function() {
+    document.getElementById('card-battery').innerHTML = row('Status', null) + '<div class="info-row"><span class="info-value na" style="margin-left:110px">Battery API not available in this browser</span></div>';
+  });
+} else {
+  document.getElementById('card-battery').innerHTML =
+    '<div class="info-row"><span class="info-label">Status</span><span class="info-value na">not available</span></div>';
+}
+
+// ── Live Time ────────────────────────────────────────────────────────────────
+
+function updateTime() {
+  var el = document.getElementById('live-time');
+  if (el) el.textContent = new Date().toLocaleTimeString();
+  var sb = document.getElementById('sb-time');
+  if (sb) sb.textContent = new Date().toLocaleTimeString();
+}
+updateTime();
+setInterval(updateTime, 1000);
+
+// ── Geolocation ──────────────────────────────────────────────────────────────
+
+window.requestGeo = function() {
+  var el = document.getElementById('geo-status');
+  if (el) el.innerHTML = '<span class="skeleton" style="width:120px"></span>';
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var val = pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5) +
+        ' (±' + Math.round(pos.coords.accuracy) + 'm)';
+      if (el) {
+        el.className = 'info-value';
+        el.textContent = val;
+        // Add copy btn
+        var parent = el.parentElement;
+        var btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.title = 'Copy';
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+        btn.onclick = function() { copyVal(btn, val); };
+        parent.appendChild(btn);
+      }
+    },
+    function(err) {
+      if (el) {
+        el.className = 'info-value na';
+        el.textContent = 'Permission denied';
+      }
+    }
+  );
+};
+
+// ── Copy All ─────────────────────────────────────────────────────────────────
+
+document.getElementById('copyAllBtn').addEventListener('click', function() {
+  var lines = ['NibSet — My Session', new Date().toISOString(), ''];
+  document.querySelectorAll('.card').forEach(function(card) {
+    var title = card.querySelector('.card-name');
+    if (title) lines.push('=== ' + title.textContent + ' ===');
+    card.querySelectorAll('.info-row').forEach(function(r) {
+      var label = r.querySelector('.info-label');
+      var value = r.querySelector('.info-value');
+      if (label && value) {
+        lines.push(label.textContent.padEnd(20) + (value.classList.contains('na') ? '(not available)' : value.textContent));
+      }
+    });
+    lines.push('');
+  });
+  var text = lines.join('\n');
+  var btn = document.getElementById('copyAllBtn');
+  navigator.clipboard.writeText(text).then(function() {
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg><span>Copied!</span>';
+    setTimeout(function() {
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg><span>Copy all</span>';
+    }, 1800);
+  }).catch(function() {});
+});
+
+// ── Theme Toggle ─────────────────────────────────────────────────────────────
+
+(function(){
+  var mode = localStorage.getItem('nibset-theme');
+  if (!mode) { mode = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', mode); }
+  var btn = document.getElementById('themeToggle');
+
+  function apply(m) {
+    mode = m;
+    document.documentElement.setAttribute('data-theme', m);
+    localStorage.setItem('nibset-theme', m);
+    btn.title = m === 'light' ? 'Theme: Light' : 'Theme: Dark';
+    btn.querySelector('.icon-sun').style.display = (m === 'light') ? 'block' : 'none';
+    btn.querySelector('.icon-moon').style.display = (m === 'dark') ? 'block' : 'none';
+  }
+
+  btn.addEventListener('click', function() { apply(mode === 'light' ? 'dark' : 'light'); });
+  apply(mode);
+})();
+</script>
+</body>
+</html>

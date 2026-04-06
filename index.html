@@ -481,6 +481,7 @@
   .tool-card:nth-child(7) { animation: fadeUp 0.4s ease 0.45s both; }
   .tool-card:nth-child(8) { animation: fadeUp 0.4s ease 0.5s both; }
   .tool-card:nth-child(9) { animation: fadeUp 0.4s ease 0.55s both; }
+  .tool-card:nth-child(10) { animation: fadeUp 0.4s ease 0.6s both; }
 
   /* ── Theme Toggle ── */
   .theme-toggle {
@@ -579,7 +580,7 @@
     </svg>
   </div>
   <h1>Practical tools,<br><span class="accent">zero friction.</span></h1>
-  <p class="hero-desc">Single-file HTML tools you can open in any browser. No installs, no accounts, no tracking &mdash; just open and use.</p>
+  <p class="hero-desc">Single-file HTML tools you can open in any browser. No installs, no accounts, no friction &mdash; just open and use.</p>
   <div class="hero-badges">
     <span class="badge">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
@@ -750,26 +751,67 @@
       </div>
     </div>
 
-    <div class="tool-card planned">
+    <div class="tool-card available" onclick="window.location.href='colors/index.html'">
       <div class="tool-card-top">
         <div class="tool-icon-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="15.5" r="2.5"/><circle cx="8.5" cy="15.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 011.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
         </div>
-        <span class="tool-status planned">Planned</span>
+        <span class="tool-status ready">Live</span>
       </div>
-      <h3>Color</h3>
+      <h3>Colors</h3>
       <p>Pick colors, convert between formats, generate palettes, and check contrast accessibility.</p>
+      <div class="tool-card-footer">
+        <span class="tool-open">
+          Open tool
+          <span class="tool-arrow">&rarr;</span>
+        </span>
+        <a class="tool-dl" href="colors/index.html" download="colors.html" onclick="event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          .html
+        </a>
+      </div>
     </div>
 
-    <div class="tool-card planned">
+    <div class="tool-card available" onclick="window.location.href='whoami/index.html'">
+      <div class="tool-card-top">
+        <div class="tool-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+        </div>
+        <span class="tool-status ready">Live</span>
+      </div>
+      <h3>My Session</h3>
+      <p>See everything your browser exposes: IP address, screen info, hardware, capabilities, timezone, and more.</p>
+      <div class="tool-card-footer">
+        <span class="tool-open">
+          Open tool
+          <span class="tool-arrow">&rarr;</span>
+        </span>
+        <a class="tool-dl" href="whoami/index.html" download="whoami.html" onclick="event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          .html
+        </a>
+      </div>
+    </div>
+
+    <div class="tool-card available" onclick="window.location.href='encode/index.html'">
       <div class="tool-card-top">
         <div class="tool-icon-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/><polyline points="17 7 21 7 21 3"/></svg>
         </div>
-        <span class="tool-status planned">Planned</span>
+        <span class="tool-status ready">Live</span>
       </div>
       <h3>Encode / Decode</h3>
       <p>Base64, URL encoding, hash generation, and other common text transformations in one place.</p>
+      <div class="tool-card-footer">
+        <span class="tool-open">
+          Open tool
+          <span class="tool-arrow">&rarr;</span>
+        </span>
+        <a class="tool-dl" href="encode/index.html" download="encode.html" onclick="event.stopPropagation()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          .html
+        </a>
+      </div>
     </div>
 
   </div>

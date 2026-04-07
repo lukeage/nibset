@@ -146,12 +146,12 @@
         .hl-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             padding: 16px 0;
-            overflow-y: scroll; overflow-x: hidden;
+            overflow-y: scroll; overflow-x: auto;
             scrollbar-width: none;
             z-index: 2; pointer-events: none;
         }
         .hl-layer::-webkit-scrollbar { display: none; }
-        .hl-row { height: var(--lh); display: flex; align-items: stretch; }
+        .hl-row { height: var(--lh); display: flex; align-items: stretch; width: max-content; min-width: 100%; }
         .hl-row.hl-del { background: var(--del-bg); }
         .hl-row.hl-add { background: var(--add-bg); }
         .hl-row.hl-mod { background: var(--mod-bg); }
@@ -167,13 +167,22 @@
         .hl-row.hl-del .hl-num { color: var(--danger); background: var(--del-num-bg); }
         .hl-row.hl-add .hl-num { color: var(--success); background: var(--add-num-bg); }
         .hl-row.hl-mod .hl-num { color: var(--warning); background: var(--mod-num-bg); }
+        .hl-text {
+            padding: 0 16px;
+            white-space: pre;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: var(--lh);
+            color: var(--text-primary);
+            tab-size: 4;
+        }
 
         /* Textarea */
         .diff-ta {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             padding: 16px 16px 16px calc(var(--gutter) + 16px);
             border: none; outline: none; resize: none;
-            background: transparent; color: var(--text-primary);
+            background: transparent; color: transparent;
             font-family: var(--font-mono); font-size: 13px; line-height: var(--lh);
             tab-size: 4; white-space: pre; overflow: auto; z-index: 3;
             caret-color: var(--accent);
@@ -432,6 +441,33 @@ function diffChars(a, b) {
     return [lh.join(''), rh.join('')];
 }
 
+// ===== Word-level diff =====
+function tokenize(s) {
+    return s.match(/[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\b)|[0-9]+|[^\s\w]|\s+/g) || [];
+}
+
+function diffWords(a, b) {
+    if (a === b) return [h(a), h(b)];
+    const aT = tokenize(a), bT = tokenize(b);
+    const m = aT.length, n = bT.length;
+    if (m > 200 || n > 200) return [h(a), h(b)];
+    const dp = [];
+    for (let i = 0; i <= m; i++) dp[i] = new Uint16Array(n + 1);
+    for (let i = m - 1; i >= 0; i--)
+        for (let j = n - 1; j >= 0; j--)
+            dp[i][j] = aT[i] === bT[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
+    let i = 0, j = 0;
+    const lh = [], rh = [];
+    while (i < m && j < n) {
+        if (aT[i] === bT[j]) { lh.push(h(aT[i])); rh.push(h(bT[j])); i++; j++; }
+        else if (dp[i+1][j] >= dp[i][j+1]) { lh.push(`<mark class="cd">${h(aT[i++])}</mark>`); }
+        else { rh.push(`<mark class="ca">${h(bT[j++])}</mark>`); }
+    }
+    while (i < m) lh.push(`<mark class="cd">${h(aT[i++])}</mark>`);
+    while (j < n) rh.push(`<mark class="ca">${h(bT[j++])}</mark>`);
+    return [lh.join(''), rh.join('')];
+}
+
 // ===== Core Compute =====
 function compute() {
     const left = leftTA.value, right = rightTA.value;
@@ -459,24 +495,27 @@ function updateHighlights(ops) {
     for (const op of ops) {
         if (op.op === '=') {
             ln++; rn++;
-            lRows.push(`<div class="hl-row"><span class="hl-num">${ln}</span></div>`);
-            rRows.push(`<div class="hl-row"><span class="hl-num">${rn}</span></div>`);
+            lRows.push(`<div class="hl-row"><span class="hl-num">${ln}</span><span class="hl-text">${h(op.left)}</span></div>`);
+            rRows.push(`<div class="hl-row"><span class="hl-num">${rn}</span><span class="hl-text">${h(op.right)}</span></div>`);
         } else if (op.op === '-') {
             ln++;
-            lRows.push(`<div class="hl-row hl-del"><span class="hl-num">${ln}</span></div>`);
+            lRows.push(`<div class="hl-row hl-del"><span class="hl-num">${ln}</span><span class="hl-text">${h(op.left)}</span></div>`);
         } else if (op.op === '+') {
             rn++;
-            rRows.push(`<div class="hl-row hl-add"><span class="hl-num">${rn}</span></div>`);
+            rRows.push(`<div class="hl-row hl-add"><span class="hl-num">${rn}</span><span class="hl-text">${h(op.right)}</span></div>`);
         } else if (op.op === '~') {
             ln++; rn++;
-            lRows.push(`<div class="hl-row hl-mod"><span class="hl-num">${ln}</span></div>`);
-            rRows.push(`<div class="hl-row hl-mod"><span class="hl-num">${rn}</span></div>`);
+            const [lc, rc] = diffWords(op.left, op.right);
+            lRows.push(`<div class="hl-row hl-mod"><span class="hl-num">${ln}</span><span class="hl-text">${lc}</span></div>`);
+            rRows.push(`<div class="hl-row hl-mod"><span class="hl-num">${rn}</span><span class="hl-text">${rc}</span></div>`);
         }
     }
     leftHL.innerHTML = lRows.join('');
     rightHL.innerHTML = rRows.join('');
     leftHL.scrollTop = leftTA.scrollTop;
+    leftHL.scrollLeft = leftTA.scrollLeft;
     rightHL.scrollTop = rightTA.scrollTop;
+    rightHL.scrollLeft = rightTA.scrollLeft;
 }
 
 // ===== Unified View =====
@@ -499,7 +538,7 @@ function renderUnified(ops) {
             html.push(`<div class="u-line u-add"><span class="u-num u-num-left"></span><span class="u-num u-num-right">${rn}</span><span class="u-marker">+</span><span class="u-content">${h(op.right)}</span></div>`);
         } else if (op.op === '~') {
             ln++; rn++;
-            const [lc, rc] = diffChars(op.left, op.right);
+            const [lc, rc] = diffWords(op.left, op.right);
             html.push(`<div class="u-line u-del"><span class="u-num u-num-left">${ln}</span><span class="u-num u-num-right"></span><span class="u-marker">−</span><span class="u-content">${lc}</span></div>`);
             html.push(`<div class="u-line u-add"><span class="u-num u-num-left"></span><span class="u-num u-num-right">${rn}</span><span class="u-marker">+</span><span class="u-content">${rc}</span></div>`);
         }
@@ -630,9 +669,28 @@ document.addEventListener('DOMContentLoaded', () => {
     leftTA.addEventListener('keydown', e => { if (e.key === 'Tab') handleTab(leftTA, e); });
     rightTA.addEventListener('keydown', e => { if (e.key === 'Tab') handleTab(rightTA, e); });
 
-    // Scroll sync: textarea → hl-layer
-    leftTA.addEventListener('scroll', () => { leftHL.scrollTop = leftTA.scrollTop; });
-    rightTA.addEventListener('scroll', () => { rightHL.scrollTop = rightTA.scrollTop; });
+    // Scroll sync: textarea → hl-layer + cross-pane horizontal sync
+    let scrolling = false;
+    leftTA.addEventListener('scroll', () => {
+        leftHL.scrollTop = leftTA.scrollTop;
+        leftHL.scrollLeft = leftTA.scrollLeft;
+        if (!scrolling) {
+            scrolling = true;
+            rightTA.scrollLeft = leftTA.scrollLeft;
+            rightHL.scrollLeft = leftTA.scrollLeft;
+            scrolling = false;
+        }
+    });
+    rightTA.addEventListener('scroll', () => {
+        rightHL.scrollTop = rightTA.scrollTop;
+        rightHL.scrollLeft = rightTA.scrollLeft;
+        if (!scrolling) {
+            scrolling = true;
+            leftTA.scrollLeft = rightTA.scrollLeft;
+            leftHL.scrollLeft = rightTA.scrollLeft;
+            scrolling = false;
+        }
+    });
 
     // Toolbar
     $('swapBtn').addEventListener('click', () => {

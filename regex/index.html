@@ -132,6 +132,14 @@
         .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
         .toolbar-spacer { flex: 1; }
 
+        .dialect-select {
+            padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-primary);
+            font-family: var(--font-ui); font-size: 12px; font-weight: 500;
+            cursor: pointer; outline: none; height: 28px;
+        }
+        .dialect-select:focus { border-color: var(--accent); }
+
         .flags-group { display: flex; gap: 3px; }
         .flag-btn {
             display: flex; align-items: center; justify-content: center;
@@ -142,6 +150,8 @@
         }
         .flag-btn:hover { border-color: var(--divider); color: var(--text-secondary); }
         .flag-btn.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+        .flag-btn.info-only { border-style: dashed; }
+        .flag-btn.info-only.active { background: rgba(201, 242, 112, 0.15); color: var(--accent); border-color: var(--accent); border-style: dashed; }
 
         /* ===== Main Layout ===== */
         .main {
@@ -190,6 +200,19 @@
             margin-top: 6px; font-size: 12px; color: var(--danger); display: none;
         }
         .pattern-error.visible { display: block; }
+
+        /* Dialect warnings */
+        .dialect-warnings {
+            margin-top: 6px; display: flex; flex-direction: column; gap: 4px;
+        }
+        .dialect-warning {
+            display: flex; align-items: flex-start; gap: 6px;
+            padding: 6px 10px; border-radius: var(--radius-sm);
+            background: rgba(251, 191, 36, 0.08); border: 1px solid rgba(251, 191, 36, 0.2);
+            font-size: 12px; color: var(--warning); line-height: 1.4;
+        }
+        .dialect-warning i { margin-top: 2px; flex-shrink: 0; font-size: 11px; }
+        .dialect-warning strong { font-weight: 600; }
 
         /* Test String Section */
         .test-section {
@@ -313,6 +336,30 @@
         .group-val { color: var(--text-primary); }
         .group-null { color: var(--text-muted); font-style: italic; }
 
+        /* ===== Code Snippet ===== */
+        .code-snippet-section {
+            border-top: 1px solid var(--border); flex-shrink: 0;
+        }
+        .snippet-header {
+            height: 28px; padding: 0 16px; background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--text-muted); display: flex; align-items: center;
+            justify-content: space-between; flex-shrink: 0;
+        }
+        .snippet-header button {
+            border: none; background: transparent; color: var(--text-muted);
+            cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: var(--radius-sm);
+            font-family: var(--font-ui);
+        }
+        .snippet-header button:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+        .code-snippet {
+            padding: 12px 16px; font-family: var(--font-mono); font-size: 12px;
+            line-height: 1.6; color: var(--text-primary); background: var(--bg-primary);
+            overflow-x: auto; white-space: pre; max-height: 160px; overflow-y: auto;
+            margin: 0;
+        }
+
         /* ===== Status Bar ===== */
         .statusbar {
             display: flex; align-items: center; justify-content: space-between;
@@ -325,6 +372,7 @@
         .status-valid { color: var(--success); }
         .status-error { color: var(--danger); }
         .status-empty { color: var(--text-muted); }
+        .status-dialect { font-family: var(--font-ui); font-size: 11px; color: var(--text-secondary); }
 
         /* ===== Toast ===== */
         .toast-container {
@@ -445,13 +493,19 @@
 
     <!-- Toolbar -->
     <div class="toolbar">
+        <span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;flex-shrink:0;">Dialect</span>
+        <select class="dialect-select" id="dialectSelect">
+            <option value="javascript">JavaScript</option>
+            <option value="java">Java</option>
+            <option value="python">Python</option>
+            <option value="go">Go (RE2)</option>
+            <option value="csharp">C# / .NET</option>
+            <option value="powershell">PowerShell</option>
+            <option value="pcre">PCRE (PHP/Perl)</option>
+        </select>
+        <div class="tb-sep"></div>
         <span style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.05em;text-transform:uppercase;flex-shrink:0;">Flags</span>
-        <div class="flags-group">
-            <button class="flag-btn active" data-flag="g" title="Global — find all matches">g</button>
-            <button class="flag-btn" data-flag="i" title="Case insensitive">i</button>
-            <button class="flag-btn" data-flag="m" title="Multiline — ^ and $ match line boundaries">m</button>
-            <button class="flag-btn" data-flag="s" title="Dotall — dot matches newline">s</button>
-        </div>
+        <div class="flags-group" id="flagsGroup"></div>
         <div class="tb-sep"></div>
         <button class="toolbar-btn" id="copyPatternBtn" title="Copy pattern"><i class="fas fa-copy"></i> Pattern</button>
         <button class="toolbar-btn" id="copyMatchesBtn" title="Copy matches as JSON (Ctrl+Shift+C)"><i class="fas fa-download"></i> Matches</button>
@@ -479,6 +533,7 @@
                     <span class="pattern-flags-display" id="patternFlagsDisplay">g</span>
                 </div>
                 <div class="pattern-error" id="patternError"></div>
+                <div class="dialect-warnings" id="dialectWarnings"></div>
             </div>
 
             <!-- Test string -->
@@ -486,7 +541,7 @@
                 <div class="section-label">Test String</div>
                 <div class="test-input-container">
                     <div id="highlightLayer" aria-hidden="true"></div>
-                    <textarea id="testInput" spellcheck="false" placeholder="Type or paste your test string here…"></textarea>
+                    <textarea id="testInput" spellcheck="false" placeholder="Type or paste your test string here..."></textarea>
                 </div>
             </div>
         </div>
@@ -506,6 +561,13 @@
                     <p>Enter a pattern and test string<br>to see matches here</p>
                 </div>
             </div>
+            <div class="code-snippet-section" id="codeSnippetSection" style="display:none;">
+                <div class="snippet-header">
+                    <span>Code Snippet</span>
+                    <button id="copySnippetBtn" title="Copy snippet"><i class="fas fa-copy"></i> Copy</button>
+                </div>
+                <pre class="code-snippet" id="codeSnippetBody"></pre>
+            </div>
         </div>
     </div>
 
@@ -513,6 +575,7 @@
     <div class="statusbar">
         <div class="statusbar-left">
             <span id="statusMsg" class="status-empty">Ready</span>
+            <span class="status-dialect" id="dialectStatus">JavaScript</span>
         </div>
         <div class="statusbar-right">
             <span id="charCount">0 chars</span>
@@ -527,70 +590,10 @@
 <div class="modal-overlay" id="refModal">
     <div class="modal">
         <div class="modal-header">
-            <span class="modal-title">Regex Quick Reference</span>
+            <span class="modal-title" id="refModalTitle">Regex Quick Reference</span>
             <button class="modal-close" id="refModalClose"><i class="fas fa-times"></i></button>
         </div>
-        <div class="modal-body">
-            <div class="ref-section">
-                <div class="ref-section-title">Character Classes</div>
-                <div class="ref-grid">
-                    <div class="ref-row"><span class="ref-token">.</span><span class="ref-desc">Any character except newline</span></div>
-                    <div class="ref-row"><span class="ref-token">\w</span><span class="ref-desc">Word character [a-zA-Z0-9_]</span></div>
-                    <div class="ref-row"><span class="ref-token">\d</span><span class="ref-desc">Digit [0-9]</span></div>
-                    <div class="ref-row"><span class="ref-token">\s</span><span class="ref-desc">Whitespace (space, tab, newline)</span></div>
-                    <div class="ref-row"><span class="ref-token">\W</span><span class="ref-desc">Non-word character</span></div>
-                    <div class="ref-row"><span class="ref-token">\D</span><span class="ref-desc">Non-digit</span></div>
-                    <div class="ref-row"><span class="ref-token">\S</span><span class="ref-desc">Non-whitespace</span></div>
-                    <div class="ref-row"><span class="ref-token">[abc]</span><span class="ref-desc">Character set — a, b, or c</span></div>
-                    <div class="ref-row"><span class="ref-token">[^abc]</span><span class="ref-desc">Negated set — not a, b, or c</span></div>
-                    <div class="ref-row"><span class="ref-token">[a-z]</span><span class="ref-desc">Character range a through z</span></div>
-                </div>
-            </div>
-            <div class="ref-section">
-                <div class="ref-section-title">Anchors</div>
-                <div class="ref-grid">
-                    <div class="ref-row"><span class="ref-token">^</span><span class="ref-desc">Start of string (or line with m flag)</span></div>
-                    <div class="ref-row"><span class="ref-token">$</span><span class="ref-desc">End of string (or line with m flag)</span></div>
-                    <div class="ref-row"><span class="ref-token">\b</span><span class="ref-desc">Word boundary</span></div>
-                    <div class="ref-row"><span class="ref-token">\B</span><span class="ref-desc">Non-word boundary</span></div>
-                </div>
-            </div>
-            <div class="ref-section">
-                <div class="ref-section-title">Quantifiers</div>
-                <div class="ref-grid">
-                    <div class="ref-row"><span class="ref-token">*</span><span class="ref-desc">0 or more (greedy)</span></div>
-                    <div class="ref-row"><span class="ref-token">+</span><span class="ref-desc">1 or more (greedy)</span></div>
-                    <div class="ref-row"><span class="ref-token">?</span><span class="ref-desc">0 or 1 (greedy)</span></div>
-                    <div class="ref-row"><span class="ref-token">*?</span><span class="ref-desc">0 or more (lazy)</span></div>
-                    <div class="ref-row"><span class="ref-token">+?</span><span class="ref-desc">1 or more (lazy)</span></div>
-                    <div class="ref-row"><span class="ref-token">{n}</span><span class="ref-desc">Exactly n times</span></div>
-                    <div class="ref-row"><span class="ref-token">{n,}</span><span class="ref-desc">n or more times</span></div>
-                    <div class="ref-row"><span class="ref-token">{n,m}</span><span class="ref-desc">Between n and m times</span></div>
-                </div>
-            </div>
-            <div class="ref-section">
-                <div class="ref-section-title">Groups &amp; Alternation</div>
-                <div class="ref-grid">
-                    <div class="ref-row"><span class="ref-token">(abc)</span><span class="ref-desc">Capture group</span></div>
-                    <div class="ref-row"><span class="ref-token">(?:abc)</span><span class="ref-desc">Non-capturing group</span></div>
-                    <div class="ref-row"><span class="ref-token">(?&lt;name&gt;)</span><span class="ref-desc">Named capture group</span></div>
-                    <div class="ref-row"><span class="ref-token">a|b</span><span class="ref-desc">Alternation — a or b</span></div>
-                    <div class="ref-row"><span class="ref-token">\1</span><span class="ref-desc">Backreference to group 1</span></div>
-                    <div class="ref-row"><span class="ref-token">(?=abc)</span><span class="ref-desc">Positive lookahead</span></div>
-                    <div class="ref-row"><span class="ref-token">(?!abc)</span><span class="ref-desc">Negative lookahead</span></div>
-                    <div class="ref-row"><span class="ref-token">(?&lt;=abc)</span><span class="ref-desc">Positive lookbehind</span></div>
-                </div>
-            </div>
-            <div class="ref-section">
-                <div class="ref-section-title">Flags</div>
-                <div class="ref-grid">
-                    <div class="ref-row"><span class="ref-token">g</span><span class="ref-desc">Global — find all matches</span></div>
-                    <div class="ref-row"><span class="ref-token">i</span><span class="ref-desc">Case insensitive</span></div>
-                    <div class="ref-row"><span class="ref-token">m</span><span class="ref-desc">Multiline — ^ $ match line edges</span></div>
-                    <div class="ref-row"><span class="ref-token">s</span><span class="ref-desc">Dotall — . matches newline too</span></div>
-                </div>
-            </div>
-        </div>
+        <div class="modal-body" id="refModalBody"></div>
     </div>
 </div>
 
@@ -598,51 +601,484 @@
 (function() {
     'use strict';
 
+    // ===== Base Reference (shared across dialects) =====
+    var BASE_REFERENCE = [
+        { title: 'Character Classes', rows: [
+            { token: '.', desc: 'Any character except newline' },
+            { token: '\\w', desc: 'Word character [a-zA-Z0-9_]' },
+            { token: '\\d', desc: 'Digit [0-9]' },
+            { token: '\\s', desc: 'Whitespace (space, tab, newline)' },
+            { token: '\\W', desc: 'Non-word character' },
+            { token: '\\D', desc: 'Non-digit' },
+            { token: '\\S', desc: 'Non-whitespace' },
+            { token: '[abc]', desc: 'Character set \u2014 a, b, or c' },
+            { token: '[^abc]', desc: 'Negated set \u2014 not a, b, or c' },
+            { token: '[a-z]', desc: 'Character range a through z' },
+        ]},
+        { title: 'Anchors', rows: [
+            { token: '^', desc: 'Start of string (or line with m flag)' },
+            { token: '$', desc: 'End of string (or line with m flag)' },
+            { token: '\\b', desc: 'Word boundary' },
+            { token: '\\B', desc: 'Non-word boundary' },
+        ]},
+        { title: 'Quantifiers', rows: [
+            { token: '*', desc: '0 or more (greedy)' },
+            { token: '+', desc: '1 or more (greedy)' },
+            { token: '?', desc: '0 or 1 (greedy)' },
+            { token: '*?', desc: '0 or more (lazy)' },
+            { token: '+?', desc: '1 or more (lazy)' },
+            { token: '{n}', desc: 'Exactly n times' },
+            { token: '{n,}', desc: 'n or more times' },
+            { token: '{n,m}', desc: 'Between n and m times' },
+        ]},
+    ];
+
+    // ===== Dialect Definitions =====
+    var DIALECTS = {
+        javascript: {
+            label: 'JavaScript',
+            flags: [
+                { key: 'g', title: 'Global \u2014 find all matches', jsFlag: 'g' },
+                { key: 'i', title: 'Case insensitive', jsFlag: 'i' },
+                { key: 'm', title: 'Multiline \u2014 ^ and $ match line boundaries', jsFlag: 'm' },
+                { key: 's', title: 'Dotall \u2014 dot matches newline', jsFlag: 's' },
+            ],
+            unsupported: [],
+            groups: [
+                { title: 'Groups & Alternation', rows: [
+                    { token: '(abc)', desc: 'Capture group' },
+                    { token: '(?:abc)', desc: 'Non-capturing group' },
+                    { token: '(?<name>)', desc: 'Named capture group' },
+                    { token: 'a|b', desc: 'Alternation \u2014 a or b' },
+                    { token: '\\1', desc: 'Backreference to group 1' },
+                    { token: '(?=abc)', desc: 'Positive lookahead' },
+                    { token: '(?!abc)', desc: 'Negative lookahead' },
+                    { token: '(?<=abc)', desc: 'Positive lookbehind' },
+                    { token: '(?<!abc)', desc: 'Negative lookbehind' },
+                ]},
+                { title: 'Flags', rows: [
+                    { token: 'g', desc: 'Global \u2014 find all matches' },
+                    { token: 'i', desc: 'Case insensitive' },
+                    { token: 'm', desc: 'Multiline \u2014 ^ $ match line edges' },
+                    { token: 's', desc: 'Dotall \u2014 . matches newline too' },
+                    { token: 'u', desc: 'Unicode \u2014 full Unicode matching' },
+                ]},
+            ],
+            snippet: function(p, f) {
+                return 'const regex = /' + p + '/' + f + ';\nconst matches = text.match(regex);';
+            },
+        },
+        java: {
+            label: 'Java',
+            flags: [
+                { key: 'g', title: 'Global \u2014 use while(m.find()) loop', jsFlag: 'g' },
+                { key: 'i', title: 'CASE_INSENSITIVE', jsFlag: 'i' },
+                { key: 'm', title: 'MULTILINE \u2014 ^ and $ match line boundaries', jsFlag: 'm' },
+                { key: 's', title: 'DOTALL \u2014 dot matches newline', jsFlag: 's' },
+                { key: 'x', title: 'COMMENTS \u2014 free-spacing mode', jsFlag: null },
+                { key: 'u', title: 'UNICODE_CASE', jsFlag: null },
+            ],
+            unsupported: [
+                { pattern: /\(\?<[=!]/, label: 'Variable-length lookbehind', note: 'Java supports fixed-length lookbehind only' },
+                { pattern: /\(\?[R]/, label: 'Recursion (?R)', note: 'Not supported in Java' },
+            ],
+            groups: [
+                { title: 'Groups & Alternation', rows: [
+                    { token: '(abc)', desc: 'Capture group' },
+                    { token: '(?:abc)', desc: 'Non-capturing group' },
+                    { token: '(?<name>)', desc: 'Named capture group' },
+                    { token: 'a|b', desc: 'Alternation \u2014 a or b' },
+                    { token: '\\1', desc: 'Backreference to group 1' },
+                    { token: '\\k<name>', desc: 'Named backreference' },
+                    { token: '(?=abc)', desc: 'Positive lookahead' },
+                    { token: '(?!abc)', desc: 'Negative lookahead' },
+                    { token: '(?<=abc)', desc: 'Positive lookbehind (fixed-length)' },
+                    { token: '(?<!abc)', desc: 'Negative lookbehind (fixed-length)' },
+                    { token: '(?>abc)', desc: 'Atomic group' },
+                ]},
+                { title: 'Java-Specific', rows: [
+                    { token: '\\p{Lu}', desc: 'Unicode uppercase letter' },
+                    { token: '\\p{L}', desc: 'Any Unicode letter' },
+                    { token: '\\p{Digit}', desc: 'Unicode digit' },
+                    { token: '*+', desc: 'Possessive quantifier (0+)' },
+                    { token: '++', desc: 'Possessive quantifier (1+)' },
+                    { token: '?+', desc: 'Possessive quantifier (0-1)' },
+                ]},
+                { title: 'Flags', rows: [
+                    { token: 'Pattern.CASE_INSENSITIVE', desc: 'Case insensitive matching' },
+                    { token: 'Pattern.MULTILINE', desc: '^ $ match line edges' },
+                    { token: 'Pattern.DOTALL', desc: '. matches newline too' },
+                    { token: 'Pattern.COMMENTS', desc: 'Free-spacing / comments mode' },
+                    { token: 'Pattern.UNICODE_CASE', desc: 'Unicode-aware case folding' },
+                ]},
+            ],
+            snippet: function(p, f) {
+                var javaP = p.replace(/\\/g, '\\\\');
+                var flags = [];
+                if (f.indexOf('i') !== -1) flags.push('Pattern.CASE_INSENSITIVE');
+                if (f.indexOf('m') !== -1) flags.push('Pattern.MULTILINE');
+                if (f.indexOf('s') !== -1) flags.push('Pattern.DOTALL');
+                if (f.indexOf('x') !== -1) flags.push('Pattern.COMMENTS');
+                if (f.indexOf('u') !== -1) flags.push('Pattern.UNICODE_CASE');
+                var flagStr = flags.length ? ', ' + flags.join(' | ') : '';
+                var lines = [
+                    'Pattern pattern = Pattern.compile("' + javaP + '"' + flagStr + ');',
+                    'Matcher matcher = pattern.matcher(text);',
+                ];
+                if (f.indexOf('g') !== -1) {
+                    lines.push('while (matcher.find()) {');
+                    lines.push('    System.out.println(matcher.group());');
+                    lines.push('}');
+                } else {
+                    lines.push('if (matcher.find()) {');
+                    lines.push('    System.out.println(matcher.group());');
+                    lines.push('}');
+                }
+                return lines.join('\n');
+            },
+        },
+        python: {
+            label: 'Python',
+            flags: [
+                { key: 'g', title: 'Global \u2014 use findall/finditer', jsFlag: 'g' },
+                { key: 'i', title: 're.IGNORECASE', jsFlag: 'i' },
+                { key: 'm', title: 're.MULTILINE \u2014 ^ and $ match line boundaries', jsFlag: 'm' },
+                { key: 's', title: 're.DOTALL \u2014 dot matches newline', jsFlag: 's' },
+                { key: 'x', title: 're.VERBOSE \u2014 free-spacing mode', jsFlag: null },
+            ],
+            unsupported: [
+                { pattern: /\(\?>/, label: 'Atomic group (?>...)', note: 'Not supported in Python re (use regex module)' },
+                { pattern: /[+*?]\+/, label: 'Possessive quantifiers', note: 'Not supported in Python re (use regex module)' },
+                { pattern: /\(\?[R0-9]+\)/, label: 'Recursion', note: 'Not supported in Python re (use regex module)' },
+            ],
+            groups: [
+                { title: 'Groups & Alternation', rows: [
+                    { token: '(abc)', desc: 'Capture group' },
+                    { token: '(?:abc)', desc: 'Non-capturing group' },
+                    { token: '(?P<name>)', desc: 'Named capture group' },
+                    { token: '(?<name>)', desc: 'Named group (Python 3.12+)' },
+                    { token: 'a|b', desc: 'Alternation \u2014 a or b' },
+                    { token: '\\1', desc: 'Backreference to group 1' },
+                    { token: '(?P=name)', desc: 'Named backreference' },
+                    { token: '(?=abc)', desc: 'Positive lookahead' },
+                    { token: '(?!abc)', desc: 'Negative lookahead' },
+                    { token: '(?<=abc)', desc: 'Positive lookbehind (fixed-length)' },
+                    { token: '(?<!abc)', desc: 'Negative lookbehind (fixed-length)' },
+                ]},
+                { title: 'Flags', rows: [
+                    { token: 're.IGNORECASE', desc: 'Case insensitive matching' },
+                    { token: 're.MULTILINE', desc: '^ $ match line edges' },
+                    { token: 're.DOTALL', desc: '. matches newline too' },
+                    { token: 're.VERBOSE', desc: 'Free-spacing / comments mode' },
+                    { token: 're.ASCII', desc: 'ASCII-only matching for \\w \\b etc' },
+                ]},
+            ],
+            snippet: function(p, f) {
+                var flags = [];
+                if (f.indexOf('i') !== -1) flags.push('re.IGNORECASE');
+                if (f.indexOf('m') !== -1) flags.push('re.MULTILINE');
+                if (f.indexOf('s') !== -1) flags.push('re.DOTALL');
+                if (f.indexOf('x') !== -1) flags.push('re.VERBOSE');
+                var flagStr = flags.length ? ', ' + flags.join(' | ') : '';
+                var lines = ['import re', '', 'pattern = re.compile(r\'' + p + '\'' + flagStr + ')'];
+                if (f.indexOf('g') !== -1) {
+                    lines.push('matches = pattern.findall(text)');
+                } else {
+                    lines.push('match = pattern.search(text)');
+                }
+                return lines.join('\n');
+            },
+        },
+        go: {
+            label: 'Go (RE2)',
+            flags: [
+                { key: 'g', title: 'Global \u2014 use FindAllString', jsFlag: 'g' },
+                { key: 'i', title: 'Case insensitive \u2014 (?i) prefix', jsFlag: 'i' },
+                { key: 'm', title: 'Multiline \u2014 (?m) prefix', jsFlag: 'm' },
+                { key: 's', title: 'Dotall \u2014 (?s) prefix', jsFlag: 's' },
+            ],
+            unsupported: [
+                { pattern: /\(\?[=!]/, label: 'Lookahead (?=...) (?!...)', note: 'Not supported in RE2 engine' },
+                { pattern: /\(\?<[=!]/, label: 'Lookbehind (?<=...) (?<!...)', note: 'Not supported in RE2 engine' },
+                { pattern: /\\[1-9]/, label: 'Backreferences \\1 \\2 etc', note: 'Not supported in RE2 engine' },
+                { pattern: /\(\?>/, label: 'Atomic group (?>...)', note: 'Not supported in RE2 engine' },
+                { pattern: /[+*?]\+/, label: 'Possessive quantifiers', note: 'Not supported in RE2 engine' },
+                { pattern: /\(\?[R0-9]+\)/, label: 'Recursion', note: 'Not supported in RE2 engine' },
+                { pattern: /\(\?\(/, label: 'Conditional patterns', note: 'Not supported in RE2 engine' },
+            ],
+            groups: [
+                { title: 'Groups & Alternation', rows: [
+                    { token: '(abc)', desc: 'Capture group' },
+                    { token: '(?:abc)', desc: 'Non-capturing group' },
+                    { token: '(?P<name>)', desc: 'Named capture group' },
+                    { token: 'a|b', desc: 'Alternation \u2014 a or b' },
+                ]},
+                { title: 'Inline Flags', rows: [
+                    { token: '(?i)', desc: 'Case insensitive' },
+                    { token: '(?m)', desc: '^ $ match line edges' },
+                    { token: '(?s)', desc: '. matches newline too' },
+                    { token: '(?U)', desc: 'Swap greedy/lazy defaults' },
+                ]},
+                { title: 'Not Supported (RE2)', rows: [
+                    { token: '(?=...)', desc: 'Lookahead \u2014 not available' },
+                    { token: '(?<=...)', desc: 'Lookbehind \u2014 not available' },
+                    { token: '\\1', desc: 'Backreferences \u2014 not available' },
+                ]},
+            ],
+            snippet: function(p, f) {
+                var inlineFlags = '';
+                if (f.indexOf('i') !== -1) inlineFlags += 'i';
+                if (f.indexOf('m') !== -1) inlineFlags += 'm';
+                if (f.indexOf('s') !== -1) inlineFlags += 's';
+                var goP = inlineFlags ? '(?' + inlineFlags + ')' + p : p;
+                var lines = ['re := regexp.MustCompile(`' + goP + '`)'];
+                if (f.indexOf('g') !== -1) {
+                    lines.push('matches := re.FindAllString(text, -1)');
+                } else {
+                    lines.push('match := re.FindString(text)');
+                }
+                return lines.join('\n');
+            },
+        },
+        csharp: {
+            label: 'C# / .NET',
+            flags: [
+                { key: 'g', title: 'Global \u2014 use Matches() vs Match()', jsFlag: 'g' },
+                { key: 'i', title: 'RegexOptions.IgnoreCase', jsFlag: 'i' },
+                { key: 'm', title: 'RegexOptions.Multiline', jsFlag: 'm' },
+                { key: 's', title: 'RegexOptions.Singleline (dotall)', jsFlag: 's' },
+                { key: 'x', title: 'RegexOptions.IgnorePatternWhitespace', jsFlag: null },
+            ],
+            unsupported: [],
+            groups: [
+                { title: 'Groups & Alternation', rows: [
+                    { token: '(abc)', desc: 'Capture group' },
+                    { token: '(?:abc)', desc: 'Non-capturing group' },
+                    { token: '(?<name>)', desc: 'Named capture group' },
+                    { token: 'a|b', desc: 'Alternation \u2014 a or b' },
+                    { token: '\\1', desc: 'Backreference to group 1' },
+                    { token: '\\k<name>', desc: 'Named backreference' },
+                    { token: '(?=abc)', desc: 'Positive lookahead' },
+                    { token: '(?!abc)', desc: 'Negative lookahead' },
+                    { token: '(?<=abc)', desc: 'Positive lookbehind' },
+                    { token: '(?<!abc)', desc: 'Negative lookbehind' },
+                    { token: '(?>abc)', desc: 'Atomic group' },
+                    { token: '(?<n>-<m>)', desc: 'Balancing group' },
+                ]},
+                { title: '.NET-Specific', rows: [
+                    { token: '(?<=...)', desc: 'Variable-length lookbehind (supported!)' },
+                    { token: '(?<n>-<m>)', desc: 'Balancing groups for nesting' },
+                    { token: '\\p{Lu}', desc: 'Unicode uppercase letter' },
+                    { token: '\\p{L}', desc: 'Any Unicode letter' },
+                ]},
+                { title: 'Flags', rows: [
+                    { token: 'IgnoreCase', desc: 'Case insensitive matching' },
+                    { token: 'Multiline', desc: '^ $ match line edges' },
+                    { token: 'Singleline', desc: '. matches newline too (dotall)' },
+                    { token: 'IgnorePatternWhitespace', desc: 'Free-spacing mode' },
+                    { token: 'Compiled', desc: 'Compile to IL for better perf' },
+                ]},
+            ],
+            snippet: function(p, f) {
+                var flags = [];
+                if (f.indexOf('i') !== -1) flags.push('RegexOptions.IgnoreCase');
+                if (f.indexOf('m') !== -1) flags.push('RegexOptions.Multiline');
+                if (f.indexOf('s') !== -1) flags.push('RegexOptions.Singleline');
+                if (f.indexOf('x') !== -1) flags.push('RegexOptions.IgnorePatternWhitespace');
+                var flagStr = flags.length ? ', ' + flags.join(' | ') : '';
+                var lines = ['var regex = new Regex(@"' + p + '"' + flagStr + ');'];
+                if (f.indexOf('g') !== -1) {
+                    lines.push('var matches = regex.Matches(input);');
+                    lines.push('foreach (Match m in matches) {');
+                    lines.push('    Console.WriteLine(m.Value);');
+                    lines.push('}');
+                } else {
+                    lines.push('var match = regex.Match(input);');
+                    lines.push('if (match.Success) {');
+                    lines.push('    Console.WriteLine(match.Value);');
+                    lines.push('}');
+                }
+                return lines.join('\n');
+            },
+        },
+        powershell: {
+            label: 'PowerShell',
+            flags: [
+                { key: 'g', title: 'Global \u2014 use [regex]::Matches vs Match', jsFlag: 'g' },
+                { key: 'i', title: 'IgnoreCase (default in PS)', jsFlag: 'i' },
+                { key: 'm', title: 'Multiline', jsFlag: 'm' },
+                { key: 's', title: 'Singleline (dotall)', jsFlag: 's' },
+                { key: 'x', title: 'IgnorePatternWhitespace', jsFlag: null },
+            ],
+            unsupported: [],
+            groups: [
+                { title: 'Groups & Alternation', rows: [
+                    { token: '(abc)', desc: 'Capture group' },
+                    { token: '(?:abc)', desc: 'Non-capturing group' },
+                    { token: '(?<name>)', desc: 'Named capture group' },
+                    { token: 'a|b', desc: 'Alternation \u2014 a or b' },
+                    { token: '\\1', desc: 'Backreference to group 1' },
+                    { token: '(?=abc)', desc: 'Positive lookahead' },
+                    { token: '(?!abc)', desc: 'Negative lookahead' },
+                    { token: '(?<=abc)', desc: 'Positive lookbehind' },
+                    { token: '(?<!abc)', desc: 'Negative lookbehind' },
+                ]},
+                { title: 'PowerShell Operators', rows: [
+                    { token: '-match', desc: 'Match against string (single)' },
+                    { token: '-replace', desc: 'Regex replace' },
+                    { token: '-split', desc: 'Split by regex' },
+                    { token: '[regex]::Matches()', desc: 'Find all matches' },
+                    { token: '$Matches', desc: 'Auto variable after -match' },
+                ]},
+                { title: 'Flags', rows: [
+                    { token: 'IgnoreCase', desc: 'Case insensitive (default)' },
+                    { token: 'Multiline', desc: '^ $ match line edges' },
+                    { token: 'Singleline', desc: '. matches newline too' },
+                    { token: 'IgnorePatternWhitespace', desc: 'Free-spacing mode' },
+                ]},
+            ],
+            snippet: function(p, f) {
+                var flags = [];
+                if (f.indexOf('i') !== -1) flags.push("'IgnoreCase'");
+                if (f.indexOf('m') !== -1) flags.push("'Multiline'");
+                if (f.indexOf('s') !== -1) flags.push("'Singleline'");
+                if (f.indexOf('x') !== -1) flags.push("'IgnorePatternWhitespace'");
+                if (f.indexOf('g') !== -1) {
+                    if (flags.length) {
+                        return '[regex]::Matches($text, \'' + p + '\', ' + flags.join(' -bor ') + ')';
+                    }
+                    return '[regex]::Matches($text, \'' + p + '\')';
+                } else {
+                    var lines = [];
+                    if (flags.length && flags.length > 1) {
+                        lines.push('$text -match \'' + p + '\'');
+                        lines.push('# Or with explicit flags:');
+                        lines.push('[regex]::Match($text, \'' + p + '\', ' + flags.join(' -bor ') + ')');
+                    } else if (flags.length === 1 && flags[0] === "'IgnoreCase'") {
+                        lines.push('$text -match \'' + p + '\'');
+                    } else if (flags.length) {
+                        lines.push('[regex]::Match($text, \'' + p + '\', ' + flags.join(' -bor ') + ')');
+                    } else {
+                        lines.push('$text -cmatch \'' + p + '\'');
+                    }
+                    return lines.join('\n');
+                }
+            },
+        },
+        pcre: {
+            label: 'PCRE (PHP/Perl)',
+            flags: [
+                { key: 'g', title: 'Global \u2014 preg_match_all vs preg_match', jsFlag: 'g' },
+                { key: 'i', title: 'Case insensitive', jsFlag: 'i' },
+                { key: 'm', title: 'Multiline \u2014 ^ and $ match line boundaries', jsFlag: 'm' },
+                { key: 's', title: 'Dotall \u2014 dot matches newline', jsFlag: 's' },
+                { key: 'x', title: 'Extended \u2014 free-spacing mode', jsFlag: null },
+                { key: 'u', title: 'Unicode (UTF-8 mode)', jsFlag: null },
+            ],
+            unsupported: [],
+            groups: [
+                { title: 'Groups & Alternation', rows: [
+                    { token: '(abc)', desc: 'Capture group' },
+                    { token: '(?:abc)', desc: 'Non-capturing group' },
+                    { token: '(?<name>)', desc: 'Named capture group' },
+                    { token: "(?'name')", desc: 'Named capture group (alt syntax)' },
+                    { token: '(?P<name>)', desc: 'Named capture group (Python syntax)' },
+                    { token: 'a|b', desc: 'Alternation \u2014 a or b' },
+                    { token: '\\1', desc: 'Backreference to group 1' },
+                    { token: '(?=abc)', desc: 'Positive lookahead' },
+                    { token: '(?!abc)', desc: 'Negative lookahead' },
+                    { token: '(?<=abc)', desc: 'Positive lookbehind (fixed-length)' },
+                    { token: '(?<!abc)', desc: 'Negative lookbehind (fixed-length)' },
+                ]},
+                { title: 'PCRE-Specific', rows: [
+                    { token: '(?>abc)', desc: 'Atomic group' },
+                    { token: '*+', desc: 'Possessive quantifier (0+)' },
+                    { token: '++', desc: 'Possessive quantifier (1+)' },
+                    { token: '(?R)', desc: 'Recursion (whole pattern)' },
+                    { token: '(?1)', desc: 'Recursion (group 1)' },
+                    { token: '(?(1)y|n)', desc: 'Conditional \u2014 if group 1 matched' },
+                    { token: '\\K', desc: 'Reset match start (keep-out)' },
+                    { token: '\\p{L}', desc: 'Unicode letter property' },
+                ]},
+                { title: 'Flags', rows: [
+                    { token: 'i', desc: 'Case insensitive' },
+                    { token: 'm', desc: '^ $ match line edges' },
+                    { token: 's', desc: '. matches newline too' },
+                    { token: 'x', desc: 'Extended \u2014 free-spacing mode' },
+                    { token: 'u', desc: 'Unicode (UTF-8 mode)' },
+                    { token: 'U', desc: 'Swap greedy/lazy defaults' },
+                ]},
+            ],
+            snippet: function(p, f) {
+                var modifiers = '';
+                if (f.indexOf('i') !== -1) modifiers += 'i';
+                if (f.indexOf('m') !== -1) modifiers += 'm';
+                if (f.indexOf('s') !== -1) modifiers += 's';
+                if (f.indexOf('x') !== -1) modifiers += 'x';
+                if (f.indexOf('u') !== -1) modifiers += 'u';
+                var phpP = p.replace(/'/g, "\\'");
+                if (f.indexOf('g') !== -1) {
+                    return "preg_match_all('/" + phpP + '/' + modifiers + "', $subject, $matches);";
+                }
+                return "preg_match('/" + phpP + '/' + modifiers + "', $subject, $matches);";
+            },
+        },
+    };
+
     // ===== State =====
-    const state = {
+    var savedDialect = localStorage.getItem('nibset-regex-dialect');
+    var state = {
         pattern: '',
         flags: new Set(['g']),
         test: '',
         matches: [],
         error: null,
-        regex: null
+        regex: null,
+        dialect: (savedDialect && DIALECTS[savedDialect]) ? savedDialect : 'javascript',
+        warnings: [],
     };
 
     // ===== DOM refs =====
-    const $ = id => document.getElementById(id);
-    const patternInput = $('patternInput');
-    const patternWrap = $('patternWrap');
-    const patternError = $('patternError');
-    const patternFlagsDisplay = $('patternFlagsDisplay');
-    const testInput = $('testInput');
-    const highlightLayer = $('highlightLayer');
-    const resultsBody = $('resultsBody');
-    const resultsCount = $('resultsCount');
-    const emptyState = $('emptyState');
-    const statusMsg = $('statusMsg');
-    const charCount = $('charCount');
-    const toastContainer = $('toastContainer');
-    const refModal = $('refModal');
-    const paneDivider = $('paneDivider');
-    const leftPanel = $('leftPanel');
-    const rightPanel = $('rightPanel');
+    var $ = function(id) { return document.getElementById(id); };
+    var patternInput = $('patternInput');
+    var patternWrap = $('patternWrap');
+    var patternError = $('patternError');
+    var patternFlagsDisplay = $('patternFlagsDisplay');
+    var testInput = $('testInput');
+    var highlightLayer = $('highlightLayer');
+    var resultsBody = $('resultsBody');
+    var resultsCount = $('resultsCount');
+    var emptyState = $('emptyState');
+    var statusMsg = $('statusMsg');
+    var charCount = $('charCount');
+    var toastContainer = $('toastContainer');
+    var refModal = $('refModal');
+    var paneDivider = $('paneDivider');
+    var leftPanel = $('leftPanel');
+    var rightPanel = $('rightPanel');
+    var dialectSelect = $('dialectSelect');
+    var flagsGroup = $('flagsGroup');
+    var dialectWarnings = $('dialectWarnings');
+    var codeSnippetSection = $('codeSnippetSection');
+    var codeSnippetBody = $('codeSnippetBody');
+    var dialectStatus = $('dialectStatus');
 
     // ===== Toast =====
     function showToast(msg, icon) {
         icon = icon || 'fa-check';
-        const t = document.createElement('div');
+        var t = document.createElement('div');
         t.className = 'toast';
         t.innerHTML = '<i class="fas ' + icon + '"></i> ' + escapeHtml(msg);
         toastContainer.appendChild(t);
-        setTimeout(() => t.remove(), 3000);
+        setTimeout(function() { t.remove(); }, 3000);
     }
 
     // ===== Clipboard =====
     function copy(text, label) {
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => showToast(label || 'Copied'));
+            navigator.clipboard.writeText(text).then(function() { showToast(label || 'Copied'); });
         } else {
-            const ta = document.createElement('textarea');
+            var ta = document.createElement('textarea');
             ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
             document.body.appendChild(ta); ta.select(); document.execCommand('copy');
             document.body.removeChild(ta);
@@ -659,18 +1095,70 @@
             .replace(/"/g, '&quot;');
     }
 
-    function escapeRegex(s) {
-        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function getFlags() {
+        return Array.from(state.flags).join('');
     }
 
-    function getFlags() {
-        return [...state.flags].join('');
+    // Get only JS-executable flags from current state
+    function getJsFlags() {
+        var dialect = DIALECTS[state.dialect];
+        var jsFlags = '';
+        dialect.flags.forEach(function(f) {
+            if (state.flags.has(f.key) && f.jsFlag) {
+                jsFlags += f.jsFlag;
+            }
+        });
+        return jsFlags;
+    }
+
+    // ===== Render: flag buttons =====
+    function renderFlags() {
+        flagsGroup.innerHTML = '';
+        var dialect = DIALECTS[state.dialect];
+        dialect.flags.forEach(function(f) {
+            var btn = document.createElement('button');
+            btn.className = 'flag-btn';
+            if (state.flags.has(f.key)) btn.className += ' active';
+            if (!f.jsFlag) btn.className += ' info-only';
+            btn.setAttribute('data-flag', f.key);
+            btn.setAttribute('title', f.title);
+            btn.textContent = f.key;
+            btn.addEventListener('click', function() {
+                if (state.flags.has(f.key)) {
+                    state.flags.delete(f.key);
+                    btn.classList.remove('active');
+                } else {
+                    state.flags.add(f.key);
+                    btn.classList.add('active');
+                }
+                runRegex();
+            });
+            flagsGroup.appendChild(btn);
+        });
+    }
+
+    // ===== Dialect compatibility check =====
+    function checkDialectCompatibility() {
+        var dialect = DIALECTS[state.dialect];
+        var warnings = [];
+        if (!state.pattern || !dialect.unsupported) {
+            state.warnings = [];
+            return;
+        }
+        dialect.unsupported.forEach(function(rule) {
+            if (rule.pattern.test(state.pattern)) {
+                warnings.push({ label: rule.label, note: rule.note });
+            }
+        });
+        state.warnings = warnings;
     }
 
     // ===== Core: run regex =====
     function runRegex() {
-        const pattern = state.pattern;
-        const test = state.test;
+        var pattern = state.pattern;
+        var test = state.test;
+
+        checkDialectCompatibility();
 
         if (!pattern) {
             state.regex = null;
@@ -680,10 +1168,9 @@
             return;
         }
 
-        // Build regex
-        let flags = getFlags();
-        // Ensure 'd' flag if available (for indices) — not critical, skip for compat
-        let regex;
+        // Build regex using JS-compatible flags only
+        var flags = getJsFlags();
+        var regex;
         try {
             regex = new RegExp(pattern, flags);
             state.regex = regex;
@@ -697,20 +1184,17 @@
         }
 
         // Collect matches
-        const matches = [];
+        var matches = [];
         if (state.flags.has('g')) {
             // Global: iterate all matches
-            let m;
-            // Reset lastIndex
+            var m;
             regex.lastIndex = 0;
             while ((m = regex.exec(test)) !== null) {
                 matches.push({ index: m.index, value: m[0], groups: Array.from(m).slice(1), namedGroups: m.groups || null });
-                // Avoid infinite loop on zero-length match
                 if (m[0].length === 0) regex.lastIndex++;
             }
         } else {
-            // Non-global: single match
-            const m = regex.exec(test);
+            var m = regex.exec(test);
             if (m) {
                 matches.push({ index: m.index, value: m[0], groups: Array.from(m).slice(1), namedGroups: m.groups || null });
             }
@@ -724,98 +1208,41 @@
     function buildHighlightHtml(text, matches) {
         if (!matches.length) return escapeHtml(text);
 
-        // Build a list of ranges to highlight
-        // Each range: { start, end, type: 'match'|'group', groupIndex }
-        // We render from start to end, layering match first, then groups on top
-        // For simplicity: render segment by segment using the match positions
-
-        // Collect all character-level annotations
-        // Use a simple approach: for each match, mark the full match span
-        // then for each capture group, mark its span
-        // Render left-to-right, closest span wins on overlap
-
-        // Build segments via interval painting
-        // We'll build an array of {start,end,cls} sorted by priority (groups > matches)
-        const spans = [];
-        for (const m of matches) {
-            const matchEnd = m.index + m.value.length;
-            spans.push({ start: m.index, end: matchEnd, cls: 'match' });
-            // Named groups
-            if (m.namedGroups) {
-                // iterate named groups
-                for (const [name, val] of Object.entries(m.namedGroups)) {
-                    if (val === undefined || val === null) continue;
-                    // Find position of this named group within match
-                    const idx = text.indexOf(val, m.index);
-                    if (idx !== -1 && idx < matchEnd) {
-                        spans.push({ start: idx, end: idx + val.length, cls: 'group group-1' });
-                    }
-                }
-            }
-            // Numbered groups
-            m.groups.forEach((g, i) => {
-                if (g === undefined || g === null) return;
-                // Find group position: simple approach — search within match
-                const idx = text.indexOf(g, m.index);
-                if (idx !== -1 && idx + g.length <= matchEnd) {
-                    spans.push({ start: idx, end: idx + g.length, cls: 'group group-' + (i + 1) });
-                }
-            });
-        }
-
-        // Sort: match spans first, then group spans (groups render on top)
-        // We actually do a simpler flat render: just mark match regions
-        // For perfect group highlighting we'd need regex with indices ('d' flag)
-        // Use the match-level highlighting only for broad compat
-        // Groups: use the namedGroups/groups values as hints
-
-        // Simplest correct approach: render char-by-char using a coverage array
-        // But that's slow. Instead build sorted non-overlapping intervals for matches only,
-        // then for groups within each match
-        const n = text.length;
-        // coverage: array of class names per char, '' means no class
-        // Use match for whole match, then override with group class for group chars
-        const coverage = new Array(n).fill('');
-        // Apply matches first (lower priority)
-        for (const m of matches) {
-            for (let i = m.index; i < m.index + m.value.length; i++) {
+        var n = text.length;
+        var coverage = new Array(n).fill('');
+        for (var mi = 0; mi < matches.length; mi++) {
+            var m = matches[mi];
+            for (var i = m.index; i < m.index + m.value.length; i++) {
                 if (i < n) coverage[i] = 'match';
             }
         }
-        // Apply groups on top (higher priority)
-        for (const m of matches) {
-            // We need actual positions of groups — use regex with d flag if available
-            // Fallback: if group value is non-empty and unique within match, find it
-            // For production correctness we use a second exec pass with indices if available
-            const matchStr = m.value;
-            m.groups.forEach((g, gi) => {
+        for (var mi = 0; mi < matches.length; mi++) {
+            var m = matches[mi];
+            var matchStr = m.value;
+            m.groups.forEach(function(g, gi) {
                 if (!g) return;
-                // Find all occurrences of g in matchStr, use first one
-                let pos = matchStr.indexOf(g);
+                var pos = matchStr.indexOf(g);
                 if (pos !== -1) {
-                    const abs = m.index + pos;
-                    const groupClass = 'group group-' + (gi + 1);
-                    for (let i = abs; i < abs + g.length && i < n; i++) {
+                    var abs = m.index + pos;
+                    var groupClass = 'group group-' + (gi + 1);
+                    for (var i = abs; i < abs + g.length && i < n; i++) {
                         coverage[i] = groupClass;
                     }
                 }
             });
         }
 
-        // Build HTML from coverage array
-        let html = '';
-        let i = 0;
+        var html = '';
+        var i = 0;
         while (i < n) {
-            const cls = coverage[i];
+            var cls = coverage[i];
             if (!cls) {
-                // Find run of no-coverage
-                let j = i;
+                var j = i;
                 while (j < n && !coverage[j]) j++;
                 html += escapeHtml(text.slice(i, j));
                 i = j;
             } else {
-                // Find run of same class
-                let j = i;
+                var j = i;
                 while (j < n && coverage[j] === cls) j++;
                 html += '<mark class="' + cls + '">' + escapeHtml(text.slice(i, j)) + '</mark>';
                 i = j;
@@ -825,17 +1252,16 @@
     }
 
     function updateHighlight() {
-        const text = state.test;
-        const matches = state.matches;
+        var text = state.test;
+        var matches = state.matches;
         highlightLayer.innerHTML = buildHighlightHtml(text, matches);
-        // Sync scroll
         highlightLayer.scrollTop = testInput.scrollTop;
         highlightLayer.scrollLeft = testInput.scrollLeft;
     }
 
     // ===== Render: results panel =====
     function renderResults() {
-        const matches = state.matches;
+        var matches = state.matches;
         if (!matches.length) {
             resultsBody.innerHTML = '';
             resultsBody.appendChild(emptyState);
@@ -855,12 +1281,12 @@
 
         resultsCount.textContent = matches.length + (matches.length === 1 ? ' match' : ' matches');
 
-        const frag = document.createDocumentFragment();
-        matches.forEach((m, idx) => {
-            const card = document.createElement('div');
+        var frag = document.createDocumentFragment();
+        matches.forEach(function(m, idx) {
+            var card = document.createElement('div');
             card.className = 'match-card';
 
-            const header = document.createElement('div');
+            var header = document.createElement('div');
             header.className = 'match-header';
             header.innerHTML =
                 '<span class="match-index">#' + (idx + 1) + '</span>' +
@@ -869,16 +1295,16 @@
 
             card.appendChild(header);
 
-            // Groups
-            const capGroups = m.groups.filter(g => g !== undefined);
-            const hasNamedGroups = m.namedGroups && Object.keys(m.namedGroups).length > 0;
+            var capGroups = m.groups.filter(function(g) { return g !== undefined; });
+            var hasNamedGroups = m.namedGroups && Object.keys(m.namedGroups).length > 0;
             if (capGroups.length > 0 || hasNamedGroups) {
-                const groupsEl = document.createElement('div');
+                var groupsEl = document.createElement('div');
                 groupsEl.className = 'match-groups';
 
                 if (hasNamedGroups) {
-                    Object.entries(m.namedGroups).forEach(([name, val], i) => {
-                        const row = document.createElement('div');
+                    Object.entries(m.namedGroups).forEach(function(entry, i) {
+                        var name = entry[0], val = entry[1];
+                        var row = document.createElement('div');
                         row.className = 'group-row group-' + (i + 1);
                         row.innerHTML = '<span class="group-label">' + escapeHtml(name) + '</span>' +
                             (val !== undefined && val !== null
@@ -887,8 +1313,8 @@
                         groupsEl.appendChild(row);
                     });
                 } else {
-                    m.groups.forEach((g, i) => {
-                        const row = document.createElement('div');
+                    m.groups.forEach(function(g, i) {
+                        var row = document.createElement('div');
                         row.className = 'group-row group-' + (i + 1);
                         row.innerHTML = '<span class="group-label">$' + (i + 1) + '</span>' +
                             (g !== undefined && g !== null
@@ -907,9 +1333,34 @@
         resultsBody.appendChild(frag);
     }
 
+    // ===== Render: warnings =====
+    function renderWarnings() {
+        if (!state.warnings.length) {
+            dialectWarnings.innerHTML = '';
+            return;
+        }
+        dialectWarnings.innerHTML = state.warnings.map(function(w) {
+            return '<div class="dialect-warning"><i class="fas fa-exclamation-triangle"></i>' +
+                '<span><strong>' + escapeHtml(w.label) + '</strong> \u2014 ' + escapeHtml(w.note) + '</span></div>';
+        }).join('');
+    }
+
+    // ===== Render: code snippet =====
+    function renderCodeSnippet() {
+        var dialect = DIALECTS[state.dialect];
+        if (!state.pattern) {
+            codeSnippetSection.style.display = 'none';
+            return;
+        }
+        codeSnippetSection.style.display = '';
+        var code = dialect.snippet(state.pattern, getFlags());
+        codeSnippetBody.textContent = code;
+    }
+
     // ===== Render: status bar =====
     function renderStatus() {
         charCount.textContent = state.test.length.toLocaleString() + ' chars';
+        dialectStatus.textContent = DIALECTS[state.dialect].label;
         if (!state.pattern) {
             statusMsg.className = 'status-empty';
             statusMsg.textContent = 'Ready';
@@ -930,7 +1381,7 @@
 
     // ===== Render: pattern input decoration =====
     function renderPatternState() {
-        const flagStr = getFlags() || '';
+        var flagStr = getFlags() || '';
         patternFlagsDisplay.textContent = flagStr;
 
         if (!state.pattern) {
@@ -948,48 +1399,69 @@
         }
     }
 
+    // ===== Render: Quick Reference =====
+    function renderReference() {
+        var dialect = DIALECTS[state.dialect];
+        $('refModalTitle').textContent = 'Quick Reference \u2014 ' + dialect.label;
+        var sections = BASE_REFERENCE.concat(dialect.groups || []);
+        var body = $('refModalBody');
+        body.innerHTML = sections.map(function(section) {
+            return '<div class="ref-section">' +
+                '<div class="ref-section-title">' + escapeHtml(section.title) + '</div>' +
+                '<div class="ref-grid">' +
+                section.rows.map(function(r) {
+                    return '<div class="ref-row"><span class="ref-token">' + escapeHtml(r.token) +
+                        '</span><span class="ref-desc">' + escapeHtml(r.desc) + '</span></div>';
+                }).join('') +
+                '</div></div>';
+        }).join('');
+    }
+
     // ===== Master render =====
     function render() {
         renderPatternState();
         updateHighlight();
         renderResults();
+        renderWarnings();
+        renderCodeSnippet();
         renderStatus();
     }
 
     // ===== Event: pattern input =====
-    patternInput.addEventListener('input', () => {
+    patternInput.addEventListener('input', function() {
         state.pattern = patternInput.value;
         runRegex();
     });
 
     // ===== Event: test input =====
-    testInput.addEventListener('input', () => {
+    testInput.addEventListener('input', function() {
         state.test = testInput.value;
         runRegex();
     });
 
-    testInput.addEventListener('scroll', () => {
+    testInput.addEventListener('scroll', function() {
         highlightLayer.scrollTop = testInput.scrollTop;
         highlightLayer.scrollLeft = testInput.scrollLeft;
     });
 
-    // ===== Event: flag toggles =====
-    document.querySelectorAll('.flag-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const flag = btn.dataset.flag;
-            if (state.flags.has(flag)) {
-                state.flags.delete(flag);
-                btn.classList.remove('active');
-            } else {
-                state.flags.add(flag);
-                btn.classList.add('active');
-            }
-            runRegex();
+    // ===== Event: dialect change =====
+    dialectSelect.addEventListener('change', function() {
+        state.dialect = dialectSelect.value;
+        localStorage.setItem('nibset-regex-dialect', state.dialect);
+
+        // Reconcile flags with new dialect
+        var available = new Set(DIALECTS[state.dialect].flags.map(function(f) { return f.key; }));
+        Array.from(state.flags).forEach(function(f) {
+            if (!available.has(f)) state.flags.delete(f);
         });
+
+        renderFlags();
+        renderReference();
+        runRegex();
     });
 
     // ===== Event: copy pattern =====
-    $('copyPatternBtn').addEventListener('click', () => {
+    $('copyPatternBtn').addEventListener('click', function() {
         if (!state.pattern) { showToast('No pattern to copy', 'fa-exclamation'); return; }
         copy('/' + state.pattern + '/' + getFlags(), 'Pattern copied');
     });
@@ -997,52 +1469,62 @@
     // ===== Event: copy matches =====
     function copyMatches() {
         if (!state.matches.length) { showToast('No matches to copy', 'fa-exclamation'); return; }
-        const data = state.matches.map((m, i) => ({
-            index: i + 1,
-            value: m.value,
-            position: m.index,
-            groups: m.groups,
-            namedGroups: m.namedGroups || undefined
-        }));
+        var data = state.matches.map(function(m, i) {
+            return {
+                index: i + 1,
+                value: m.value,
+                position: m.index,
+                groups: m.groups,
+                namedGroups: m.namedGroups || undefined
+            };
+        });
         copy(JSON.stringify(data, null, 2), 'Matches copied as JSON');
     }
     $('copyMatchesBtn').addEventListener('click', copyMatches);
 
+    // ===== Event: copy snippet =====
+    $('copySnippetBtn').addEventListener('click', function() {
+        var code = codeSnippetBody.textContent;
+        if (!code) { showToast('No snippet to copy', 'fa-exclamation'); return; }
+        copy(code, 'Snippet copied');
+    });
+
     // ===== Event: clear =====
-    $('clearBtn').addEventListener('click', () => {
+    $('clearBtn').addEventListener('click', function() {
         patternInput.value = '';
         testInput.value = '';
         state.pattern = '';
         state.test = '';
         state.flags = new Set(['g']);
-        document.querySelectorAll('.flag-btn').forEach(b => {
-            b.classList.toggle('active', b.dataset.flag === 'g');
-        });
+        renderFlags();
         runRegex();
     });
 
     // ===== Event: quick ref modal =====
-    $('refBtn').addEventListener('click', () => refModal.classList.add('open'));
-    $('refModalClose').addEventListener('click', () => refModal.classList.remove('open'));
-    refModal.addEventListener('click', e => { if (e.target === refModal) refModal.classList.remove('open'); });
+    $('refBtn').addEventListener('click', function() {
+        renderReference();
+        refModal.classList.add('open');
+    });
+    $('refModalClose').addEventListener('click', function() { refModal.classList.remove('open'); });
+    refModal.addEventListener('click', function(e) { if (e.target === refModal) refModal.classList.remove('open'); });
 
     // ===== Event: keyboard shortcuts =====
-    document.addEventListener('keydown', e => {
+    document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') refModal.classList.remove('open');
         if (e.ctrlKey && e.shiftKey && e.key === 'C') { e.preventDefault(); copyMatches(); }
     });
 
     // ===== Event: theme toggle =====
-    $('themeToggle').addEventListener('click', () => {
-        const current = document.documentElement.getAttribute('data-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
+    $('themeToggle').addEventListener('click', function() {
+        var current = document.documentElement.getAttribute('data-theme');
+        var next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
         localStorage.setItem('nibset-theme', next);
     });
 
     // ===== Event: pane divider drag =====
-    let dragging = false, startX = 0, startLeft = 0, startRight = 0;
-    paneDivider.addEventListener('mousedown', e => {
+    var dragging = false, startX = 0, startLeft = 0, startRight = 0;
+    paneDivider.addEventListener('mousedown', function(e) {
         dragging = true;
         startX = e.clientX;
         startLeft = leftPanel.getBoundingClientRect().width;
@@ -1051,16 +1533,16 @@
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
     });
-    document.addEventListener('mousemove', e => {
+    document.addEventListener('mousemove', function(e) {
         if (!dragging) return;
-        const dx = e.clientX - startX;
-        const totalW = startLeft + startRight;
-        const newLeft = Math.max(200, Math.min(totalW - 200, startLeft + dx));
+        var dx = e.clientX - startX;
+        var totalW = startLeft + startRight;
+        var newLeft = Math.max(200, Math.min(totalW - 200, startLeft + dx));
         leftPanel.style.flex = 'none';
         leftPanel.style.width = newLeft + 'px';
         rightPanel.style.flex = '1';
     });
-    document.addEventListener('mouseup', () => {
+    document.addEventListener('mouseup', function() {
         if (!dragging) return;
         dragging = false;
         paneDivider.classList.remove('dragging');
@@ -1069,17 +1551,20 @@
     });
 
     // ===== Mobile tabs =====
-    document.querySelectorAll('.mobile-tabs button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.mobile-tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.mobile-tabs button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.mobile-tabs button').forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
-            const panel = btn.dataset.panel;
+            var panel = btn.dataset.panel;
             leftPanel.classList.toggle('mobile-active', panel === 'left');
             rightPanel.classList.toggle('mobile-active', panel === 'right');
         });
     });
 
     // ===== Init =====
+    dialectSelect.value = state.dialect;
+    renderFlags();
+    renderReference();
     render();
 })();
 </script>

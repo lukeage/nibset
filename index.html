@@ -246,7 +246,7 @@
     background: var(--border);
   }
 
-  /* ── Tools Grid ── */
+  /* ── Tools Section ── */
   .tools {
     position: relative;
     z-index: 1;
@@ -255,19 +255,157 @@
     padding: 2rem 2rem 4rem;
   }
 
+  .tools-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
   .tools-label {
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.15em;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-bottom: 1.25rem;
+    margin-bottom: 0;
   }
+
+  .tools-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    transition: border-color 0.2s;
+    min-width: 0;
+    width: 260px;
+    max-width: 100%;
+  }
+
+  .tools-search:focus-within { border-color: var(--accent-dim); }
+
+  .tools-search svg { width: 14px; height: 14px; color: var(--text-muted); flex-shrink: 0; }
+
+  .tools-search input {
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.8125rem;
+    outline: none;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .tools-search input::placeholder { color: var(--text-muted); }
+
+  /* ── Tag Filter Bar ── */
+  .tag-bar {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+  }
+
+  .tag-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-body);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .tag-btn:hover { color: var(--text-secondary); border-color: var(--border-hover); }
+
+  .tag-btn.active {
+    color: var(--accent);
+    border-color: var(--status-border);
+    background: var(--status-bg);
+  }
+
+  .tag-btn .tag-count {
+    font-size: 0.625rem;
+    opacity: 0.6;
+    font-weight: 500;
+  }
+
+  /* ── Group ── */
+  .tools-group {
+    margin-bottom: 2rem;
+  }
+
+  .tools-group:last-child { margin-bottom: 0; }
+
+  .tools-group-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+    padding-left: 0.125rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .tools-group-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .tools-group.hidden { display: none; }
 
   .tools-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 1rem;
+  }
+
+  .tools-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    display: none;
+  }
+
+  /* ── Card Tags ── */
+  .tool-tags {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+  }
+
+  .tool-tag {
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    background: var(--icon-bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    text-transform: lowercase;
   }
 
   /* ── Tool Card ── */
@@ -355,6 +493,30 @@
     color: var(--text-primary);
     letter-spacing: -0.02em;
     margin-bottom: 0.375rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .collab-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--icon-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .collab-badge svg {
+    width: 12px;
+    height: 12px;
   }
 
   .tool-card p {
@@ -471,17 +633,12 @@
   }
 
   .hero { animation: fadeUp 0.5s ease both; }
-  .tools-label { animation: fadeUp 0.5s ease 0.1s both; }
-  .tool-card:nth-child(1) { animation: fadeUp 0.4s ease 0.15s both; }
-  .tool-card:nth-child(2) { animation: fadeUp 0.4s ease 0.2s both; }
-  .tool-card:nth-child(3) { animation: fadeUp 0.4s ease 0.25s both; }
-  .tool-card:nth-child(4) { animation: fadeUp 0.4s ease 0.3s both; }
-  .tool-card:nth-child(5) { animation: fadeUp 0.4s ease 0.35s both; }
-  .tool-card:nth-child(6) { animation: fadeUp 0.4s ease 0.4s both; }
-  .tool-card:nth-child(7) { animation: fadeUp 0.4s ease 0.45s both; }
-  .tool-card:nth-child(8) { animation: fadeUp 0.4s ease 0.5s both; }
-  .tool-card:nth-child(9) { animation: fadeUp 0.4s ease 0.55s both; }
-  .tool-card:nth-child(10) { animation: fadeUp 0.4s ease 0.6s both; }
+  .tools-header { animation: fadeUp 0.5s ease 0.1s both; }
+  .tag-bar { animation: fadeUp 0.4s ease 0.15s both; }
+  .tools-group:nth-child(1) { animation: fadeUp 0.4s ease 0.2s both; }
+  .tools-group:nth-child(2) { animation: fadeUp 0.4s ease 0.25s both; }
+  .tools-group:nth-child(3) { animation: fadeUp 0.4s ease 0.3s both; }
+  .tools-group:nth-child(4) { animation: fadeUp 0.4s ease 0.35s both; }
 
   /* ── Theme Toggle ── */
   .theme-toggle {
@@ -511,6 +668,8 @@
     .nav-links { display: none; }
     nav { padding: 0 1.25rem; }
     .hero { padding-top: 6rem; }
+    .tools-header { flex-direction: column; align-items: stretch; }
+    .tools-search { width: 100%; }
     footer { flex-direction: column; gap: 1rem; text-align: center; }
     .footer-left { flex-direction: column; gap: 0.5rem; }
   }
@@ -601,220 +760,278 @@
 
 <!-- Tools -->
 <section class="tools" id="tools">
-  <p class="tools-label">Toolset</p>
-  <div class="tools-grid">
-
-    <div class="tool-card available" onclick="window.location.href='draw-together/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>Draw Together</h3>
-      <p>Collaborative P2P drawing canvas. Create a room, share the link, sketch together in real-time.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="draw-together/index.html" download="draw-together.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
+  <div class="tools-header">
+    <p class="tools-label">Toolset</p>
+    <div class="tools-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="toolSearch" placeholder="Search tools..." autocomplete="off">
     </div>
-
-    <div class="tool-card available" onclick="window.location.href='md-together/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>Markdown Together</h3>
-      <p>Peer-to-peer collaborative Markdown editor with live preview. Edit documents together in real-time.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="md-together/index.html" download="md-together.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-card available" onclick="window.location.href='present/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>Presentation</h3>
-      <p>Create slide decks with drag-and-drop editing. Charts, diagrams, and fullscreen presentation mode.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="present/index.html" download="present.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-card available" onclick="window.location.href='json/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>JSON</h3>
-      <p>Validate, format, and explore JSON data. Tree view, path copying, and side-by-side comparison.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="json/index.html" download="json.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-card available" onclick="window.location.href='csv/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>CSV</h3>
-      <p>Spreadsheet-style editing for CSV and TSV files. Sort, filter, and transform tabular data.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="csv/index.html" download="csv.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-card available" onclick="window.location.href='regex/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>Regex</h3>
-      <p>Test and debug regular expressions with live matching, group highlights, and a quick-reference guide.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="regex/index.html" download="regex.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-card available" onclick="window.location.href='diff/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 3H5a2 2 0 00-2 2v4"/><path d="M9 21H5a2 2 0 01-2-2v-4"/><path d="M15 3h4a2 2 0 012 2v4"/><path d="M15 21h4a2 2 0 002-2v-4"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>Diff</h3>
-      <p>Compare two texts side by side with clear highlights showing every difference. Paste, compare, done.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="diff/index.html" download="diff.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-card available" onclick="window.location.href='colors/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="15.5" r="2.5"/><circle cx="8.5" cy="15.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 011.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>Colors</h3>
-      <p>Pick colors, convert between formats, generate palettes, and check contrast accessibility.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="colors/index.html" download="colors.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-card available" onclick="window.location.href='whoami/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>My Session</h3>
-      <p>See everything your browser exposes: IP address, screen info, hardware, capabilities, timezone, and more.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="whoami/index.html" download="whoami.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-card available" onclick="window.location.href='encode/index.html'">
-      <div class="tool-card-top">
-        <div class="tool-icon-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/><polyline points="17 7 21 7 21 3"/></svg>
-        </div>
-        <span class="tool-status ready">Live</span>
-      </div>
-      <h3>Encode / Decode</h3>
-      <p>Base64, URL encoding, hash generation, and other common text transformations in one place.</p>
-      <div class="tool-card-footer">
-        <span class="tool-open">
-          Open tool
-          <span class="tool-arrow">&rarr;</span>
-        </span>
-        <a class="tool-dl" href="encode/index.html" download="encode.html" onclick="event.stopPropagation()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          .html
-        </a>
-      </div>
-    </div>
-
   </div>
+
+  <div class="tag-bar" id="tagBar"></div>
+
+  <!-- Collaboration -->
+  <div class="tools-group" data-group="collaboration">
+    <div class="tools-group-label">Collaboration</div>
+    <div class="tools-grid">
+
+      <div class="tool-card available" data-tags="creative,realtime,p2p,canvas" data-name="Draw" onclick="window.location.href='draw/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>Draw <span class="collab-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Collab</span></h3>
+        <p>Collaborative P2P drawing canvas. Create a room, share the link, sketch together in real-time.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">creative</span>
+          <span class="tool-tag">realtime</span>
+          <span class="tool-tag">p2p</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="draw/index.html" download="draw.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+      <div class="tool-card available" data-tags="writing,realtime,p2p,editor" data-name="Markdown" onclick="window.location.href='markdown/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>Markdown <span class="collab-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Collab</span></h3>
+        <p>Peer-to-peer collaborative Markdown editor with live preview. Edit documents together in real-time.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">writing</span>
+          <span class="tool-tag">realtime</span>
+          <span class="tool-tag">p2p</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="markdown/index.html" download="markdown.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Creative -->
+  <div class="tools-group" data-group="creative">
+    <div class="tools-group-label">Creative</div>
+    <div class="tools-grid">
+
+      <div class="tool-card available" data-tags="creative,slides,presentation" data-name="Presentation" onclick="window.location.href='present/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>Presentation</h3>
+        <p>Create slide decks with drag-and-drop editing. Charts, diagrams, and fullscreen presentation mode.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">creative</span>
+          <span class="tool-tag">slides</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="present/index.html" download="present.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+      <div class="tool-card available" data-tags="design,color,accessibility" data-name="Colors" onclick="window.location.href='colors/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="15.5" r="2.5"/><circle cx="8.5" cy="15.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 011.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>Colors</h3>
+        <p>Pick colors, convert between formats, generate palettes, and check contrast accessibility.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">design</span>
+          <span class="tool-tag">color</span>
+          <span class="tool-tag">accessibility</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="colors/index.html" download="colors.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Developer -->
+  <div class="tools-group" data-group="developer">
+    <div class="tools-group-label">Developer</div>
+    <div class="tools-grid">
+
+      <div class="tool-card available" data-tags="developer,formatting,data,json,yaml,toml,xml" data-name="Data" onclick="window.location.href='json/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>Data</h3>
+        <p>Validate, format, and convert between JSON, YAML, TOML, and XML. Tree view, path copying, and comparison.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">developer</span>
+          <span class="tool-tag">formatting</span>
+          <span class="tool-tag">data</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="json/index.html" download="data.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+      <div class="tool-card available" data-tags="data,spreadsheet,tabular" data-name="CSV" onclick="window.location.href='csv/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>CSV</h3>
+        <p>Spreadsheet-style editing for CSV and TSV files. Sort, filter, and transform tabular data.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">data</span>
+          <span class="tool-tag">spreadsheet</span>
+          <span class="tool-tag">tabular</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="csv/index.html" download="csv.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+      <div class="tool-card available" data-tags="developer,testing,pattern" data-name="Regex" onclick="window.location.href='regex/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>Regex</h3>
+        <p>Test and debug regular expressions with live matching, group highlights, and a quick-reference guide.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">developer</span>
+          <span class="tool-tag">testing</span>
+          <span class="tool-tag">pattern</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="regex/index.html" download="regex.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+      <div class="tool-card available" data-tags="developer,comparison,text" data-name="Diff" onclick="window.location.href='diff/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 3H5a2 2 0 00-2 2v4"/><path d="M9 21H5a2 2 0 01-2-2v-4"/><path d="M15 3h4a2 2 0 012 2v4"/><path d="M15 21h4a2 2 0 002-2v-4"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>Diff</h3>
+        <p>Compare two texts side by side with clear highlights showing every difference. Paste, compare, done.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">developer</span>
+          <span class="tool-tag">comparison</span>
+          <span class="tool-tag">text</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="diff/index.html" download="diff.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+      <div class="tool-card available" data-tags="developer,encoding,text" data-name="Encode / Decode" onclick="window.location.href='encode/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/><polyline points="17 7 21 7 21 3"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>Encode / Decode</h3>
+        <p>Base64, URL encoding, hash generation, and other common text transformations in one place.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">developer</span>
+          <span class="tool-tag">encoding</span>
+          <span class="tool-tag">text</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="encode/index.html" download="encode.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Utilities -->
+  <div class="tools-group" data-group="utilities">
+    <div class="tools-group-label">Utilities</div>
+    <div class="tools-grid">
+
+      <div class="tool-card available" data-tags="diagnostics,browser,network" data-name="My Session" onclick="window.location.href='whoami/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>My Session</h3>
+        <p>See everything your browser exposes: IP address, screen info, hardware, capabilities, timezone, and more.</p>
+        <div class="tool-tags">
+          <span class="tool-tag">diagnostics</span>
+          <span class="tool-tag">browser</span>
+          <span class="tool-tag">network</span>
+        </div>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="whoami/index.html" download="whoami.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="tools-empty" id="toolsEmpty">No tools match your search.</div>
 </section>
 
 <!-- Footer -->
@@ -847,6 +1064,75 @@
 
   btn.addEventListener('click', function() { apply(mode === 'light' ? 'dark' : 'light'); });
   apply(mode);
+})();
+
+// ── Search, Tags & Filter ──
+(function(){
+  var cards = document.querySelectorAll('.tool-card');
+  var groups = document.querySelectorAll('.tools-group');
+  var tagBar = document.getElementById('tagBar');
+  var searchInput = document.getElementById('toolSearch');
+  var emptyMsg = document.getElementById('toolsEmpty');
+  var activeTag = null;
+
+  // Collect all unique tags
+  var tagCounts = {};
+  cards.forEach(function(c) {
+    (c.dataset.tags || '').split(',').forEach(function(t) {
+      t = t.trim();
+      if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
+    });
+  });
+
+  // Sort tags alphabetically and render buttons
+  Object.keys(tagCounts).sort().forEach(function(tag) {
+    var b = document.createElement('button');
+    b.className = 'tag-btn';
+    b.dataset.tag = tag;
+    b.innerHTML = tag + ' <span class="tag-count">' + tagCounts[tag] + '</span>';
+    b.addEventListener('click', function() {
+      if (activeTag === tag) { activeTag = null; b.classList.remove('active'); }
+      else {
+        tagBar.querySelectorAll('.tag-btn').forEach(function(x){ x.classList.remove('active'); });
+        activeTag = tag;
+        b.classList.add('active');
+      }
+      filterTools();
+    });
+    tagBar.appendChild(b);
+  });
+
+  function filterTools() {
+    var q = searchInput.value.toLowerCase().trim();
+    var visibleCount = 0;
+
+    cards.forEach(function(c) {
+      var name = (c.dataset.name || '').toLowerCase();
+      var tags = (c.dataset.tags || '').toLowerCase();
+      var desc = (c.querySelector('p') || {}).textContent || '';
+      desc = desc.toLowerCase();
+
+      var matchSearch = !q || name.indexOf(q) !== -1 || tags.indexOf(q) !== -1 || desc.indexOf(q) !== -1;
+      var matchTag = !activeTag || tags.split(',').indexOf(activeTag) !== -1;
+
+      if (matchSearch && matchTag) {
+        c.style.display = '';
+        visibleCount++;
+      } else {
+        c.style.display = 'none';
+      }
+    });
+
+    // Hide empty groups
+    groups.forEach(function(g) {
+      var visibleCards = g.querySelectorAll('.tool-card:not([style*="display: none"])');
+      g.classList.toggle('hidden', visibleCards.length === 0);
+    });
+
+    emptyMsg.style.display = visibleCount === 0 ? 'block' : 'none';
+  }
+
+  searchInput.addEventListener('input', filterTools);
 })();
 </script>
 

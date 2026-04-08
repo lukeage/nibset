@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
 <script>
 (function(){
   var t = localStorage.getItem('nibset-theme');
@@ -460,6 +461,32 @@ html, body {
 .chart-color-dropdown.visible { display: flex; }
 .chart-color-dropdown .color-swatch { width: 20px; height: 20px; }
 
+.hidden { display: none !important; }
+
+/* ===== P2P Collaboration ===== */
+.p2p-group {
+  display: flex; align-items: center; gap: 8px; margin-right: 4px;
+  padding-right: 12px; border-right: 1px solid var(--border);
+}
+.p2p-status {
+  display: flex; align-items: center; gap: 6px; font-size: 12px;
+  color: var(--text-secondary); white-space: nowrap;
+}
+.dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.dot-connected { background: #22c55e; }
+.dot-waiting { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+.dot-disconnected { background: #ef4444; }
+.dot-reconnecting { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+#connectionBanner {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+  padding: 8px 16px; background: rgba(239,68,68,0.9); color: #fff;
+  border-radius: 8px; font-size: 13px; z-index: 800; display: none;
+}
+#connectionBanner.visible { display: block; }
+
 /* ===== Keyboard shortcuts hint ===== */
 .shortcuts-list { display: flex; flex-direction: column; gap: 6px; }
 .shortcut-row { display: flex; justify-content: space-between; font-size: 13px; }
@@ -486,6 +513,13 @@ html, body {
       <input id="presTitle" class="props-input" style="width:200px;text-align:center;font-weight:600;" placeholder="Untitled Presentation" value="Untitled Presentation">
     </div>
     <div class="header-right">
+      <div class="p2p-group">
+        <div class="p2p-status">
+          <span class="dot dot-waiting" id="statusDot"></span>
+          <span id="statusText">Initializing...</span>
+        </div>
+        <button class="btn btn-sm hidden" id="copyLinkBtn" title="Copy invite link"><i class="fa-solid fa-link"></i> Invite</button>
+      </div>
       <button class="btn btn-sm" id="btnThemeModal" title="Theme"><i class="fa-solid fa-palette"></i> Theme</button>
       <button class="btn btn-sm" id="btnImport" title="Import"><i class="fa-solid fa-file-import"></i> Import</button>
       <button class="btn btn-sm" id="btnExportHTML" title="Export HTML"><i class="fa-solid fa-file-export"></i> Export</button>
@@ -598,6 +632,7 @@ html, body {
 
 <!-- Hidden file input -->
 <input type="file" id="fileInput" accept=".html,.json,.png,.jpg,.jpeg,.gif,.webp,.svg" style="display:none">
+<div id="connectionBanner"></div>
 
 <script>
 (function() {
@@ -778,6 +813,21 @@ let chartInstances = new Map();
 let saveTimeout = null;
 let layoutModalMode = 'change'; // 'change' = change current slide layout, 'new' = create new slide
 
+// ===== P2P STATE =====
+let isHost = false;
+let myId = null;
+let connections = [];
+let hostConn = null;
+let guestPeer = null;
+let guestRoomId = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT = 5;
+const MAX_USERS = 8;
+let userCount = 1;
+let isApplyingRemote = false;
+let msgBuffer = [];
+let msgFlushTimer = null;
+
 // ===== DOM REFS =====
 const $ = id => document.getElementById(id);
 const slideList = $('slideList');
@@ -789,6 +839,113 @@ const presentOverlay = $('presentOverlay');
 const presentSlide = $('presentSlide');
 const toastContainer = $('toastContainer');
 const fileInput = $('fileInput');
+
+// ===== P2P UTILITIES =====
+const statusDot = $('statusDot');
+const statusText = $('statusText');
+const copyLinkBtn = $('copyLinkBtn');
+
+function setStatus(text, state) {
+  statusText.textContent = text;
+  statusDot.className = 'dot dot-' + state;
+}
+
+function updateP2PStatus() {
+  const count = isHost ? connections.length + 1 : userCount;
+  setStatus('Connected (' + count + (count === 1 ? ' user)' : ' users)'), 'connected');
+}
+
+// Chunk large messages to avoid PeerJS/WebRTC size limits
+const CHUNK_SIZE = 12000;
+let pendingChunks = {};
+
+function sendToConn(conn, msg) {
+  const str = JSON.stringify(msg);
+  if (str.length <= CHUNK_SIZE) {
+    conn.send(msg);
+  } else {
+    const id = uid();
+    const total = Math.ceil(str.length / CHUNK_SIZE);
+    for (let i = 0; i < total; i++) {
+      conn.send({ type: '__chunk', id: id, idx: i, total: total, data: str.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE) });
+    }
+  }
+}
+
+function reassembleChunk(chunk) {
+  const key = chunk.id;
+  if (!pendingChunks[key]) pendingChunks[key] = { parts: new Array(chunk.total), received: 0 };
+  const entry = pendingChunks[key];
+  entry.parts[chunk.idx] = chunk.data;
+  entry.received++;
+  if (entry.received === chunk.total) {
+    delete pendingChunks[key];
+    try { return JSON.parse(entry.parts.join('')); } catch(e) { return null; }
+  }
+  return null; // not yet complete
+}
+
+function broadcast(msg) {
+  if (isHost) {
+    for (const entry of connections) {
+      if (entry.conn.open) sendToConn(entry.conn, msg);
+    }
+  } else if (hostConn && hostConn.open) {
+    sendToConn(hostConn, msg);
+  }
+}
+
+function broadcastExcept(msg, excludeConn) {
+  for (const entry of connections) {
+    if (entry.conn !== excludeConn && entry.conn.open) {
+      sendToConn(entry.conn, msg);
+    }
+  }
+}
+
+function sendMsg(msg) {
+  broadcast(msg);
+}
+
+function broadcastBuffered(msg) {
+  msgBuffer.push(msg);
+  if (!msgFlushTimer) {
+    msgFlushTimer = setTimeout(flushMessages, 50);
+  }
+}
+
+function flushMessages() {
+  msgFlushTimer = null;
+  if (msgBuffer.length === 0) return;
+  if (msgBuffer.length === 1) {
+    sendMsg(msgBuffer[0]);
+  } else {
+    sendMsg({ type: 'batch', messages: msgBuffer });
+  }
+  msgBuffer = [];
+}
+
+function getUserCount() {
+  return connections.length + 1;
+}
+
+function broadcastUserCount() {
+  const count = getUserCount();
+  for (const entry of connections) {
+    if (entry.conn.open) sendToConn(entry.conn, { type: 'user-count', count: count });
+  }
+  updateP2PStatus();
+}
+
+function showConnectionBanner(text) {
+  const banner = document.getElementById('connectionBanner');
+  banner.textContent = text;
+  banner.classList.add('visible');
+}
+
+function hideConnectionBanner() {
+  document.getElementById('connectionBanner').classList.remove('visible');
+}
 
 // ===== PERSISTENCE =====
 function save() {
@@ -837,6 +994,7 @@ function undo() {
   selectedElementId = null;
   renderAll();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'sync-state', pres: deepClone(pres) });
 }
 
 function redo() {
@@ -847,6 +1005,7 @@ function redo() {
   selectedElementId = null;
   renderAll();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'sync-state', pres: deepClone(pres) });
 }
 
 // ===== COLOR SCHEME =====
@@ -877,6 +1036,7 @@ function applyScheme(newKey) {
 
   renderAll();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'sync-state', pres: deepClone(pres) });
 }
 
 function applyThemeToAll() {
@@ -894,6 +1054,7 @@ function applyThemeToAll() {
   });
   renderAll();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'sync-state', pres: deepClone(pres) });
 }
 
 // ===== SLIDE OPERATIONS =====
@@ -907,16 +1068,19 @@ function addSlide(layout, type) {
   selectedElementId = null;
   renderAll();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'slide-add', slide: deepClone(s), afterIdx: currentSlideIdx });
 }
 
 function deleteSlide(idx) {
   if (pres.slides.length <= 1) { toast('Cannot delete the only slide'); return; }
+  const slideId = pres.slides[idx].id;
   pushUndo();
   pres.slides.splice(idx, 1);
   if (currentSlideIdx >= pres.slides.length) currentSlideIdx = pres.slides.length - 1;
   selectedElementId = null;
   renderAll();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'slide-delete', slideId: slideId });
 }
 
 function duplicateSlide(idx) {
@@ -928,6 +1092,7 @@ function duplicateSlide(idx) {
   currentSlideIdx = idx + 1;
   renderAll();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'slide-duplicate', newSlide: deepClone(copy), insertIdx: idx + 1 });
 }
 
 function moveSlide(fromIdx, toIdx) {
@@ -938,6 +1103,7 @@ function moveSlide(fromIdx, toIdx) {
   currentSlideIdx = toIdx;
   renderAll();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'slide-move', fromIdx: fromIdx, toIdx: toIdx });
 }
 
 // ===== ELEMENT OPERATIONS =====
@@ -952,6 +1118,7 @@ function addElement(el) {
   renderThumbnails();
   updateProps();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'element-add', slideId: slide.id, element: deepClone(el) });
 }
 
 function deleteElement(id) {
@@ -965,6 +1132,7 @@ function deleteElement(id) {
   renderThumbnails();
   updateProps();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'element-delete', slideId: slide.id, elementId: id });
 }
 
 function updateElement(id, changes) {
@@ -973,6 +1141,15 @@ function updateElement(id, changes) {
   if (!el) return;
   Object.assign(el, changes);
   scheduleSave();
+  if (!isApplyingRemote) broadcastBuffered({ type: 'element-update', slideId: slide.id, elementId: id, changes: deepClone(changes) });
+}
+
+// Broadcast the full current state of an element (used after direct mutations)
+function syncElement(el) {
+  if (!el || isApplyingRemote) return;
+  const slide = curSlide();
+  if (!slide) return;
+  sendMsg({ type: 'element-update', slideId: slide.id, elementId: el.id, changes: deepClone(el) });
 }
 
 function bringForward(id) {
@@ -986,6 +1163,7 @@ function bringForward(id) {
   const tmp = el.zIndex; el.zIndex = above.zIndex; above.zIndex = tmp;
   renderSlide();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'element-zorder', slideId: slide.id, elementId: el.id, newZ: el.zIndex, swapId: above.id, swapZ: above.zIndex });
 }
 
 function sendBackward(id) {
@@ -999,6 +1177,7 @@ function sendBackward(id) {
   const tmp = el.zIndex; el.zIndex = below.zIndex; below.zIndex = tmp;
   renderSlide();
   scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'element-zorder', slideId: slide.id, elementId: el.id, newZ: el.zIndex, swapId: below.id, swapZ: below.zIndex });
 }
 
 // ===== RENDER: THUMBNAILS =====
@@ -1307,12 +1486,15 @@ function onMouseMove(e) {
 
 function onMouseUp(e) {
   if ((isDragging || isResizing) && dragData) {
+    const slide = curSlide();
+    const el = slide ? slide.elements.find(x => x.id === dragData.id) : null;
     isDragging = false;
     isResizing = false;
     pushUndo();
     dragData = null;
     renderThumbnails();
     scheduleSave();
+    syncElement(el);
   }
 }
 
@@ -1412,6 +1594,7 @@ function stopEditing() {
       el.content = tmp.innerHTML;
       scheduleSave();
       renderThumbnails();
+      syncElement(el);
     }
   }
   isEditing = false;
@@ -1503,24 +1686,24 @@ function attachSlidePropsEvents() {
   const bgSwatches = $('propBgSwatches');
   if (bgSwatches) {
     bgSwatches.querySelectorAll('.color-swatch').forEach(sw => {
-      sw.onclick = () => { pushUndo(); slide.background.color = sw.dataset.color; renderSlide(); renderThumbnails(); updateProps(); scheduleSave(); };
+      sw.onclick = () => { pushUndo(); slide.background.color = sw.dataset.color; renderSlide(); renderThumbnails(); updateProps(); scheduleSave(); if (!isApplyingRemote) sendMsg({ type: 'slide-bg', slideId: slide.id, background: deepClone(slide.background) }); };
     });
     const moreBtn = $('propBgMore');
     const hiddenPicker = $('propBgColor');
     if (moreBtn && hiddenPicker) {
       moreBtn.onclick = () => hiddenPicker.click();
-      hiddenPicker.oninput = () => { slide.background.color = hiddenPicker.value; renderSlide(); renderThumbnails(); scheduleSave(); };
+      hiddenPicker.oninput = () => { slide.background.color = hiddenPicker.value; renderSlide(); renderThumbnails(); scheduleSave(); if (!isApplyingRemote) broadcastBuffered({ type: 'slide-bg', slideId: slide.id, background: deepClone(slide.background) }); };
       hiddenPicker.onchange = () => { pushUndo(); updateProps(); };
     }
   }
   const bi = $('propBgImage');
   if (bi) bi.onclick = () => { fileInput.dataset.mode = 'bg'; fileInput.accept = '.png,.jpg,.jpeg,.gif,.webp,.svg'; fileInput.click(); };
   const bcl = $('propBgClear');
-  if (bcl) bcl.onclick = () => { pushUndo(); slide.background.image = null; renderSlide(); renderThumbnails(); updateProps(); scheduleSave(); };
+  if (bcl) bcl.onclick = () => { pushUndo(); slide.background.image = null; renderSlide(); renderThumbnails(); updateProps(); scheduleSave(); if (!isApplyingRemote) sendMsg({ type: 'slide-bg', slideId: slide.id, background: deepClone(slide.background) }); };
   const bf = $('propBgFit');
-  if (bf) bf.onchange = () => { slide.background.fit = bf.value; renderSlide(); renderThumbnails(); scheduleSave(); };
+  if (bf) bf.onchange = () => { slide.background.fit = bf.value; renderSlide(); renderThumbnails(); scheduleSave(); if (!isApplyingRemote) sendMsg({ type: 'slide-bg', slideId: slide.id, background: deepClone(slide.background) }); };
   const bo = $('propBgOpacity');
-  if (bo) bo.oninput = () => { slide.background.opacity = parseFloat(bo.value); renderSlide(); scheduleSave(); };
+  if (bo) bo.oninput = () => { slide.background.opacity = parseFloat(bo.value); renderSlide(); scheduleSave(); if (!isApplyingRemote) broadcastBuffered({ type: 'slide-bg', slideId: slide.id, background: deepClone(slide.background) }); };
 }
 
 function renderPositionProps(el) {
@@ -1640,52 +1823,52 @@ function attachElementPropsEvents(el) {
     if (inp) inp.onchange = () => {
       pushUndo();
       el[key.toLowerCase()] = parseFloat(inp.value);
-      renderSlide(); renderThumbnails(); scheduleSave();
+      renderSlide(); renderThumbnails(); scheduleSave(); syncElement(el);
     };
   });
 
   if (el.type === 'text') {
     const pf = $('propFont');
-    if (pf) pf.onchange = () => { pushUndo(); el.style.fontFamily = pf.value; renderSlide(); scheduleSave(); };
+    if (pf) pf.onchange = () => { pushUndo(); el.style.fontFamily = pf.value; renderSlide(); scheduleSave(); syncElement(el); };
     const ps = $('propFontSize');
-    if (ps) ps.onchange = () => { pushUndo(); el.style.fontSize = parseInt(ps.value); renderSlide(); scheduleSave(); };
+    if (ps) ps.onchange = () => { pushUndo(); el.style.fontSize = parseInt(ps.value); renderSlide(); scheduleSave(); syncElement(el); };
     const textSwatches = $('propTextSwatches');
     if (textSwatches) {
       textSwatches.querySelectorAll('.color-swatch').forEach(sw => {
-        sw.onclick = () => { pushUndo(); el.style.color = sw.dataset.color; renderSlide(); updateProps(); scheduleSave(); };
+        sw.onclick = () => { pushUndo(); el.style.color = sw.dataset.color; renderSlide(); updateProps(); scheduleSave(); syncElement(el); };
       });
       const moreBtn = $('propTextMore');
       const hiddenPicker = $('propTextColor');
       if (moreBtn && hiddenPicker) {
         moreBtn.onclick = () => hiddenPicker.click();
-        hiddenPicker.oninput = () => { el.style.color = hiddenPicker.value; renderSlide(); scheduleSave(); };
+        hiddenPicker.oninput = () => { el.style.color = hiddenPicker.value; renderSlide(); scheduleSave(); syncElement(el); };
         hiddenPicker.onchange = () => { pushUndo(); updateProps(); };
       }
     }
     propsContent.querySelectorAll('[data-align]').forEach(btn => {
-      btn.onclick = () => { pushUndo(); el.style.align = btn.dataset.align; renderSlide(); updateProps(); scheduleSave(); };
+      btn.onclick = () => { pushUndo(); el.style.align = btn.dataset.align; renderSlide(); updateProps(); scheduleSave(); syncElement(el); };
     });
   }
   if (el.type === 'image') {
     const iu = $('propImgUpload');
     if (iu) iu.onclick = () => { fileInput.dataset.mode = 'image'; fileInput.dataset.elid = el.id; fileInput.accept = '.png,.jpg,.jpeg,.gif,.webp,.svg'; fileInput.click(); };
     const fi = $('propImgFit');
-    if (fi) fi.onchange = () => { el.style.objectFit = fi.value; renderSlide(); scheduleSave(); };
+    if (fi) fi.onchange = () => { el.style.objectFit = fi.value; renderSlide(); scheduleSave(); syncElement(el); };
     const ir = $('propImgRadius');
-    if (ir) ir.onchange = () => { el.style.borderRadius = parseInt(ir.value); renderSlide(); scheduleSave(); };
+    if (ir) ir.onchange = () => { el.style.borderRadius = parseInt(ir.value); renderSlide(); scheduleSave(); syncElement(el); };
     const io = $('propImgOpacity');
-    if (io) io.oninput = () => { el.style.opacity = parseFloat(io.value); renderSlide(); scheduleSave(); };
+    if (io) io.oninput = () => { el.style.opacity = parseFloat(io.value); renderSlide(); scheduleSave(); syncElement(el); };
   }
   if (el.type === 'chart') {
     const ct = $('propChartType');
-    if (ct) ct.onchange = () => { pushUndo(); el.content.chartType = ct.value; renderSlide(); scheduleSave(); };
+    if (ct) ct.onchange = () => { pushUndo(); el.content.chartType = ct.value; renderSlide(); scheduleSave(); syncElement(el); };
     const addRow = $('propChartAddRow');
     if (addRow) addRow.onclick = () => {
       pushUndo();
       el.content.labels.push('New');
       el.content.datasets[0].data.push(10);
       el.content.datasets[0].backgroundColor.push(activeScheme().swatches[el.content.labels.length % activeScheme().swatches.length]);
-      updateProps(); renderSlide(); scheduleSave();
+      updateProps(); renderSlide(); scheduleSave(); syncElement(el);
     };
     const update = $('propChartUpdate');
     if (update) update.onclick = () => {
@@ -1698,7 +1881,7 @@ function attachElementPropsEvents(el) {
       el.content.labels = labels;
       el.content.datasets[0].data = data;
       el.content.datasets[0].backgroundColor = colors;
-      renderSlide(); renderThumbnails(); scheduleSave();
+      renderSlide(); renderThumbnails(); scheduleSave(); syncElement(el);
     };
     propsContent.querySelectorAll('.chart-row-del').forEach(btn => {
       btn.onclick = () => {
@@ -1707,7 +1890,7 @@ function attachElementPropsEvents(el) {
         el.content.labels.splice(idx, 1);
         el.content.datasets[0].data.splice(idx, 1);
         el.content.datasets[0].backgroundColor.splice(idx, 1);
-        updateProps(); renderSlide(); scheduleSave();
+        updateProps(); renderSlide(); scheduleSave(); syncElement(el);
       };
     });
     // Chart swatch dropdowns
@@ -1961,7 +2144,10 @@ $('btnExportHTML').onclick = exportAsHTML;
 $('btnImport').onclick = () => { fileInput.dataset.mode = 'import'; fileInput.accept = '.html,.json'; fileInput.click(); };
 $('btnThemeModal').onclick = () => openModal('themeModal');
 $('btnAddSlide').onclick = () => { layoutModalMode = 'new'; openModal('layoutModal'); };
-$('presTitle').onchange = scheduleSave;
+$('presTitle').onchange = function() {
+  scheduleSave();
+  if (!isApplyingRemote) sendMsg({ type: 'title-change', title: $('presTitle').value });
+};
 
 // Theme toggle
 $('btnTheme').onclick = () => {
@@ -1987,6 +2173,7 @@ fileInput.onchange = (e) => {
       pushUndo();
       curSlide().background.image = reader.result;
       renderSlide(); renderThumbnails(); updateProps(); scheduleSave();
+      if (!isApplyingRemote) sendMsg({ type: 'slide-bg', slideId: curSlide().id, background: deepClone(curSlide().background) });
     };
     reader.readAsDataURL(file);
   } else if (mode === 'theme-bg') {
@@ -2005,7 +2192,7 @@ fileInput.onchange = (e) => {
       if (el && el.type === 'image') {
         pushUndo();
         el.content.src = reader.result;
-        renderSlide(); renderThumbnails(); updateProps(); scheduleSave();
+        renderSlide(); renderThumbnails(); updateProps(); scheduleSave(); syncElement(el);
       }
     };
     reader.readAsDataURL(file);
@@ -2320,6 +2507,7 @@ function importData(text, filename) {
     selectedElementId = null;
     renderAll();
     scheduleSave();
+    if (!isApplyingRemote) sendMsg({ type: 'sync-state', pres: deepClone(pres) });
     toast('Presentation imported!');
   } catch (e) {
     toast('Import failed: ' + e.message);
@@ -2356,6 +2544,287 @@ document.addEventListener('paste', (e) => {
 const ro = new ResizeObserver(() => scaleCanvas());
 ro.observe(canvasViewport);
 
+// ===== P2P MESSAGE HANDLING =====
+function handleMessage(msg, fromConn) {
+  if (!msg || !msg.type) return;
+  if (msg.type === '__chunk') {
+    const assembled = reassembleChunk(msg);
+    if (assembled) handleMessage(assembled, fromConn);
+    return;
+  }
+  if (msg.type === 'batch') {
+    for (const m of msg.messages) handleMessage(m, fromConn);
+    return;
+  }
+
+  if (msg.type === 'sync-state') {
+    isApplyingRemote = true;
+    pres = msg.pres;
+    if (!pres || !pres.slides) { console.error('P2P: invalid sync-state', msg); isApplyingRemote = false; return; }
+    currentSlideIdx = clamp(currentSlideIdx, 0, pres.slides.length - 1);
+    selectedElementId = null;
+    $('presTitle').value = pres.meta.title || '';
+    renderAll();
+    scheduleSave();
+    isApplyingRemote = false;
+    return;
+  }
+
+  if (msg.type === 'request-resync') {
+    if (isHost && fromConn) {
+      sendToConn(fromConn, { type: 'sync-state', pres: deepClone(pres) });
+    }
+    return;
+  }
+
+  if (msg.type === 'user-count') {
+    userCount = msg.count;
+    updateP2PStatus();
+    return;
+  }
+
+  if (msg.type === 'error') {
+    toast(msg.message);
+    return;
+  }
+
+  isApplyingRemote = true;
+
+  if (msg.type === 'slide-add') {
+    const idx = clamp(msg.afterIdx, 0, pres.slides.length);
+    pres.slides.splice(idx, 0, msg.slide);
+    renderAll();
+    scheduleSave();
+  }
+
+  else if (msg.type === 'slide-delete') {
+    const idx = pres.slides.findIndex(s => s.id === msg.slideId);
+    if (idx !== -1 && pres.slides.length > 1) {
+      pres.slides.splice(idx, 1);
+      if (currentSlideIdx >= pres.slides.length) currentSlideIdx = pres.slides.length - 1;
+      selectedElementId = null;
+      renderAll();
+      scheduleSave();
+    }
+  }
+
+  else if (msg.type === 'slide-duplicate') {
+    const idx = clamp(msg.insertIdx, 0, pres.slides.length);
+    pres.slides.splice(idx, 0, msg.newSlide);
+    renderAll();
+    scheduleSave();
+  }
+
+  else if (msg.type === 'slide-move') {
+    if (msg.fromIdx >= 0 && msg.fromIdx < pres.slides.length && msg.toIdx >= 0 && msg.toIdx < pres.slides.length) {
+      const [s] = pres.slides.splice(msg.fromIdx, 1);
+      pres.slides.splice(msg.toIdx, 0, s);
+      renderAll();
+      scheduleSave();
+    }
+  }
+
+  else if (msg.type === 'element-add') {
+    const slide = pres.slides.find(s => s.id === msg.slideId);
+    if (slide) {
+      slide.elements.push(msg.element);
+      if (curSlide() && slide.id === curSlide().id) { renderSlide(); renderThumbnails(); }
+      else { renderThumbnails(); }
+      scheduleSave();
+    }
+  }
+
+  else if (msg.type === 'element-delete') {
+    const slide = pres.slides.find(s => s.id === msg.slideId);
+    if (slide) {
+      slide.elements = slide.elements.filter(e => e.id !== msg.elementId);
+      if (selectedElementId === msg.elementId) selectedElementId = null;
+      if (curSlide() && slide.id === curSlide().id) { renderSlide(); renderThumbnails(); updateProps(); }
+      else { renderThumbnails(); }
+      scheduleSave();
+    }
+  }
+
+  else if (msg.type === 'element-update') {
+    const slide = pres.slides.find(s => s.id === msg.slideId);
+    if (slide) {
+      const el = slide.elements.find(e => e.id === msg.elementId);
+      if (el) {
+        // Skip if user is actively editing this element
+        if (!(isEditing && selectedElementId === msg.elementId)) {
+          Object.assign(el, msg.changes);
+          if (curSlide() && slide.id === curSlide().id) {
+            renderSlide();
+            renderThumbnails();
+            if (selectedElementId === msg.elementId) updateProps();
+          } else {
+            renderThumbnails();
+          }
+        }
+        scheduleSave();
+      }
+    }
+  }
+
+  else if (msg.type === 'element-zorder') {
+    const slide = pres.slides.find(s => s.id === msg.slideId);
+    if (slide) {
+      const el = slide.elements.find(e => e.id === msg.elementId);
+      const swap = slide.elements.find(e => e.id === msg.swapId);
+      if (el && swap) {
+        el.zIndex = msg.newZ;
+        swap.zIndex = msg.swapZ;
+        if (curSlide() && slide.id === curSlide().id) renderSlide();
+        renderThumbnails();
+        scheduleSave();
+      }
+    }
+  }
+
+  else if (msg.type === 'slide-bg') {
+    const slide = pres.slides.find(s => s.id === msg.slideId);
+    if (slide) {
+      slide.background = msg.background;
+      if (curSlide() && slide.id === curSlide().id) { renderSlide(); updateProps(); }
+      renderThumbnails();
+      scheduleSave();
+    }
+  }
+
+  else if (msg.type === 'title-change') {
+    pres.meta.title = msg.title;
+    $('presTitle').value = msg.title;
+    scheduleSave();
+  }
+
+  isApplyingRemote = false;
+
+  if (isHost && fromConn) broadcastExcept(msg, fromConn);
+}
+
+// ===== P2P HOST / GUEST =====
+function startHosting() {
+  isHost = true;
+  setStatus('Initializing...', 'waiting');
+
+  const peer = new Peer();
+
+  peer.on('open', (id) => {
+    myId = id;
+    const inviteLink = window.location.origin + window.location.pathname + '#room=' + id;
+
+    setStatus('Waiting for guests', 'waiting');
+    copyLinkBtn.classList.remove('hidden');
+
+    copyLinkBtn.onclick = () => {
+      navigator.clipboard.writeText(inviteLink).then(() => {
+        toast('Invite link copied!');
+      });
+    };
+  });
+
+  peer.on('connection', (c) => {
+    if (connections.length >= MAX_USERS - 1) {
+      c.on('open', () => {
+        sendToConn(c, { type: 'error', message: 'Room is full (max ' + MAX_USERS + ' users)' });
+        setTimeout(() => c.close(), 500);
+      });
+      return;
+    }
+
+    const entry = { conn: c };
+    connections.push(entry);
+
+    c.on('open', () => {
+      sendToConn(c, { type: 'user-count', count: getUserCount() });
+      sendToConn(c, { type: 'sync-state', pres: deepClone(pres) });
+      updateP2PStatus();
+      broadcastUserCount();
+    });
+
+    c.on('data', (msg) => {
+      handleMessage(msg, c);
+    });
+
+    c.on('close', () => {
+      connections = connections.filter(e => e.conn !== c);
+      broadcastUserCount();
+      if (connections.length === 0) {
+        setStatus('Waiting for guests', 'waiting');
+      }
+    });
+  });
+
+  peer.on('error', (err) => {
+    setStatus('Error: ' + err.type, 'disconnected');
+  });
+}
+
+function connectAsGuest(roomId) {
+  isHost = false;
+  setStatus('Connecting...', 'waiting');
+
+  const peer = new Peer();
+  guestPeer = peer;
+
+  peer.on('open', (id) => {
+    myId = id;
+    const c = peer.connect(roomId, { reliable: true, serialization: 'json' });
+    hostConn = c;
+
+    c.on('open', () => {
+      reconnectAttempts = 0;
+      hideConnectionBanner();
+      setStatus('Connected', 'connected');
+      copyLinkBtn.classList.add('hidden');
+      if (window.location.protocol !== 'file:') history.replaceState(null, '', window.location.pathname);
+      // Request resync after a short delay in case initial sync was missed
+      setTimeout(() => {
+        if (hostConn && hostConn.open) hostConn.send({ type: 'request-resync' });
+      }, 1500);
+    });
+
+    c.on('data', (msg) => {
+      if (msg.type === 'error') {
+        setStatus(msg.message, 'disconnected');
+        c.close();
+        return;
+      }
+      handleMessage(msg, null);
+    });
+
+    c.on('close', () => {
+      setStatus('Disconnected', 'disconnected');
+      hostConn = null;
+      attemptReconnect();
+    });
+  });
+
+  peer.on('error', (err) => {
+    if (err.type === 'peer-unavailable') {
+      setStatus('Room not found or expired', 'disconnected');
+    } else {
+      setStatus('Error: ' + err.type, 'disconnected');
+      attemptReconnect();
+    }
+  });
+}
+
+function attemptReconnect() {
+  if (!guestRoomId || reconnectAttempts >= MAX_RECONNECT) {
+    showConnectionBanner('Disconnected. Could not reconnect.');
+    return;
+  }
+  reconnectAttempts++;
+  const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000);
+  showConnectionBanner('Reconnecting... (attempt ' + reconnectAttempts + '/' + MAX_RECONNECT + ')');
+  setStatus('Reconnecting...', 'reconnecting');
+  setTimeout(() => {
+    if (guestPeer) { try { guestPeer.destroy(); } catch(e) {} guestPeer = null; }
+    connectAsGuest(guestRoomId);
+  }, delay);
+}
+
 // ===== INIT =====
 function init() {
   if (!load()) {
@@ -2366,6 +2835,17 @@ function init() {
   $('presTitle').value = pres.meta.title || '';
   renderAll();
   scaleCanvas();
+
+  // P2P: auto-join or auto-host
+  const hash = window.location.hash;
+  if (hash.startsWith('#room=')) {
+    guestRoomId = hash.substring(6);
+    if (guestRoomId) {
+      connectAsGuest(guestRoomId);
+      return;
+    }
+  }
+  startHosting();
 }
 
 init();

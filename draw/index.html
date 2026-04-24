@@ -436,6 +436,7 @@
   const STROKE_WIDTHS = [2, 4, 7, 12];
   function getBgColor() { return document.documentElement.getAttribute('data-theme') === 'light' ? '#f5f5f7' : '#060608'; }
   function getAccentColor() { return document.documentElement.getAttribute('data-theme') === 'light' ? '#5a8a1a' : '#c9f270'; }
+  function getOverlayButtonBg() { return document.documentElement.getAttribute('data-theme') === 'light' ? '#fff' : '#1a1a1e'; }
 
   let currentLineWidth = 4;
 
@@ -2065,7 +2066,7 @@
     // Button background
     ctx.beginPath();
     ctx.roundRect(bx, by, size, size, 6);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = getOverlayButtonBg();
     ctx.fill();
     ctx.strokeStyle = '#e53e3e';
     ctx.lineWidth = 1.5;
@@ -2134,7 +2135,7 @@
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(frontX, baseY, size, size, 6);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = getOverlayButtonBg();
     ctx.fill();
     ctx.strokeStyle = getAccentColor();
     ctx.lineWidth = 1.5;
@@ -2158,7 +2159,7 @@
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(backX, baseY, size, size, 6);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = getOverlayButtonBg();
     ctx.fill();
     ctx.strokeStyle = getAccentColor();
     ctx.lineWidth = 1.5;

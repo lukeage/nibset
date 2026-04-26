@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clock — NibSet</title>
+    <link rel="icon" type="image/png" href="../assets/logo.png">
+    <meta name="description" content="Wall clock, countdown timer, stopwatch, and pomodoro — all in one tab.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+    (function(){
+        var t = localStorage.getItem('nibset-theme');
+        if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #060608;
+            --bg-secondary: #111115;
+            --bg-tertiary: #1c1c24;
+            --bg-hover: #16161c;
+            --text-primary: #e8e8ec;
+            --text-secondary: #8b8b95;
+            --text-muted: #55555e;
+            --accent: #c9f270;
+            --accent-hover: #b8e35f;
+            --accent-text: #060608;
+            --border: rgba(255,255,255,0.06);
+            --header-bg: rgba(6,6,8,0.85);
+            --header-border: rgba(255,255,255,0.05);
+            --success: #c9f270;
+            --danger: #ef4444;
+            --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            --header-height: 56px;
+            --toolbar-height: 44px;
+            --statusbar-height: 28px;
+            --radius: 8px;
+            --radius-sm: 4px;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #eaeaee;
+            --bg-tertiary: #dcdce0;
+            --bg-hover: #f0f0f4;
+            --text-primary: #1a1a1e;
+            --text-secondary: #5a5a64;
+            --text-muted: #8b8b95;
+            --accent: #5a8a1a;
+            --accent-hover: #4a7515;
+            --accent-text: #ffffff;
+            --border: rgba(0,0,0,0.08);
+            --header-bg: rgba(245,245,247,0.85);
+            --header-border: rgba(0,0,0,0.08);
+            --success: #5a8a1a;
+            --danger: #c0392b;
+        }
+
+        html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
+        .app { display: flex; flex-direction: column; height: 100dvh; }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--header-height); padding: 0 16px;
+            background: var(--header-bg); backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--header-border); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
+        .header-home:hover { opacity: 1; }
+        .header-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+        .header-title i { color: var(--accent); }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* ===== Theme Toggle ===== */
+        .theme-toggle { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+        .theme-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .theme-toggle svg { width: 18px; height: 18px; }
+        [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+        /* ===== Toolbar ===== */
+        .toolbar { display: flex; align-items: center; gap: 4px; padding: 0 16px; height: var(--toolbar-height); border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto; position: relative; }
+        .toolbar-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .toolbar-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .toolbar-btn i { font-size: 11px; }
+        .toolbar-btn.mode-btn.active { background: var(--accent); color: var(--accent-text); }
+        .toolbar-btn.mode-btn.active:hover { background: var(--accent-hover); }
+        .toolbar-btn.sub-btn.active { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); padding: 4px 9px; }
+        .toolbar-btn.hidden, .tb-sep.hidden { display: none; }
+        .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
+        .toolbar-spacer { flex: 1; }
+
+        /* ===== Main ===== */
+        .main { display: flex; flex: 1; min-height: 0; position: relative; overflow: hidden; }
+        .panel {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 24px;
+            background: var(--bg-primary);
+            overflow: auto;
+        }
+
+        /* ===== Big readout shared ===== */
+        .readout {
+            font-family: var(--font-mono); font-weight: 500;
+            font-size: clamp(48px, 14vw, 160px);
+            color: var(--text-primary);
+            letter-spacing: 0.02em;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+        .readout .period { color: var(--accent); font-size: 0.5em; margin-left: 0.3em; vertical-align: 0.2em; font-weight: 600; }
+        .readout.dim { color: var(--text-muted); }
+        .readout-sub {
+            margin-top: 18px;
+            font-family: var(--font-ui); font-size: 14px; color: var(--text-secondary);
+        }
+
+        /* ===== Panel action buttons ===== */
+        .panel-actions { display: flex; gap: 10px; margin-top: 28px; flex-wrap: wrap; justify-content: center; }
+        .action-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 22px;
+            border: 1px solid var(--border); border-radius: var(--radius);
+            background: var(--bg-secondary); color: var(--text-primary);
+            font-family: var(--font-ui); font-size: 14px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+            min-width: 110px; justify-content: center;
+        }
+        .action-btn:hover { background: var(--bg-tertiary); border-color: var(--accent); }
+        .action-btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+        .action-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+        .action-btn i { font-size: 12px; }
+
+        /* ===== Clock ===== */
+        .clock-face { width: min(60vmin, 420px); aspect-ratio: 1 / 1; }
+        .clock-face .ring { fill: var(--bg-secondary); stroke: var(--border); stroke-width: 1; }
+        .clock-face .tick-min { stroke: var(--text-muted); stroke-width: 1; }
+        .clock-face .tick-hour { stroke: var(--text-secondary); stroke-width: 2.5; stroke-linecap: round; }
+        .clock-face .hand-hour { stroke: var(--text-primary); stroke-width: 5; stroke-linecap: round; }
+        .clock-face .hand-min  { stroke: var(--text-primary); stroke-width: 3; stroke-linecap: round; }
+        .clock-face .hand-sec  { stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; }
+        .clock-face .pivot     { fill: var(--accent); }
+        .clock-face .hand-hour, .clock-face .hand-min, .clock-face .hand-sec { transform-origin: 100px 100px; transform-box: view-box; transition: transform 0.2s ease-out; }
+
+        /* ===== Timer ===== */
+        .timer-inputs { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+        .timer-input-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .timer-input {
+            width: 84px; padding: 10px 8px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-secondary); color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 28px; font-weight: 500;
+            text-align: center; outline: none;
+            font-variant-numeric: tabular-nums;
+        }
+        .timer-input:focus { border-color: var(--accent); }
+        .timer-input::-webkit-outer-spin-button, .timer-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .timer-input[type=number] { -moz-appearance: textfield; }
+        .timer-input-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+        .timer-colon { font-family: var(--font-mono); font-size: 28px; color: var(--text-muted); padding-bottom: 16px; }
+        .preset-row { display: flex; gap: 8px; margin-top: 8px; }
+        .preset-btn {
+            padding: 6px 14px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-secondary); color: var(--text-secondary);
+            font-family: var(--font-ui); font-size: 12px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .preset-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--accent); }
+        .timer-running .timer-inputs, .timer-running .preset-row { display: none; }
+        .timer-running .timer-readout { display: flex; }
+        .timer-readout { display: none; flex-direction: column; align-items: center; }
+
+        /* ===== Pomodoro ===== */
+        .pom-phase { font-size: 13px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+        .pom-cycle { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; font-variant-numeric: tabular-nums; }
+        .pom-readout-sub { margin-top: 22px; display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); }
+        .pom-timeline { width: min(680px, 92%); margin-top: 28px; user-select: none; -webkit-user-select: none; touch-action: none; }
+        .pom-timeline svg { width: 100%; height: 64px; display: block; overflow: visible; cursor: pointer; }
+        .pom-timeline.dragging svg { cursor: grabbing; }
+        .pom-timeline .pt-dot { cursor: grab; transition: r 0.12s; }
+        .pom-timeline.dragging .pt-dot { cursor: grabbing; r: 9; }
+        .pom-timeline .pt-track { stroke: var(--border); }
+        .pom-timeline .pt-seg-work { stroke: var(--accent); }
+        .pom-timeline .pt-seg-short { stroke: var(--text-muted); }
+        .pom-timeline .pt-seg-long { stroke: var(--text-secondary); }
+        .pom-timeline .pt-node-work { fill: var(--accent); }
+        .pom-timeline .pt-node-break { fill: var(--text-muted); }
+        .pom-timeline .pt-label { fill: var(--text-muted); font-family: var(--font-ui); font-size: 9px; }
+        .pom-timeline .pt-dot { fill: var(--accent); stroke: var(--bg-primary); stroke-width: 2.5; }
+        .pom-timeline .pt-seg-bg { opacity: 0.18; }
+        .pom-timeline .pt-seg-fill { opacity: 1; }
+        .pom-timeline .pt-node.future { opacity: 0.3; }
+
+        /* ===== Settings modal ===== */
+        .popover-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 90;
+            display: none;
+        }
+        .popover-backdrop.open { display: block; }
+        .popover {
+            position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 20px; z-index: 100; width: 280px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+            display: none;
+        }
+        .popover.open { display: block; }
+        .popover-title { margin-bottom: 14px !important; font-size: 13px !important; }
+        .popover-row { margin-bottom: 10px !important; }
+        .popover-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+        .popover-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+        .popover-row label { font-size: 12px; color: var(--text-secondary); }
+        .popover-row input {
+            width: 70px; padding: 6px 8px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-primary); color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 13px; text-align: right; outline: none;
+        }
+        .popover-row input:focus { border-color: var(--accent); }
+        .popover-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+        .popover-btn {
+            padding: 5px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-secondary);
+            font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+        }
+        .popover-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .popover-btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+        .popover-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+        /* ===== Status Bar ===== */
+        .statusbar { display: flex; align-items: center; justify-content: space-between; height: var(--statusbar-height); padding: 0 16px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+        .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+
+        /* ===== Toast ===== */
+        .toast-container { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
+        .toast { padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; white-space: nowrap; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="../index.html" class="header-home" title="Back to NibSet">
+                <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="22">
+                    <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+                    <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#nhg)" stroke="var(--border)" stroke-width="0.5"/>
+                    <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#nhg)" />
+                    <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+                    <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+                    <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <line x1="10" y1="33" x2="22" y2="33" stroke="url(#nhg)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#nhg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                    <defs><linearGradient id="nhg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text-primary)"/><stop offset="100%" stop-color="var(--text-muted)"/></linearGradient></defs>
+                </svg>
+            </a>
+            <div class="header-title">
+                <i class="fa-solid fa-clock"></i>
+                Clock
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="toolbar-btn mode-btn active" data-mode="clock"><i class="fa-solid fa-clock"></i> Clock</button>
+        <button class="toolbar-btn mode-btn" data-mode="timer"><i class="fa-solid fa-hourglass-half"></i> Timer</button>
+        <button class="toolbar-btn mode-btn" data-mode="stopwatch"><i class="fa-solid fa-stopwatch"></i> Stopwatch</button>
+        <button class="toolbar-btn mode-btn" data-mode="pomodoro"><i class="fa-solid fa-seedling"></i> Pomodoro</button>
+
+        <div class="tb-sep mode-actions clock-actions"></div>
+        <button class="toolbar-btn sub-btn mode-actions clock-actions active" data-display="analogue"><i class="fa-regular fa-clock"></i> Analogue</button>
+        <button class="toolbar-btn sub-btn mode-actions clock-actions" data-display="digital"><i class="fa-solid fa-display"></i> Digital</button>
+        <button class="toolbar-btn sub-btn mode-actions clock-actions" data-display="digital12"><i class="fa-solid fa-clock"></i> 12h</button>
+
+        <div class="tb-sep mode-actions pomodoro-actions hidden"></div>
+        <button class="toolbar-btn mode-actions pomodoro-actions hidden" id="pomSettingsBtn" title="Pomodoro settings"><i class="fa-solid fa-gear"></i> Settings</button>
+
+        <div class="toolbar-spacer"></div>
+        <button class="toolbar-btn" id="resetBtn"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+
+        <!-- Pomodoro Settings Modal -->
+        <div class="popover-backdrop" id="pomBackdrop"></div>
+        <div class="popover" id="pomPopover">
+            <div class="popover-title">Pomodoro Settings</div>
+            <div class="popover-row"><label for="pomWork">Work (min)</label><input type="number" id="pomWork" min="1" max="180"></div>
+            <div class="popover-row"><label for="pomShort">Short break (min)</label><input type="number" id="pomShort" min="1" max="60"></div>
+            <div class="popover-row"><label for="pomLong">Long break (min)</label><input type="number" id="pomLong" min="1" max="180"></div>
+            <div class="popover-row"><label for="pomCycles">Cycles</label><input type="number" id="pomCycles" min="1" max="12"></div>
+            <div class="popover-actions">
+                <button class="popover-btn" id="pomCancelBtn">Cancel</button>
+                <button class="popover-btn primary" id="pomSaveBtn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+
+        <!-- Clock panel -->
+        <div class="panel" id="clockPanel">
+            <div id="clockAnalogue">
+                <svg class="clock-face" viewBox="0 0 200 200">
+                    <circle class="ring" cx="100" cy="100" r="96" />
+                    <g id="clockTicks"></g>
+                    <line class="hand-hour" id="handHour" x1="100" y1="100" x2="100" y2="50" />
+                    <line class="hand-min"  id="handMin"  x1="100" y1="100" x2="100" y2="32" />
+                    <line class="hand-sec"  id="handSec"  x1="100" y1="110" x2="100" y2="22" />
+                    <circle class="pivot" cx="100" cy="100" r="3.5" />
+                </svg>
+            </div>
+            <div id="clockDigital" style="display:none">
+                <div class="readout" id="digitalText">--:--:--</div>
+            </div>
+            <div id="clockDigital12" style="display:none">
+                <div class="readout" id="digital12Text">--:--:--<span class="period">--</span></div>
+            </div>
+            <div class="readout-sub" id="clockDate">—</div>
+        </div>
+
+        <!-- Timer panel -->
+        <div class="panel" id="timerPanel" style="display:none">
+            <div class="timer-inputs">
+                <div class="timer-input-group">
+                    <input type="number" class="timer-input" id="timerH" min="0" max="99" value="0">
+                    <div class="timer-input-label">Hours</div>
+                </div>
+                <div class="timer-colon">:</div>
+                <div class="timer-input-group">
+                    <input type="number" class="timer-input" id="timerM" min="0" max="59" value="5">
+                    <div class="timer-input-label">Minutes</div>
+                </div>
+                <div class="timer-colon">:</div>
+                <div class="timer-input-group">
+                    <input type="number" class="timer-input" id="timerS" min="0" max="59" value="0">
+                    <div class="timer-input-label">Seconds</div>
+                </div>
+            </div>
+            <div class="preset-row">
+                <button class="preset-btn" data-preset="60">1m</button>
+                <button class="preset-btn" data-preset="300">5m</button>
+                <button class="preset-btn" data-preset="600">10m</button>
+                <button class="preset-btn" data-preset="1500">25m</button>
+            </div>
+            <div class="timer-readout">
+                <div class="readout" id="timerReadout">00:05:00</div>
+                <div class="readout-sub" id="timerSub">Ready</div>
+            </div>
+            <div class="panel-actions">
+                <button class="action-btn primary" id="timerStartBtn"><i class="fa-solid fa-play"></i> Start</button>
+            </div>
+        </div>
+
+        <!-- Stopwatch panel -->
+        <div class="panel" id="stopwatchPanel" style="display:none">
+            <div class="readout" id="stopwatchReadout">00:00:00.00</div>
+            <div class="readout-sub" id="stopwatchSub">Ready</div>
+            <div class="panel-actions">
+                <button class="action-btn primary" id="stopwatchStartBtn"><i class="fa-solid fa-play"></i> Start</button>
+            </div>
+        </div>
+
+        <!-- Pomodoro panel -->
+        <div class="panel" id="pomodoroPanel" style="display:none">
+            <div class="pom-phase" id="pomPhase">Work</div>
+            <div class="pom-cycle" id="pomCycle">1 / 4</div>
+            <div class="readout" id="pomReadout">25:00</div>
+            <div class="pom-readout-sub" id="pomSub">
+                <span>Click Start to begin focus</span>
+            </div>
+            <div class="pom-timeline" id="pomTimeline"></div>
+            <div class="panel-actions">
+                <button class="action-btn primary" id="pomStartBtn"><i class="fa-solid fa-play"></i> Start</button>
+                <button class="action-btn" id="pomSkipBtn"><i class="fa-solid fa-forward-step"></i> Skip</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+        <div class="statusbar-left">
+            <span id="statusMsg">Clock · Analogue</span>
+        </div>
+        <div class="statusbar-right">
+            <span id="tzMsg"></span>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const $ = id => document.getElementById(id);
+
+    // ===== Storage keys =====
+    const K_MODE        = 'nibset-clock-mode';
+    const K_DISPLAY     = 'nibset-clock-display';
+    const K_TIMER_LAST  = 'nibset-clock-timer-last';
+    const K_POM         = 'nibset-clock-pomodoro';
+
+    // ===== DOM refs =====
+    const toastContainer = $('toastContainer');
+    const statusMsg      = $('statusMsg');
+    const tzMsg          = $('tzMsg');
+
+    const panels = {
+        clock:     $('clockPanel'),
+        timer:     $('timerPanel'),
+        stopwatch: $('stopwatchPanel'),
+        pomodoro:  $('pomodoroPanel'),
+    };
+
+    // ===== Toast =====
+    function toast(msg) {
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = msg;
+        toastContainer.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('show'));
+        setTimeout(() => {
+            el.classList.remove('show');
+            setTimeout(() => el.remove(), 300);
+        }, 2200);
+    }
+
+    // ===== Beep (WebAudio) =====
+    let audioCtx = null;
+    function beep(freq = 880, duration = 0.18, volume = 0.18) {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const t0 = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, t0);
+            gain.gain.linearRampToValueAtTime(volume, t0 + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(t0);
+            osc.stop(t0 + duration + 0.02);
+        } catch (e) { /* ignore */ }
+    }
+    function chime() {
+        beep(880, 0.18);
+        setTimeout(() => beep(1175, 0.22), 180);
+    }
+
+    // ===== Format helpers =====
+    const pad2 = n => String(n).padStart(2, '0');
+    function fmtHMS(totalSec) {
+        const s = Math.max(0, Math.floor(totalSec));
+        return `${pad2(Math.floor(s/3600))}:${pad2(Math.floor((s%3600)/60))}:${pad2(s%60)}`;
+    }
+    function fmtMS(totalSec) {
+        const s = Math.max(0, Math.floor(totalSec));
+        return `${pad2(Math.floor(s/60))}:${pad2(s%60)}`;
+    }
+    function fmtSWatch(totalMs) {
+        const ms = Math.max(0, Math.floor(totalMs));
+        const cs = Math.floor((ms % 1000) / 10);
+        const s  = Math.floor(ms / 1000);
+        return `${pad2(Math.floor(s/3600))}:${pad2(Math.floor((s%3600)/60))}:${pad2(s%60)}.${pad2(cs)}`;
+    }
+
+    // ===== Mode switching =====
+    let currentMode = 'clock';
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(b =>
+            b.classList.toggle('active', b.dataset.mode === mode)
+        );
+        Object.entries(panels).forEach(([m, el]) => {
+            el.style.display = (m === mode) ? '' : 'none';
+        });
+        document.querySelectorAll('.mode-actions').forEach(el => {
+            const belongs = el.classList.contains(`${mode}-actions`);
+            el.classList.toggle('hidden', !belongs);
+        });
+        // close popover when leaving pomodoro
+        if (mode !== 'pomodoro') closePomPopover();
+        localStorage.setItem(K_MODE, mode);
+        updateStatus();
+    }
+
+    function updateStatus() {
+        const labels = {
+            clock:     `Clock · ${ {analogue: 'Analogue', digital: 'Digital 24h', digital12: 'Digital 12h'}[clockDisplay] }`,
+            timer:     `Timer · ${timer.running ? 'Running' : 'Idle'}`,
+            stopwatch: `Stopwatch · ${stopwatch.running ? 'Running' : 'Idle'}`,
+            pomodoro:  `Pomodoro · ${pom.running ? 'Running' : 'Idle'}`,
+        };
+        statusMsg.textContent = labels[currentMode];
+    }
+
+    // ====================================================
+    // ===== CLOCK ========================================
+    // ====================================================
+    let clockDisplay = localStorage.getItem(K_DISPLAY) || 'analogue';
+
+    // Build SVG ticks
+    (function buildTicks() {
+        const g = $('clockTicks');
+        let svg = '';
+        for (let i = 0; i < 60; i++) {
+            const angle = i * 6;
+            const isHour = i % 5 === 0;
+            const len = isHour ? 8 : 4;
+            const cls = isHour ? 'tick-hour' : 'tick-min';
+            const x1 = 100, y1 = 8, x2 = 100, y2 = 8 + len;
+            svg += `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" transform="rotate(${angle} 100 100)"/>`;
+        }
+        g.innerHTML = svg;
+    })();
+
+    function setClockDisplay(d) {
+        clockDisplay = d;
+        $('clockAnalogue').style.display    = d === 'analogue'  ? '' : 'none';
+        $('clockDigital').style.display     = d === 'digital'   ? '' : 'none';
+        $('clockDigital12').style.display   = d === 'digital12' ? '' : 'none';
+        document.querySelectorAll('.clock-actions.sub-btn').forEach(b =>
+            b.classList.toggle('active', b.dataset.display === d)
+        );
+        localStorage.setItem(K_DISPLAY, d);
+        tickClock();
+        updateStatus();
+    }
+
+    function tickClock() {
+        const now = new Date();
+        const h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+
+        // Analogue
+        const secAng  = s * 6;
+        const minAng  = m * 6 + s * 0.1;
+        const hourAng = (h % 12) * 30 + m * 0.5;
+        $('handSec').style.transform  = `rotate(${secAng}deg)`;
+        $('handMin').style.transform  = `rotate(${minAng}deg)`;
+        $('handHour').style.transform = `rotate(${hourAng}deg)`;
+
+        // Digital 24h
+        $('digitalText').textContent = `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+
+        // Digital 12h
+        const period = h >= 12 ? 'PM' : 'AM';
+        const h12 = ((h + 11) % 12) + 1;
+        $('digital12Text').innerHTML = `${pad2(h12)}:${pad2(m)}:${pad2(s)}<span class="period">${period}</span>`;
+
+        // Date line
+        $('clockDate').textContent = now.toLocaleDateString(undefined, {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+        });
+    }
+
+    setInterval(tickClock, 1000);
+
+    document.querySelectorAll('.clock-actions.sub-btn').forEach(btn => {
+        btn.addEventListener('click', () => setClockDisplay(btn.dataset.display));
+    });
+
+    // ====================================================
+    // ===== TIMER ========================================
+    // ====================================================
+    const timer = {
+        running: false,
+        endsAt: 0,        // epoch ms
+        remainMs: 0,      // when paused
+        durationSec: 300,
+        rafId: null,
+    };
+
+    const timerPanel    = $('timerPanel');
+    const timerReadout  = $('timerReadout');
+    const timerSub      = $('timerSub');
+    const timerStartBtn = $('timerStartBtn');
+
+    function setTimerStartBtn(running) {
+        timerStartBtn.innerHTML = running
+            ? '<i class="fa-solid fa-pause"></i> Pause'
+            : '<i class="fa-solid fa-play"></i> Start';
+        timerStartBtn.classList.toggle('primary', !running);
+    }
+
+    function readTimerInputs() {
+        const h = Math.max(0, parseInt($('timerH').value, 10) || 0);
+        const m = Math.max(0, parseInt($('timerM').value, 10) || 0);
+        const s = Math.max(0, parseInt($('timerS').value, 10) || 0);
+        return h * 3600 + m * 60 + s;
+    }
+    function writeTimerInputs(totalSec) {
+        $('timerH').value = Math.floor(totalSec / 3600);
+        $('timerM').value = Math.floor((totalSec % 3600) / 60);
+        $('timerS').value = totalSec % 60;
+    }
+
+    function timerLoop() {
+        if (!timer.running) return;
+        const remain = Math.max(0, timer.endsAt - Date.now());
+        timerReadout.textContent = fmtHMS(remain / 1000);
+        if (remain <= 0) {
+            timer.running = false;
+            timerPanel.classList.remove('timer-running');
+            timerReadout.textContent = '00:00:00';
+            timerSub.textContent = 'Done';
+            setTimerStartBtn(false);
+            chime();
+            toast('Timer complete');
+            updateStatus();
+            return;
+        }
+        timer.rafId = requestAnimationFrame(timerLoop);
+    }
+
+    function startTimer() {
+        if (timer.running) return;
+        let durMs;
+        if (timer.remainMs > 0) {
+            durMs = timer.remainMs;
+        } else {
+            const sec = readTimerInputs();
+            if (sec <= 0) { toast('Set a duration first'); return; }
+            timer.durationSec = sec;
+            localStorage.setItem(K_TIMER_LAST, String(sec));
+            durMs = sec * 1000;
+        }
+        timer.endsAt = Date.now() + durMs;
+        timer.remainMs = 0;
+        timer.running = true;
+        timerPanel.classList.add('timer-running');
+        timerSub.textContent = 'Running…';
+        setTimerStartBtn(true);
+        timerLoop();
+        updateStatus();
+    }
+
+    function pauseTimer() {
+        if (!timer.running) return;
+        timer.remainMs = Math.max(0, timer.endsAt - Date.now());
+        timer.running = false;
+        cancelAnimationFrame(timer.rafId);
+        timerSub.textContent = 'Paused';
+        setTimerStartBtn(false);
+        updateStatus();
+    }
+
+    function resetTimer() {
+        timer.running = false;
+        timer.remainMs = 0;
+        cancelAnimationFrame(timer.rafId);
+        timerPanel.classList.remove('timer-running');
+        timerReadout.textContent = fmtHMS(timer.durationSec);
+        timerSub.textContent = 'Ready';
+        setTimerStartBtn(false);
+        updateStatus();
+    }
+
+    timerStartBtn.addEventListener('click', () => timer.running ? pauseTimer() : startTimer());
+
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const sec = parseInt(btn.dataset.preset, 10);
+            writeTimerInputs(sec);
+            timer.durationSec = sec;
+            timer.remainMs = 0;
+            timerReadout.textContent = fmtHMS(sec);
+        });
+    });
+    ['timerH', 'timerM', 'timerS'].forEach(id => {
+        $(id).addEventListener('input', () => {
+            if (timer.running) return;
+            const sec = readTimerInputs();
+            timer.durationSec = sec;
+            timer.remainMs = 0;
+            timerReadout.textContent = fmtHMS(sec);
+        });
+    });
+
+    // Restore last duration
+    const lastTimer = parseInt(localStorage.getItem(K_TIMER_LAST), 10);
+    if (Number.isFinite(lastTimer) && lastTimer > 0) {
+        timer.durationSec = lastTimer;
+        writeTimerInputs(lastTimer);
+        timerReadout.textContent = fmtHMS(lastTimer);
+    } else {
+        timerReadout.textContent = fmtHMS(timer.durationSec);
+    }
+
+    // ====================================================
+    // ===== STOPWATCH ====================================
+    // ====================================================
+    const stopwatch = {
+        running: false,
+        startedAt: 0,    // epoch ms
+        accumulated: 0,  // ms
+        rafId: null,
+    };
+
+    const swReadout  = $('stopwatchReadout');
+    const swSub      = $('stopwatchSub');
+    const swStartBtn = $('stopwatchStartBtn');
+
+    function setSwStartBtn(running) {
+        swStartBtn.innerHTML = running
+            ? '<i class="fa-solid fa-pause"></i> Pause'
+            : '<i class="fa-solid fa-play"></i> Start';
+        swStartBtn.classList.toggle('primary', !running);
+    }
+
+    function swElapsed() {
+        return stopwatch.running
+            ? stopwatch.accumulated + (Date.now() - stopwatch.startedAt)
+            : stopwatch.accumulated;
+    }
+
+    function swLoop() {
+        if (!stopwatch.running) return;
+        swReadout.textContent = fmtSWatch(swElapsed());
+        stopwatch.rafId = requestAnimationFrame(swLoop);
+    }
+
+    function startStopwatch() {
+        if (stopwatch.running) return;
+        stopwatch.startedAt = Date.now();
+        stopwatch.running = true;
+        swSub.textContent = 'Running…';
+        setSwStartBtn(true);
+        swLoop();
+        updateStatus();
+    }
+    function pauseStopwatch() {
+        if (!stopwatch.running) return;
+        stopwatch.accumulated += Date.now() - stopwatch.startedAt;
+        stopwatch.running = false;
+        cancelAnimationFrame(stopwatch.rafId);
+        swReadout.textContent = fmtSWatch(stopwatch.accumulated);
+        swSub.textContent = 'Paused';
+        setSwStartBtn(false);
+        updateStatus();
+    }
+    function resetStopwatch() {
+        stopwatch.running = false;
+        stopwatch.startedAt = 0;
+        stopwatch.accumulated = 0;
+        cancelAnimationFrame(stopwatch.rafId);
+        swReadout.textContent = fmtSWatch(0);
+        swSub.textContent = 'Ready';
+        setSwStartBtn(false);
+        updateStatus();
+    }
+
+    swStartBtn.addEventListener('click', () => stopwatch.running ? pauseStopwatch() : startStopwatch());
+
+    // ====================================================
+    // ===== POMODORO =====================================
+    // ====================================================
+    const POM_DEFAULTS = { work: 25, short: 5, long: 15, cycles: 4 };
+    let pomCfg = { ...POM_DEFAULTS };
+    try {
+        const saved = JSON.parse(localStorage.getItem(K_POM) || 'null');
+        if (saved && typeof saved === 'object') pomCfg = { ...POM_DEFAULTS, ...saved };
+    } catch (e) { /* ignore */ }
+
+    const pom = {
+        running: false,
+        phase: 'work',         // 'work' | 'short' | 'long'
+        cycleIdx: 1,           // 1..cycles, the current work block
+        endsAt: 0,
+        remainMs: 0,
+        rafId: null,
+    };
+
+    const pomReadout  = $('pomReadout');
+    const pomPhase    = $('pomPhase');
+    const pomCycle    = $('pomCycle');
+    const pomSub      = $('pomSub');
+    const pomStartBtn = $('pomStartBtn');
+    const pomPopover  = $('pomPopover');
+    const pomBackdrop = $('pomBackdrop');
+    function openPomPopover() { pomPopover.classList.add('open'); pomBackdrop.classList.add('open'); }
+    function closePomPopover() { pomPopover.classList.remove('open'); pomBackdrop.classList.remove('open'); }
+
+    function setPomStartBtn(running) {
+        pomStartBtn.innerHTML = running
+            ? '<i class="fa-solid fa-pause"></i> Pause'
+            : '<i class="fa-solid fa-play"></i> Start';
+        pomStartBtn.classList.toggle('primary', !running);
+    }
+
+    function pomPhaseMinutes() {
+        return pomCfg[pom.phase];
+    }
+    function pomPhaseLabel() {
+        return { work: 'Work', short: 'Short Break', long: 'Long Break' }[pom.phase];
+    }
+
+    function renderPomMeta() {
+        pomPhase.textContent = pomPhaseLabel();
+        pomCycle.textContent = `${pom.cycleIdx} / ${pomCfg.cycles}`;
+    }
+
+    // ===== Pomodoro timeline =====
+    const PT = { W: 680, H: 64, pad: 16, lineY: 40, segs: [] };
+    function buildPomSegs() {
+        const segs = [];
+        for (let i = 1; i <= pomCfg.cycles; i++) {
+            segs.push({ phase: 'work', idx: i, mins: pomCfg.work });
+            if (i < pomCfg.cycles) segs.push({ phase: 'short', idx: i, mins: pomCfg.short });
+        }
+        segs.push({ phase: 'long', idx: pomCfg.cycles, mins: pomCfg.long });
+        const total = segs.reduce((a, s) => a + s.mins, 0);
+        const innerW = PT.W - 2 * PT.pad;
+        let x = PT.pad;
+        segs.forEach(s => { s.x = x; s.w = (s.mins / total) * innerW; x += s.w; });
+        PT.segs = segs;
+        PT.total = total;
+    }
+
+    function currentSegIndex() {
+        return PT.segs.findIndex(s => s.phase === pom.phase && s.idx === pom.cycleIdx);
+    }
+
+    function renderPomTimeline() {
+        buildPomSegs();
+        const curIdx = currentSegIndex();
+        const { W, H, pad, lineY, segs } = PT;
+        let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">`;
+        // Background segments (dim track per phase)
+        segs.forEach(s => {
+            svg += `<line class="pt-seg-bg pt-seg-${s.phase}" x1="${s.x}" y1="${lineY}" x2="${s.x+s.w}" y2="${lineY}" stroke-width="6" stroke-linecap="round"/>`;
+        });
+        // Past segments — fully filled
+        segs.forEach((s, i) => {
+            if (i < curIdx) {
+                svg += `<line class="pt-seg-fill pt-seg-${s.phase}" x1="${s.x}" y1="${lineY}" x2="${s.x+s.w}" y2="${lineY}" stroke-width="6" stroke-linecap="round"/>`;
+            }
+        });
+        // Current segment — progress fill (x2 updated each tick)
+        if (curIdx >= 0) {
+            const cs = segs[curIdx];
+            svg += `<line id="pomFillCurrent" class="pt-seg-fill pt-seg-${cs.phase}" x1="${cs.x}" y1="${lineY}" x2="${cs.x}" y2="${lineY}" stroke-width="6" stroke-linecap="round"/>`;
+        }
+        // Labels
+        segs.forEach(s => {
+            const cx = s.x + s.w / 2;
+            if (s.phase === 'work') {
+                svg += `<text class="pt-label" x="${cx}" y="${lineY-14}" text-anchor="middle">W${s.idx}</text>`;
+            } else {
+                svg += `<text class="pt-label" x="${cx}" y="${lineY+20}" text-anchor="middle">${s.phase === 'long' ? 'long' : 'br'}</text>`;
+            }
+        });
+        // Nodes
+        segs.forEach((s, i) => {
+            const isWork = s.phase === 'work';
+            const r = isWork ? 6 : 4;
+            const cls = i <= curIdx ? '' : 'future';
+            const nodeKind = isWork ? 'pt-node-work' : 'pt-node-break';
+            svg += `<circle class="pt-node ${nodeKind} ${cls}" cx="${s.x}" cy="${lineY}" r="${r}"/>`;
+        });
+        const endX = PT.pad + (PT.W - 2 * PT.pad);
+        svg += `<circle class="pt-node pt-node-break future" cx="${endX}" cy="${lineY}" r="4"/>`;
+        // Progress dot rides at the leading edge of the fill
+        const dotX = segs[curIdx >= 0 ? curIdx : 0].x;
+        svg += `<circle class="pt-dot" id="pomProgressDot" cx="${dotX}" cy="${lineY}" r="7"/>`;
+        svg += '</svg>';
+        $('pomTimeline').innerHTML = svg;
+        updatePomTimelineProgress();
+    }
+
+    function updatePomTimelineProgress() {
+        const dot  = document.getElementById('pomProgressDot');
+        const fill = document.getElementById('pomFillCurrent');
+        if (!dot) return;
+        const curIdx = currentSegIndex();
+        if (curIdx < 0) return;
+        const seg = PT.segs[curIdx];
+        const phaseTotalMs = pomPhaseMinutes() * 60 * 1000;
+        let elapsedMs;
+        if (pom.running) elapsedMs = phaseTotalMs - Math.max(0, pom.endsAt - Date.now());
+        else if (pom.remainMs > 0) elapsedMs = phaseTotalMs - pom.remainMs;
+        else elapsedMs = 0;
+        const frac = Math.max(0, Math.min(1, elapsedMs / phaseTotalMs));
+        const x = seg.x + seg.w * frac;
+        dot.setAttribute('cx', x);
+        if (fill) fill.setAttribute('x2', x);
+    }
+
+    // ===== Pomodoro scrub (drag dot to seek) =====
+    const pomTimelineEl = $('pomTimeline');
+    let pomDragging = false;
+
+    function clientXToViewboxX(clientX) {
+        const svg = pomTimelineEl.querySelector('svg');
+        if (!svg) return PT.pad;
+        const r = svg.getBoundingClientRect();
+        const ratio = r.width > 0 ? (clientX - r.left) / r.width : 0;
+        return ratio * PT.W;
+    }
+
+    function pomSeekTo(svgX) {
+        const minX = PT.pad;
+        const maxX = PT.pad + (PT.W - 2 * PT.pad);
+        const x = Math.max(minX, Math.min(maxX, svgX));
+        let seg = PT.segs.find(s => x >= s.x && x < s.x + s.w);
+        if (!seg) seg = PT.segs[PT.segs.length - 1];
+        const frac = Math.max(0, Math.min(1, (x - seg.x) / seg.w));
+        const phaseChanged = seg.phase !== pom.phase || seg.idx !== pom.cycleIdx;
+        pom.phase = seg.phase;
+        pom.cycleIdx = seg.idx;
+        const phaseTotalMs = seg.mins * 60 * 1000;
+        const remainMs = Math.max(0, Math.round((1 - frac) * phaseTotalMs));
+        if (pom.running) {
+            pom.endsAt = Date.now() + remainMs;
+            pom.remainMs = 0;
+        } else {
+            pom.remainMs = remainMs;
+        }
+        pomReadout.textContent = fmtMS(remainMs / 1000);
+        if (phaseChanged) {
+            renderPomMeta();
+            renderPomTimeline();
+            if (pom.running) {
+                pomSub.innerHTML = `<span>${pomPhaseLabel()} · running</span>`;
+            } else {
+                pomSub.innerHTML = `<span>${pomPhaseLabel()} · ${pom.remainMs > 0 ? 'paused' : 'ready'}</span>`;
+            }
+            updateStatus();
+        } else {
+            updatePomTimelineProgress();
+        }
+    }
+
+    pomTimelineEl.addEventListener('pointerdown', e => {
+        if (PT.segs.length === 0) return;
+        pomDragging = true;
+        pomTimelineEl.classList.add('dragging');
+        try { e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch(_) {}
+        e.preventDefault();
+        pomSeekTo(clientXToViewboxX(e.clientX));
+    });
+    document.addEventListener('pointermove', e => {
+        if (!pomDragging) return;
+        pomSeekTo(clientXToViewboxX(e.clientX));
+    });
+    function endPomDrag() {
+        if (!pomDragging) return;
+        pomDragging = false;
+        pomTimelineEl.classList.remove('dragging');
+    }
+    document.addEventListener('pointerup', endPomDrag);
+    document.addEventListener('pointercancel', endPomDrag);
+
+    function pomLoop() {
+        if (!pom.running) return;
+        const remain = Math.max(0, pom.endsAt - Date.now());
+        pomReadout.textContent = fmtMS(remain / 1000);
+        updatePomTimelineProgress();
+        if (remain <= 0) {
+            advancePomPhase(true);
+            return;
+        }
+        pom.rafId = requestAnimationFrame(pomLoop);
+    }
+
+    function advancePomPhase(autoStart) {
+        // Phase finished
+        const finishedPhase = pom.phase;
+        if (finishedPhase === 'work') {
+            if (pom.cycleIdx >= pomCfg.cycles) {
+                pom.phase = 'long';
+            } else {
+                pom.phase = 'short';
+            }
+        } else if (finishedPhase === 'short') {
+            pom.cycleIdx += 1;
+            pom.phase = 'work';
+        } else { // long
+            pom.cycleIdx = 1;
+            pom.phase = 'work';
+        }
+        pom.remainMs = 0;
+        renderPomMeta();
+        renderPomTimeline();
+        pomReadout.textContent = fmtMS(pomPhaseMinutes() * 60);
+        if (autoStart) {
+            chime();
+            toast(`${pomPhaseLabel()} — go!`);
+            startPom();
+        } else {
+            pom.running = false;
+            pomSub.innerHTML = `<span>${pomPhaseLabel()} ready</span>`;
+            setPomStartBtn(false);
+            updateStatus();
+        }
+    }
+
+    function startPom() {
+        if (pom.running) return;
+        let durMs;
+        if (pom.remainMs > 0) {
+            durMs = pom.remainMs;
+        } else {
+            durMs = pomPhaseMinutes() * 60 * 1000;
+        }
+        pom.endsAt = Date.now() + durMs;
+        pom.remainMs = 0;
+        pom.running = true;
+        pomSub.innerHTML = `<span>${pomPhaseLabel()} · running</span>`;
+        setPomStartBtn(true);
+        pomLoop();
+        updateStatus();
+    }
+
+    function pausePom() {
+        if (!pom.running) return;
+        pom.remainMs = Math.max(0, pom.endsAt - Date.now());
+        pom.running = false;
+        cancelAnimationFrame(pom.rafId);
+        pomSub.innerHTML = `<span>${pomPhaseLabel()} · paused</span>`;
+        setPomStartBtn(false);
+        updateStatus();
+    }
+
+    function skipPom() {
+        cancelAnimationFrame(pom.rafId);
+        const wasRunning = pom.running;
+        pom.running = false;
+        pom.remainMs = 0;
+        advancePomPhase(wasRunning);
+    }
+
+    function resetPom() {
+        pom.running = false;
+        pom.phase = 'work';
+        pom.cycleIdx = 1;
+        pom.remainMs = 0;
+        cancelAnimationFrame(pom.rafId);
+        renderPomMeta();
+        renderPomTimeline();
+        pomReadout.textContent = fmtMS(pomCfg.work * 60);
+        pomSub.innerHTML = '<span>Click Start to begin focus</span>';
+        setPomStartBtn(false);
+        updateStatus();
+    }
+
+    function loadPomSettingsToInputs() {
+        $('pomWork').value   = pomCfg.work;
+        $('pomShort').value  = pomCfg.short;
+        $('pomLong').value   = pomCfg.long;
+        $('pomCycles').value = pomCfg.cycles;
+    }
+    function savePomSettings() {
+        const work   = clamp(parseInt($('pomWork').value, 10), 1, 180, POM_DEFAULTS.work);
+        const sh     = clamp(parseInt($('pomShort').value, 10), 1, 60,  POM_DEFAULTS.short);
+        const lo     = clamp(parseInt($('pomLong').value, 10), 1, 180, POM_DEFAULTS.long);
+        const cycles = clamp(parseInt($('pomCycles').value, 10), 1, 12, POM_DEFAULTS.cycles);
+        pomCfg = { work, short: sh, long: lo, cycles };
+        localStorage.setItem(K_POM, JSON.stringify(pomCfg));
+        closePomPopover();
+        toast('Pomodoro settings saved');
+        if (!pom.running) resetPom();
+        else { renderPomMeta(); renderPomTimeline(); }
+    }
+    function clamp(n, min, max, fallback) {
+        if (!Number.isFinite(n)) return fallback;
+        return Math.max(min, Math.min(max, n));
+    }
+
+    pomStartBtn.addEventListener('click', () => pom.running ? pausePom() : startPom());
+    $('pomSkipBtn').addEventListener('click', skipPom);
+    $('pomSettingsBtn').addEventListener('click', () => {
+        if (pomPopover.classList.contains('open')) closePomPopover();
+        else { loadPomSettingsToInputs(); openPomPopover(); }
+    });
+    $('pomCancelBtn').addEventListener('click', closePomPopover);
+    $('pomSaveBtn').addEventListener('click', savePomSettings);
+    pomBackdrop.addEventListener('click', closePomPopover);
+
+    // Initial pomodoro render
+    renderPomMeta();
+    renderPomTimeline();
+    pomReadout.textContent = fmtMS(pomCfg.work * 60);
+
+    // ====================================================
+    // ===== Shared bindings ==============================
+    // ====================================================
+    document.querySelectorAll('.mode-btn').forEach(btn =>
+        btn.addEventListener('click', () => setMode(btn.dataset.mode))
+    );
+
+    $('resetBtn').addEventListener('click', () => {
+        if (currentMode === 'timer')        resetTimer();
+        else if (currentMode === 'stopwatch') resetStopwatch();
+        else if (currentMode === 'pomodoro')  resetPom();
+        else { /* clock has nothing to reset */ toast('Nothing to reset'); }
+    });
+
+    $('themeToggle').addEventListener('click', () => {
+        const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem('nibset-theme', t);
+    });
+
+    // Close popover on Escape
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && pomPopover.classList.contains('open')) closePomPopover();
+    });
+
+    // ====================================================
+    // ===== Init =========================================
+    // ====================================================
+    tzMsg.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    tickClock();
+    setClockDisplay(clockDisplay);
+
+    const savedMode = localStorage.getItem(K_MODE);
+    setMode(['clock','timer','stopwatch','pomodoro'].includes(savedMode) ? savedMode : 'clock');
+});
+</script>
+</body>
+</html>

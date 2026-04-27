@@ -464,8 +464,8 @@ let presentationMode = false;
 let focusAnim = null; // { raf, fromX, fromY, fromS, toX, toY, toS, t0, dur }
 const PRESENT_KEY = 'nibset-mindmap-presentation';
 
-// Layout mode: 'star' (radial, default) or 'tree' (top-down)
-let layoutMode = 'star';
+// Layout mode: 'tree' (top-down, default) or 'star' (radial)
+let layoutMode = 'tree';
 const LAYOUT_KEY = 'nibset-mindmap-layout';
 
 // Pan state
@@ -526,11 +526,14 @@ function toast(msg) {
 // ===== Data model =====
 function createMindMap() {
   const rootId = uid();
+  const c1 = uid(), c2 = uid();
   return {
     meta: { title: 'Untitled MindMap', createdAt: Date.now(), updatedAt: Date.now() },
     rootId,
     nodes: {
-      [rootId]: { id: rootId, parentId: null, title: 'Central Idea', notes: '', collapsed: false }
+      [rootId]: { id: rootId, parentId: null, title: 'Central Idea', notes: '', collapsed: false },
+      [c1]: { id: c1, parentId: rootId, title: 'Idea 1', notes: '', collapsed: false },
+      [c2]: { id: c2, parentId: rootId, title: 'Idea 2', notes: '', collapsed: false }
     },
     refs: []
   };
@@ -1521,12 +1524,18 @@ presentBtn.addEventListener('click', () => {
 });
 $('btnNew').addEventListener('click', () => {
   if (!confirm('Discard current mind map and start fresh?')) return;
+  if (presentationMode) {
+    presentationMode = false;
+    try { localStorage.setItem(PRESENT_KEY, '0'); } catch (_) {}
+    applyPresentationUI();
+  }
   mm = createMindMap();
   selectedId = mm.rootId;
   titleInput.value = mm.meta.title;
-  centerOnRoot();
   sendMsg({ type: 'sync-state', mm: deepClone(mm) });
-  render(); scheduleSave();
+  render();
+  requestAnimationFrame(() => fitToView());
+  scheduleSave();
 });
 titleInput.addEventListener('input', () => {
   if (!mm) return;
@@ -2001,8 +2010,11 @@ function init() {
   applyPresentationUI();
   applyLayoutUI();
   render();
-  if (presentationMode && selectedId) focusOnNode(selectedId, { animate: false });
-  else centerOnRoot();
+  if (presentationMode && selectedId) {
+    focusOnNode(selectedId, { animate: false });
+  } else {
+    requestAnimationFrame(() => fitToView());
+  }
 
   const hash = window.location.hash;
   if (hash.startsWith('#room=')) {

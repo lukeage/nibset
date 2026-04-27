@@ -306,7 +306,6 @@
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
       <path d="M4 16L16 4M16 4v5M16 4h-5"/>
     </svg>
-    <span class="subtool-indicator">&#9662;</span>
   </button>
   <button class="tool-btn" data-tool="text-rect" title="Text (T)">
     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -391,8 +390,8 @@
   <button data-subtype="container"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="1.5"/><line x1="3" y1="7" x2="17" y2="7"/></svg>Container</button>
 </div>
 
-<div class="dropdown subtool-dropdown" id="arrowDropdown">
-  <button data-subtype="arrow" data-linestyle="solid" class="active"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4M16 4v5M16 4h-5"/></svg>Arrow</button>
+<div class="dropdown subtool-dropdown" id="arrowStyleDropdown">
+  <button data-subtype="arrow" data-linestyle="solid"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4M16 4v5M16 4h-5"/></svg>Arrow</button>
   <button data-subtype="arrow-double" data-linestyle="solid"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4M16 4v5M16 4h-5M4 16v-5M4 16h5"/></svg>Double Arrow</button>
   <button data-subtype="line" data-linestyle="solid"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16L16 4"/></svg>Line</button>
   <button data-subtype="line" data-linestyle="dashed"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 2.5"><path d="M4 16L16 4"/></svg>Dashed</button>
@@ -408,7 +407,7 @@
     <div class="shortcut-row"><span>Select</span><kbd>S</kbd></div>
     <div class="shortcut-row"><span>Hand / Pan</span><kbd>H</kbd></div>
     <div class="shortcut-row"><span>Rectangle / Ellipse / Diamond / Container</span><kbd>R</kbd></div>
-    <div class="shortcut-row"><span>Arrow / Double Arrow / Line</span><kbd>A</kbd></div>
+    <div class="shortcut-row"><span>Arrow</span><kbd>A</kbd></div>
     <div class="shortcut-row"><span>Text</span><kbd>T</kbd></div>
     <div class="shortcut-row"><span>Eraser</span><kbd>E</kbd></div>
     <div class="shortcut-row"><span>Sketch / Clean</span><kbd>K</kbd></div>
@@ -465,6 +464,7 @@
   let drawStartPos = null;
   let selectionRect = null;
   let activeHandle = null;
+  let attachPreview = null;
   let clipboard = [];
   let isErasing = false;
   let dragContainerChildren = new Map();
@@ -532,6 +532,12 @@
   let redoStack = [];
 
   function deepCloneStroke(s) { return JSON.parse(JSON.stringify(s)); }
+  function cloneAttach(a) {
+    if (!a) return null;
+    const c = { strokeId: a.strokeId };
+    if (a.anchor) c.anchor = { rx: a.anchor.rx, ry: a.anchor.ry };
+    return c;
+  }
 
   function isBoxType(type) {
     return type === 'rectangle' || type === 'text-rect' || type === 'container';
@@ -625,7 +631,8 @@
         const s = findStrokeById(item.strokeId);
         if (s) {
           s.lineStyle = item.prevLineStyle;
-          broadcast({ type: 'line-style', strokeId: item.strokeId, lineStyle: item.prevLineStyle, participantId: myId });
+          if ('prevSubtype' in item) s.subtype = item.prevSubtype;
+          broadcast({ type: 'line-style', strokeId: item.strokeId, lineStyle: item.prevLineStyle, subtype: item.prevSubtype, participantId: myId });
         }
       }
     } else if (act.action === 'z-order') {
@@ -714,7 +721,8 @@
         const s = findStrokeById(item.strokeId);
         if (s) {
           s.lineStyle = item.newLineStyle;
-          broadcast({ type: 'line-style', strokeId: item.strokeId, lineStyle: item.newLineStyle, participantId: myId });
+          if ('newSubtype' in item) s.subtype = item.newSubtype;
+          broadcast({ type: 'line-style', strokeId: item.strokeId, lineStyle: item.newLineStyle, subtype: item.newSubtype, participantId: myId });
         }
       }
     } else if (act.action === 'z-order') {
@@ -2192,6 +2200,74 @@
     return screenX >= r.x && screenX <= r.x + r.w && screenY >= r.y && screenY <= r.y + r.h;
   }
 
+  // --- Arrow style overlay button ---
+  let arrowStyleButtonRect = null;
+
+  function drawArrowStyleButton(stroke) {
+    const bb = getStrokeBBox(stroke);
+    const tr = worldToScreen(bb.x2, bb.y1);
+    const size = 28;
+    // Position after delete (tr.x+10), front (tr.x+44), back (tr.x+76) → style at tr.x+108
+    const baseX = tr.x + 10;
+    const x = baseX + 3 * size + 14; // 3 buttons + 6 + 4 + 4 gaps
+    const y = tr.y - size - 4;
+    arrowStyleButtonRect = { x, y, w: size, h: size };
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, size, size, 6);
+    ctx.fillStyle = getOverlayButtonBg();
+    ctx.fill();
+    ctx.strokeStyle = getAccentColor();
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Mini-preview of current arrow style
+    const cx = x + size / 2, cy = y + size / 2;
+    const x1 = cx - 8, y1 = cy + 6;
+    const x2 = cx + 8, y2 = cy - 6;
+    const sub = stroke.subtype || 'arrow';
+    const ls = stroke.lineStyle || 'solid';
+    ctx.strokeStyle = getAccentColor();
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (ls === 'dashed') ctx.setLineDash([3, 2]);
+    else if (ls === 'dotted') ctx.setLineDash([0.5, 3]);
+    else ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (sub !== 'line') {
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const hl = 5;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - hl * Math.cos(angle - Math.PI / 6), y2 - hl * Math.sin(angle - Math.PI / 6));
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - hl * Math.cos(angle + Math.PI / 6), y2 - hl * Math.sin(angle + Math.PI / 6));
+      ctx.stroke();
+      if (sub === 'arrow-double') {
+        const ra = angle + Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1 - hl * Math.cos(ra - Math.PI / 6), y1 - hl * Math.sin(ra - Math.PI / 6));
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1 - hl * Math.cos(ra + Math.PI / 6), y1 - hl * Math.sin(ra + Math.PI / 6));
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function hitTestArrowStyleButton(screenX, screenY) {
+    if (!arrowStyleButtonRect) return false;
+    const r = arrowStyleButtonRect;
+    return screenX >= r.x && screenX <= r.x + r.w && screenY >= r.y && screenY <= r.y + r.h;
+  }
+
   function applyZOrder(strokeIds, direction) {
     const idSet = new Set(strokeIds);
     const moved = [];
@@ -2247,6 +2323,7 @@
     }
     selectedStrokes.clear();
     deleteButtonRect = null;
+    arrowStyleButtonRect = null;
     redraw();
   }
 
@@ -2338,6 +2415,59 @@
     return { x: ex, y: ey };
   }
 
+  // Project a world-space point onto the target shape's perimeter and return
+  // bbox-relative coords {rx, ry} so the anchor scales with the shape.
+  function projectToPerimeter(targetStroke, worldPoint) {
+    const bb = getStrokeBBox(targetStroke);
+    const w = bb.x2 - bb.x1, h = bb.y2 - bb.y1;
+    if (w === 0 || h === 0) return { rx: 0.5, ry: 0.5 };
+    const cx = bb.x1 + w / 2, cy = bb.y1 + h / 2;
+    const hw = w / 2, hh = h / 2;
+    const sub = targetStroke.subtype || targetStroke.type;
+    let px, py;
+    if (sub === 'ellipse') {
+      const dx = worldPoint.x - cx, dy = worldPoint.y - cy;
+      if (dx === 0 && dy === 0) { px = cx + hw; py = cy; }
+      else {
+        const a = Math.atan2(dy * hw, dx * hh);
+        px = cx + hw * Math.cos(a); py = cy + hh * Math.sin(a);
+      }
+    } else if (sub === 'diamond') {
+      const dx = worldPoint.x - cx, dy = worldPoint.y - cy;
+      const sum = Math.abs(dx) / hw + Math.abs(dy) / hh;
+      if (sum === 0) { px = cx + hw; py = cy; }
+      else { px = cx + dx / sum; py = cy + dy / sum; }
+    } else {
+      const cxp = Math.max(bb.x1, Math.min(bb.x2, worldPoint.x));
+      const cyp = Math.max(bb.y1, Math.min(bb.y2, worldPoint.y));
+      const dL = cxp - bb.x1, dR = bb.x2 - cxp, dT = cyp - bb.y1, dB = bb.y2 - cyp;
+      const m = Math.min(dL, dR, dT, dB);
+      if (m === dL) { px = bb.x1; py = cyp; }
+      else if (m === dR) { px = bb.x2; py = cyp; }
+      else if (m === dT) { px = cxp; py = bb.y1; }
+      else { px = cxp; py = bb.y2; }
+    }
+    return { rx: (px - bb.x1) / w, ry: (py - bb.y1) / h };
+  }
+
+  function computeAnchoredPoint(targetStroke, anchor) {
+    const bb = getStrokeBBox(targetStroke);
+    const w = bb.x2 - bb.x1, h = bb.y2 - bb.y1;
+    const cx = bb.x1 + w / 2, cy = bb.y1 + h / 2;
+    let ex = bb.x1 + anchor.rx * w;
+    let ey = bb.y1 + anchor.ry * h;
+    const gap = 12;
+    const gx = ex - cx, gy = ey - cy;
+    const dist = Math.sqrt(gx * gx + gy * gy);
+    if (dist > 0) { ex += gx / dist * gap; ey += gy / dist * gap; }
+    return { x: ex, y: ey };
+  }
+
+  function attachmentPoint(targetStroke, attach, fromPoint) {
+    if (attach && attach.anchor) return computeAnchoredPoint(targetStroke, attach.anchor);
+    return computeEdgePoint(targetStroke, fromPoint);
+  }
+
   function findStrokeById(id) {
     return strokes.find(s => s.strokeId === id) || null;
   }
@@ -2350,11 +2480,11 @@
       const oldMidX = (s.start.x + s.end.x) / 2;
       const oldMidY = (s.start.y + s.end.y) / 2;
       if (s.startAttach && s.startAttach.strokeId === movedStroke.strokeId) {
-        s.start = computeEdgePoint(movedStroke, arrowFromPoint(s, 'start'));
+        s.start = attachmentPoint(movedStroke, s.startAttach, arrowFromPoint(s, 'start'));
         changed = true;
       }
       if (s.endAttach && s.endAttach.strokeId === movedStroke.strokeId) {
-        s.end = computeEdgePoint(movedStroke, arrowFromPoint(s, 'end'));
+        s.end = attachmentPoint(movedStroke, s.endAttach, arrowFromPoint(s, 'end'));
         changed = true;
       }
       if (changed && s.controlPoint) {
@@ -2367,14 +2497,14 @@
         const endTarget = findStrokeById(s.endAttach.strokeId);
         if (startTarget && endTarget) {
           if (s.controlPoint) {
-            s.start = computeEdgePoint(startTarget, arrowFromPoint(s, 'start'));
-            s.end = computeEdgePoint(endTarget, arrowFromPoint(s, 'end'));
+            s.start = attachmentPoint(startTarget, s.startAttach, arrowFromPoint(s, 'start'));
+            s.end = attachmentPoint(endTarget, s.endAttach, arrowFromPoint(s, 'end'));
           } else {
             const sBB = getStrokeBBox(startTarget), eBB = getStrokeBBox(endTarget);
             const sCx = (sBB.x1+sBB.x2)/2, sCy = (sBB.y1+sBB.y2)/2;
             const eCx = (eBB.x1+eBB.x2)/2, eCy = (eBB.y1+eBB.y2)/2;
-            s.start = computeEdgePoint(startTarget, {x: eCx, y: eCy});
-            s.end = computeEdgePoint(endTarget, {x: sCx, y: sCy});
+            s.start = attachmentPoint(startTarget, s.startAttach, {x: eCx, y: eCy});
+            s.end = attachmentPoint(endTarget, s.endAttach, {x: sCx, y: sCy});
           }
         }
       }
@@ -2477,10 +2607,13 @@
         drawHandles(sel);
         drawDeleteButton(sel);
         drawZOrderButtons(sel);
+        if (sel.type === 'arrow') drawArrowStyleButton(sel);
+        else arrowStyleButtonRect = null;
       } else {
         deleteButtonRect = null;
         zFrontButtonRect = null;
         zBackButtonRect = null;
+        arrowStyleButtonRect = null;
       }
     } else if (selectedStrokes.size > 1) {
       // Show delete button at top-right of combined bounding box
@@ -2495,10 +2628,16 @@
         zFrontButtonRect = null;
         zBackButtonRect = null;
       }
+      arrowStyleButtonRect = null;
     } else {
       deleteButtonRect = null;
       zFrontButtonRect = null;
       zBackButtonRect = null;
+      arrowStyleButtonRect = null;
+    }
+    if (!arrowStyleButtonRect) {
+      const asd = document.getElementById('arrowStyleDropdown');
+      if (asd) asd.classList.remove('open');
     }
     if (selectionRect) {
       const tl = worldToScreen(selectionRect.start.x, selectionRect.start.y);
@@ -2510,6 +2649,18 @@
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 3]);
       ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+      ctx.restore();
+    }
+    if (attachPreview) {
+      const sp = worldToScreen(attachPreview.x, attachPreview.y);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, 7, 0, Math.PI * 2);
+      ctx.fillStyle = getAccentColor();
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = getBgColor();
+      ctx.stroke();
       ctx.restore();
     }
     drawRemoteCursors();
@@ -2611,6 +2762,10 @@
         performZOrder('back');
         return;
       }
+      if (hitTestArrowStyleButton(sx, sy)) {
+        toggleArrowStylePopover();
+        return;
+      }
     }
 
     if (activeTool === 'select') {
@@ -2620,8 +2775,8 @@
         activeHandle = handleHit;
         activeHandle.prevStart = { x: handleHit.stroke.start.x, y: handleHit.stroke.start.y };
         activeHandle.prevEnd = { x: handleHit.stroke.end.x, y: handleHit.stroke.end.y };
-        activeHandle.prevStartAttach = handleHit.stroke.startAttach ? { strokeId: handleHit.stroke.startAttach.strokeId } : null;
-        activeHandle.prevEndAttach = handleHit.stroke.endAttach ? { strokeId: handleHit.stroke.endAttach.strokeId } : null;
+        activeHandle.prevStartAttach = cloneAttach(handleHit.stroke.startAttach);
+        activeHandle.prevEndAttach = cloneAttach(handleHit.stroke.endAttach);
         activeHandle.prevControlPoint = handleHit.stroke.controlPoint ? { x: handleHit.stroke.controlPoint.x, y: handleHit.stroke.controlPoint.y } : null;
         isDragging = true;
         redraw();
@@ -2780,6 +2935,25 @@
         else if (activeHandle.handle === 'end') stroke.end = pos;
         else if (activeHandle.handle === 'control') stroke.controlPoint = pos;
       }
+      attachPreview = null;
+      if (stroke.type === 'arrow' && (activeHandle.handle === 'start' || activeHandle.handle === 'end')) {
+        const which = activeHandle.handle;
+        const hover = findAttachment(pos);
+        if (hover) {
+          const target = findStrokeById(hover.strokeId);
+          if (target) {
+            const prevAttach = which === 'start' ? activeHandle.prevStartAttach : activeHandle.prevEndAttach;
+            let pt;
+            if (prevAttach && prevAttach.strokeId === hover.strokeId) {
+              pt = computeAnchoredPoint(target, projectToPerimeter(target, pos));
+            } else {
+              const otherEnd = which === 'start' ? stroke.end : stroke.start;
+              pt = computeEdgePoint(target, otherEnd);
+            }
+            attachPreview = pt;
+          }
+        }
+      }
       redraw();
       return;
     }
@@ -2836,6 +3010,21 @@
       const previewType = (activeTool === 'rectangle' && rectangleSubtype === 'container') ? 'container' : activeTool;
       const previewSubtype = (activeTool === 'rectangle' && rectangleSubtype !== 'container') ? rectangleSubtype : activeTool === 'arrow' ? arrowSubtype : undefined;
       shapePreview = { type: previewType, color: myColor, start: shapeStart, end: pos, participantId: myId, lineWidth: currentLineWidth, subtype: previewSubtype, fillColor: (activeTool !== 'arrow') ? myFillColor : null, label: previewType === 'container' ? '' : undefined, lineStyle: activeTool === 'arrow' ? arrowLineStyle : undefined };
+      attachPreview = null;
+      if (activeTool === 'arrow') {
+        const endHover = findAttachment(pos);
+        if (endHover) {
+          const target = findStrokeById(endHover.strokeId);
+          if (target) attachPreview = computeEdgePoint(target, shapeStart);
+        }
+        if (!attachPreview) {
+          const startHover = findAttachment(shapeStart);
+          if (startHover) {
+            const target = findStrokeById(startHover.strokeId);
+            if (target) attachPreview = computeEdgePoint(target, pos);
+          }
+        }
+      }
       redraw();
     }
   }
@@ -2861,31 +3050,33 @@
     if (activeTool === 'select' && activeHandle) {
       const stroke = activeHandle.stroke;
       if (stroke.type === 'arrow' && activeHandle.handle !== 'control') {
-        const pos = activeHandle.handle === 'start' ? stroke.start : stroke.end;
-        const attach = findAttachment(pos);
-        if (activeHandle.handle === 'start') {
-          stroke.startAttach = attach;
-          if (attach) {
-            const target = findStrokeById(attach.strokeId);
-            if (target) stroke.start = computeEdgePoint(target, arrowFromPoint(stroke, 'start'));
-          }
-        } else {
-          stroke.endAttach = attach;
-          if (attach) {
-            const target = findStrokeById(attach.strokeId);
-            if (target) stroke.end = computeEdgePoint(target, arrowFromPoint(stroke, 'end'));
-          }
+        const which = activeHandle.handle;
+        const pos = stroke[which];
+        const newAttach = findAttachment(pos);
+        const prevAttach = which === 'start' ? activeHandle.prevStartAttach : activeHandle.prevEndAttach;
+        let attach = newAttach;
+        // Same-shape drop ⇒ user is repositioning the anchor; persist it.
+        // Off-shape or different-shape drop ⇒ fresh attach with auto behavior.
+        if (newAttach && prevAttach && newAttach.strokeId === prevAttach.strokeId) {
+          const target = findStrokeById(newAttach.strokeId);
+          if (target) attach = { strokeId: newAttach.strokeId, anchor: projectToPerimeter(target, pos) };
+        }
+        if (which === 'start') stroke.startAttach = attach;
+        else stroke.endAttach = attach;
+        if (attach) {
+          const target = findStrokeById(attach.strokeId);
+          if (target) stroke[which] = attachmentPoint(target, attach, arrowFromPoint(stroke, which));
         }
       }
       // After curving an arrow, recalculate attachment edge points
       if (stroke.type === 'arrow' && activeHandle.handle === 'control') {
         if (stroke.startAttach) {
           const target = findStrokeById(stroke.startAttach.strokeId);
-          if (target) stroke.start = computeEdgePoint(target, arrowFromPoint(stroke, 'start'));
+          if (target) stroke.start = attachmentPoint(target, stroke.startAttach, arrowFromPoint(stroke, 'start'));
         }
         if (stroke.endAttach) {
           const target = findStrokeById(stroke.endAttach.strokeId);
-          if (target) stroke.end = computeEdgePoint(target, arrowFromPoint(stroke, 'end'));
+          if (target) stroke.end = attachmentPoint(target, stroke.endAttach, arrowFromPoint(stroke, 'end'));
         }
       }
       pushAction({
@@ -2895,8 +3086,8 @@
         prevStartAttach: activeHandle.prevStartAttach, prevEndAttach: activeHandle.prevEndAttach,
         newStart: { x: stroke.start.x, y: stroke.start.y }, newEnd: { x: stroke.end.x, y: stroke.end.y },
         newControlPoint: stroke.controlPoint ? { x: stroke.controlPoint.x, y: stroke.controlPoint.y } : null,
-        newStartAttach: stroke.startAttach ? { strokeId: stroke.startAttach.strokeId } : null,
-        newEndAttach: stroke.endAttach ? { strokeId: stroke.endAttach.strokeId } : null
+        newStartAttach: cloneAttach(stroke.startAttach),
+        newEndAttach: cloneAttach(stroke.endAttach)
       });
       broadcast({
         type: 'resize', strokeId: stroke.strokeId,
@@ -2909,6 +3100,7 @@
         participantId: myId
       });
       activeHandle = null;
+      attachPreview = null;
       isDragging = false;
       redraw();
       return;
@@ -3016,6 +3208,7 @@
       strokes.push(stroke);
       shapePreview = null;
       shapeStart = null;
+      attachPreview = null;
 
       const msg = { type: 'shape', tool: stroke.type, startX: stroke.start.x, startY: stroke.start.y, endX: stroke.end.x, endY: stroke.end.y, color: myColor, participantId: myId, strokeId: strokeId, lineWidth: stroke.lineWidth, subtype: subtype, fillColor: stroke.fillColor, lineStyle: stroke.lineStyle };
       if (isContainer) msg.label = '';
@@ -3025,11 +3218,11 @@
         stroke.endAttach = findAttachment(stroke.end);
         if (stroke.startAttach) {
           const target = findStrokeById(stroke.startAttach.strokeId);
-          if (target) stroke.start = computeEdgePoint(target, stroke.end);
+          if (target) stroke.start = attachmentPoint(target, stroke.startAttach, stroke.end);
         }
         if (stroke.endAttach) {
           const target = findStrokeById(stroke.endAttach.strokeId);
-          if (target) stroke.end = computeEdgePoint(target, stroke.start);
+          if (target) stroke.end = attachmentPoint(target, stroke.endAttach, stroke.start);
         }
         msg.startX = stroke.start.x; msg.startY = stroke.start.y;
         msg.endX = stroke.end.x; msg.endY = stroke.end.y;
@@ -3383,7 +3576,11 @@
 
     if (msg.type === 'line-style' && msg.strokeId) {
       const target = findStrokeById(msg.strokeId);
-      if (target) { target.lineStyle = msg.lineStyle; redraw(); }
+      if (target) {
+        if (msg.lineStyle !== undefined) target.lineStyle = msg.lineStyle;
+        if (msg.subtype !== undefined) target.subtype = msg.subtype;
+        redraw();
+      }
       if (isHost && fromConn) broadcastExcept(msg, fromConn);
       return;
     }
@@ -3666,7 +3863,7 @@
   const rectangleBtn = document.getElementById('rectangleBtn');
   const arrowBtn = document.getElementById('arrowBtn');
   const rectangleDropdown = document.getElementById('rectangleDropdown');
-  const arrowDropdown = document.getElementById('arrowDropdown');
+  const arrowStyleDropdown = document.getElementById('arrowStyleDropdown');
 
   const subtoolIcons = {
     rectangle: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="1.5"/></svg>',
@@ -3689,13 +3886,37 @@
   function openSubtoolDropdown(btn, dropdown) {
     // Close other dropdowns
     rectangleDropdown.classList.remove('open');
-    arrowDropdown.classList.remove('open');
+    arrowStyleDropdown.classList.remove('open');
     exportDropdown.classList.remove('open');
     fillDropdown.classList.remove('open');
     const rect = btn.getBoundingClientRect();
     dropdown.style.left = rect.left + 'px';
     dropdown.style.top = (rect.bottom + 6) + 'px';
     dropdown.classList.add('open');
+  }
+
+  function toggleArrowStylePopover() {
+    if (arrowStyleDropdown.classList.contains('open')) {
+      arrowStyleDropdown.classList.remove('open');
+      return;
+    }
+    if (!arrowStyleButtonRect) return;
+    const sel = [...selectedStrokes][0];
+    if (!sel || sel.type !== 'arrow') return;
+    rectangleDropdown.classList.remove('open');
+    exportDropdown.classList.remove('open');
+    fillDropdown.classList.remove('open');
+    const canvasRect = canvas.getBoundingClientRect();
+    arrowStyleDropdown.style.left = (canvasRect.left + arrowStyleButtonRect.x) + 'px';
+    arrowStyleDropdown.style.top = (canvasRect.top + arrowStyleButtonRect.y + arrowStyleButtonRect.h + 6) + 'px';
+    const sub = sel.subtype || 'arrow';
+    const ls = sel.lineStyle || 'solid';
+    arrowStyleDropdown.querySelectorAll('button').forEach(b => {
+      const bSub = b.dataset.subtype;
+      const bLs = b.dataset.linestyle || 'solid';
+      b.classList.toggle('active', bSub === sub && bLs === ls);
+    });
+    arrowStyleDropdown.classList.add('open');
   }
 
   function updateSubtoolBtn(btn, dropdown, subtype, activeBtn) {
@@ -3709,7 +3930,7 @@
     }
   }
 
-  // Override default click for rectangle/arrow buttons
+  // Override default click for rectangle button
   rectangleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (activeTool === 'rectangle') {
@@ -3722,23 +3943,15 @@
     } else {
       switchTool('rectangle');
       rectangleDropdown.classList.remove('open');
-      arrowDropdown.classList.remove('open');
+      arrowStyleDropdown.classList.remove('open');
     }
   });
 
   arrowBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (activeTool === 'arrow') {
-      if (arrowDropdown.classList.contains('open')) {
-        arrowDropdown.classList.remove('open');
-      } else {
-        openSubtoolDropdown(arrowBtn, arrowDropdown);
-      }
-    } else {
-      switchTool('arrow');
-      arrowDropdown.classList.remove('open');
-      rectangleDropdown.classList.remove('open');
-    }
+    switchTool('arrow');
+    rectangleDropdown.classList.remove('open');
+    arrowStyleDropdown.classList.remove('open');
   });
 
   rectangleDropdown.querySelectorAll('button').forEach(btn => {
@@ -3751,22 +3964,46 @@
     });
   });
 
-  arrowDropdown.querySelectorAll('button[data-subtype]').forEach(btn => {
+  arrowStyleDropdown.querySelectorAll('button[data-subtype]').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      arrowSubtype = btn.dataset.subtype;
-      arrowLineStyle = btn.dataset.linestyle || 'solid';
-      const iconKey = arrowLineStyle !== 'solid' ? arrowSubtype + '-' + arrowLineStyle : arrowSubtype;
-      updateSubtoolBtn(arrowBtn, arrowDropdown, iconKey, btn);
-      arrowDropdown.classList.remove('open');
-      switchTool('arrow');
+      const newSubtype = btn.dataset.subtype;
+      const newLineStyle = btn.dataset.linestyle || 'solid';
+      const sels = [...selectedStrokes].filter(s => s.type === 'arrow' && strokes.includes(s));
+      if (sels.length === 0) {
+        arrowStyleDropdown.classList.remove('open');
+        return;
+      }
+      const items = [];
+      for (const sel of sels) {
+        if (sel.subtype === newSubtype && sel.lineStyle === newLineStyle) continue;
+        items.push({ strokeId: sel.strokeId, prevSubtype: sel.subtype, newSubtype, prevLineStyle: sel.lineStyle, newLineStyle });
+        sel.subtype = newSubtype;
+        sel.lineStyle = newLineStyle;
+        broadcast({ type: 'line-style', strokeId: sel.strokeId, subtype: newSubtype, lineStyle: newLineStyle, participantId: myId });
+      }
+      arrowSubtype = newSubtype;
+      arrowLineStyle = newLineStyle;
+      if (items.length > 0) pushAction({ action: 'line-style', items });
+      arrowStyleDropdown.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+      arrowStyleDropdown.classList.remove('open');
+      redraw();
     });
   });
 
   // Close subtool dropdowns on outside click
   document.addEventListener('click', (e) => {
     if (!rectangleBtn.contains(e.target) && !rectangleDropdown.contains(e.target)) rectangleDropdown.classList.remove('open');
-    if (!arrowBtn.contains(e.target) && !arrowDropdown.contains(e.target)) arrowDropdown.classList.remove('open');
+    if (arrowStyleDropdown.contains(e.target)) return;
+    // Treat clicks on the in-canvas style button as inside (don't auto-close)
+    if (e.target === canvas && arrowStyleButtonRect) {
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const r = arrowStyleButtonRect;
+      if (sx >= r.x && sx <= r.x + r.w && sy >= r.y && sy <= r.y + r.h) return;
+    }
+    arrowStyleDropdown.classList.remove('open');
   });
 
   // --- PNG metadata helpers (tEXt chunk) ---

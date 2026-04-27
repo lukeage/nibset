@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindMap — NibSet</title>
+<link rel="icon" type="image/png" href="../assets/logo.png">
+<meta name="description" content="Collaborative radial mind-map with markdown notes, cross-references, PNG round-trip, and real-time P2P sync.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script>
+(function(){
+  var t = localStorage.getItem('nibset-theme');
+  if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-primary: #060608;
+  --bg-secondary: #111115;
+  --bg-tertiary: #1c1c24;
+  --bg-hover: #16161c;
+  --text-primary: #e8e8ec;
+  --text-secondary: #8b8b95;
+  --text-muted: #55555e;
+  --accent: #c9f270;
+  --accent-hover: #b8e35f;
+  --accent-text: #060608;
+  --border: rgba(255,255,255,0.10);
+  --border-strong: rgba(255,255,255,0.22);
+  --header-bg: rgba(6,6,8,0.85);
+  --header-border: rgba(255,255,255,0.05);
+  --danger: #ef4444;
+  --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+  --header-height: 52px;
+  --toolbar-height: 44px;
+  --statusbar-height: 26px;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-card: 14px;
+  --card-bg: #0e0e13;
+  --card-bg-soft: #16161e;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #eaeaee;
+  --bg-tertiary: #dcdce0;
+  --bg-hover: #f0f0f4;
+  --text-primary: #1a1a1e;
+  --text-secondary: #5a5a64;
+  --text-muted: #8b8b95;
+  --accent: #5a8a1a;
+  --accent-hover: #4a7515;
+  --accent-text: #ffffff;
+  --border: rgba(0,0,0,0.10);
+  --border-strong: rgba(0,0,0,0.22);
+  --header-bg: rgba(245,245,247,0.85);
+  --header-border: rgba(0,0,0,0.08);
+  --card-bg: #ffffff;
+  --card-bg-soft: #f0f0f4;
+}
+
+html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
+.app { display: flex; flex-direction: column; height: 100dvh; }
+
+/* ===== Header ===== */
+.header { display: flex; align-items: center; justify-content: space-between; height: var(--header-height); padding: 0 12px; background: var(--header-bg); backdrop-filter: blur(16px); border-bottom: 1px solid var(--header-border); flex-shrink: 0; gap: 12px; }
+.header-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
+.header-home:hover { opacity: 1; }
+.header-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; }
+.header-title i { color: var(--accent); }
+.header-center { flex: 1; display: flex; justify-content: center; min-width: 0; }
+.title-input { width: 240px; padding: 6px 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-primary); font-family: var(--font-ui); font-size: 14px; font-weight: 600; text-align: center; outline: none; }
+.title-input:hover { border-color: var(--border); }
+.title-input:focus { border-color: var(--accent); background: var(--bg-secondary); }
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.p2p-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-connected { background: #22c55e; }
+.dot-waiting { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+.dot-reconnecting { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+.dot-disconnected { background: #ef4444; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.btn:hover { background: var(--bg-tertiary); border-color: var(--border-strong); }
+.btn.btn-accent { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.btn.btn-accent:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.hidden { display: none; }
+.btn-icon { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+.btn-icon:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+.theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+.theme-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+.theme-toggle svg { width: 16px; height: 16px; }
+[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+/* ===== Toolbar ===== */
+.toolbar { display: flex; align-items: center; gap: 4px; padding: 0 12px; height: var(--toolbar-height); border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto; }
+.tool-btn { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.tool-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.tool-btn i { font-size: 11px; }
+.tool-btn.active { background: var(--accent); color: var(--accent-text); }
+.tool-btn.active:hover { background: var(--accent-hover); }
+.tool-btn.toggle-on { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--border); }
+.tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
+.toolbar-spacer { flex: 1; }
+
+/* ===== Workspace ===== */
+.workspace { position: relative; flex: 1; overflow: hidden; background:
+  radial-gradient(circle at 50% 50%, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+}
+.workspace.tool-select { cursor: default; }
+.workspace.tool-arrow-parent, .workspace.tool-arrow-ref { cursor: crosshair; }
+.workspace.panning, .workspace.panning * { cursor: grabbing !important; }
+.workspace.space-held { cursor: grab; }
+
+.world {
+  position: absolute; left: 50%; top: 50%;
+  transform-origin: 0 0;
+  width: 0; height: 0;
+  /* Children use absolute positioning in world coords; the parent transform places them. */
+}
+
+.arrows-layer {
+  position: absolute; overflow: visible; pointer-events: none;
+  left: 0; top: 0; width: 1px; height: 1px;
+}
+.arrows-layer .edge { fill: none; stroke: var(--text-secondary); stroke-width: 1.5; stroke-linecap: round; opacity: 0.85; }
+.arrows-layer .edge-head { fill: var(--text-secondary); }
+.arrows-layer .ref { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 7 5; stroke-linecap: round; }
+.arrows-layer .ref-head { fill: var(--accent); }
+.arrows-layer .ref-label { fill: var(--accent); font-family: var(--font-ui); font-size: 14px; font-style: italic; font-weight: 500; }
+.arrows-layer.refs-hidden .ref, .arrows-layer.refs-hidden .ref-head, .arrows-layer.refs-hidden .ref-label { opacity: 0.10; }
+.arrows-layer .preview { stroke-dasharray: 4 4; opacity: 0.7; }
+
+/* Presentation mode: arrows become clickable so users can navigate between focused nodes. */
+.workspace.presentation .arrows-layer { pointer-events: none; }
+.workspace.presentation .arrows-layer .edge,
+.workspace.presentation .arrows-layer .ref { pointer-events: stroke; cursor: pointer; }
+.workspace.presentation .arrows-layer .edge:hover { stroke: var(--accent); stroke-width: 2.4; }
+.workspace.presentation .arrows-layer .ref:hover { stroke-width: 2.4; }
+
+/* Connection pills shown around the focused node in presentation mode. */
+.conn-pill { pointer-events: all; cursor: pointer; }
+.conn-pill rect { fill: var(--bg-tertiary); stroke: var(--border-strong); stroke-width: 1; }
+.conn-pill text { fill: var(--text-primary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; dominant-baseline: middle; text-anchor: middle; pointer-events: none; user-select: none; }
+.conn-pill.ref rect { stroke: var(--accent); stroke-dasharray: 4 3; }
+.conn-pill.ref text { fill: var(--accent); }
+.conn-pill:hover rect { stroke: var(--accent); stroke-width: 1.5; }
+.conn-pill .pill-arrow { fill: var(--text-secondary); }
+.conn-pill.ref .pill-arrow { fill: var(--accent); }
+
+/* ===== Card ===== */
+.card {
+  position: absolute;
+  width: 280px;
+  background: var(--card-bg);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  padding: 10px 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.4), 0 8px 24px -12px rgba(0,0,0,0.6);
+  user-select: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+[data-theme="light"] .card { box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 8px 24px -12px rgba(0,0,0,0.18); }
+.card.root {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+              0 0 14px 2px color-mix(in srgb, var(--accent) 18%, transparent),
+              0 8px 24px -12px rgba(0,0,0,0.6);
+}
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 24px -12px rgba(0,0,0,0.6); z-index: 5; }
+.card.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.card-title-wrap {
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: var(--card-bg-soft);
+}
+.card-title {
+  width: 100%;
+  border: none; outline: none; background: transparent;
+  font-family: var(--font-ui); font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--text-primary); text-transform: uppercase;
+  padding: 0;
+}
+.card-body {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  flex: 1;
+  min-height: 64px;
+  display: block;
+  font-size: 10.5px; line-height: 1.4;
+  color: var(--text-secondary);
+  cursor: text;
+  overflow: hidden;
+}
+.card-body .notes-view { font-style: italic; min-height: 48px; }
+.card-body .notes-view.empty::before {
+  content: 'Click to add notes…';
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: 0.6;
+}
+.card-body .notes-view :where(p, ul, ol, blockquote, pre) { margin: 0 0 6px; }
+.card-body .notes-view :where(p, ul, ol, blockquote, pre):last-child { margin-bottom: 0; }
+.card-body .notes-view ul, .card-body .notes-view ol { padding-left: 18px; }
+.card-body .notes-view code { font-family: var(--font-mono); font-size: 10px; background: var(--bg-tertiary); padding: 1px 4px; border-radius: 3px; font-style: normal; }
+.card-body .notes-view pre { font-family: var(--font-mono); font-size: 10px; line-height: 1.4; background: var(--bg-tertiary); padding: 6px 8px; border-radius: 4px; font-style: normal; white-space: pre-wrap; }
+.card-body .notes-view a { color: var(--accent); text-decoration: underline; }
+.card-body .notes-view h1, .card-body .notes-view h2, .card-body .notes-view h3 { font-size: 12px; font-weight: 600; color: var(--text-primary); font-style: normal; margin-bottom: 4px; }
+.card-body .notes-edit {
+  width: 100%; height: 100%; min-height: 48px;
+  border: none; outline: none; resize: none; background: transparent;
+  font-family: var(--font-mono); font-size: 10px; line-height: 1.4;
+  color: var(--text-primary);
+  overflow: hidden;
+}
+.card-actions {
+  position: absolute; right: 8px; bottom: 8px;
+  display: flex; gap: 4px;
+}
+.card-action {
+  width: 22px; height: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--card-bg-soft);
+  color: var(--text-secondary);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+  transition: all 0.15s;
+}
+.card-action:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.card-action.add { font-size: 14px; line-height: 1; }
+.card.root .card-action.delete { display: none; }
+.card-collapse-indicator {
+  position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%);
+  width: 20px; height: 20px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  display: none; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 10px;
+}
+.card.has-children .card-collapse-indicator { display: inline-flex; }
+.card-collapse-indicator:hover { color: var(--accent); border-color: var(--accent); }
+.card .anchor-grip { position: absolute; inset: 0; pointer-events: none; }
+
+.card.dragging-arrow-from { box-shadow: 0 0 0 2px var(--accent); }
+
+/* ===== Status Bar ===== */
+.statusbar { display: flex; align-items: center; justify-content: space-between; height: var(--statusbar-height); padding: 0 12px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); flex-shrink: 0; gap: 12px; }
+.statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.statusbar-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ===== Toast ===== */
+.toast-container { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
+.toast { padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* ===== Connection banner ===== */
+#connectionBanner { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: rgba(239,68,68,0.9); color: #fff; border-radius: 8px; font-size: 13px; z-index: 800; display: none; }
+#connectionBanner.visible { display: block; }
+
+/* ===== Reference label dialog ===== */
+.ref-prompt {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px; z-index: 100; width: 320px; box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  display: none;
+}
+.ref-prompt.open { display: block; }
+.ref-prompt label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px; }
+.ref-prompt input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 13px; outline: none; }
+.ref-prompt input:focus { border-color: var(--accent); }
+.ref-prompt-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <a href="../index.html" class="header-home" title="Back to NibSet">
+        <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="22">
+          <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+          <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#nhg)" stroke="var(--border)" stroke-width="0.5"/>
+          <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#nhg)" />
+          <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+          <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+          <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <line x1="10" y1="33" x2="22" y2="33" stroke="url(#nhg)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#nhg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+          <defs><linearGradient id="nhg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text-primary)"/><stop offset="100%" stop-color="var(--text-muted)"/></linearGradient></defs>
+        </svg>
+      </a>
+      <div class="header-title">
+        <i class="fa-solid fa-diagram-project"></i>
+        MindMap
+      </div>
+    </div>
+    <div class="header-center">
+      <input id="mmTitle" class="title-input" placeholder="Untitled MindMap" value="Untitled MindMap">
+    </div>
+    <div class="header-right">
+      <div class="p2p-status">
+        <span class="dot dot-waiting" id="statusDot"></span>
+        <span id="statusText">Initializing...</span>
+      </div>
+      <button class="btn hidden" id="copyLinkBtn" title="Copy invite link"><i class="fa-solid fa-link"></i> Invite</button>
+      <button class="btn" id="btnImport" title="Import PNG"><i class="fa-solid fa-file-import"></i> Import</button>
+      <button class="btn" id="btnExport" title="Export PNG (with embedded data)"><i class="fa-solid fa-file-export"></i> Export</button>
+      <button class="btn" id="btnNew" title="New mind map"><i class="fa-solid fa-file"></i> New</button>
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="tool-btn active" data-tool="select" title="Select / move (V)"><i class="fa-solid fa-arrow-pointer"></i> Select</button>
+    <button class="tool-btn" data-tool="arrow-parent" title="Re-parent arrow: drag from new parent to child (P)"><i class="fa-solid fa-diagram-successor"></i> Re-parent</button>
+    <button class="tool-btn" data-tool="arrow-ref" title="Cross-reference arrow: drag between any two nodes (R)"><i class="fa-solid fa-link"></i> Cross-ref</button>
+    <div class="tb-sep"></div>
+    <button class="tool-btn" id="btnCollapseAll" title="Collapse all"><i class="fa-solid fa-compress"></i> Collapse all</button>
+    <button class="tool-btn" id="btnExpandAll" title="Expand all"><i class="fa-solid fa-expand"></i> Expand all</button>
+    <button class="tool-btn toggle-on" id="btnToggleRefs" title="Show/hide cross-references"><i class="fa-solid fa-eye"></i> Refs</button>
+    <div class="tb-sep"></div>
+    <button class="tool-btn" id="btnFit" title="Fit to view (F)"><i class="fa-solid fa-maximize"></i> Fit</button>
+    <button class="tool-btn" id="btnCenter" title="Center on root (Home)"><i class="fa-solid fa-bullseye"></i> Center</button>
+    <button class="tool-btn" id="btnLayout" title="Toggle layout: star (radial) ↔ tree (top-down)"><i class="fa-solid fa-circle-nodes"></i> <span id="btnLayoutLabel">Star</span></button>
+    <button class="tool-btn" id="btnPresent" title="Presentation mode: zoom to selected node, click arrows to navigate"><i class="fa-solid fa-display"></i> Present</button>
+    <div class="toolbar-spacer"></div>
+    <span class="statusbar-hint" id="toolbarHint" style="font-size:11px;color:var(--text-muted);">space + drag to pan · scroll to zoom</span>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace tool-select" id="workspace">
+    <div class="world" id="world">
+      <svg class="arrows-layer" id="arrowsLayer" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="edge-head"/>
+          </marker>
+          <marker id="refhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="ref-head"/>
+          </marker>
+        </defs>
+        <g id="edgesGroup"></g>
+        <g id="refsGroup"></g>
+        <g id="pillsGroup"></g>
+        <path id="previewArrow" class="preview" style="display:none"/>
+      </svg>
+      <div class="cards-layer" id="cardsLayer"></div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <div class="statusbar-left">
+      <span id="statusMsg">Ready</span>
+    </div>
+    <div class="statusbar-right">
+      <span id="saveStatus">Saved</span>
+      <span id="zoomLabel">100%</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+<div id="connectionBanner"></div>
+
+<!-- Cross-reference label prompt -->
+<div class="ref-prompt" id="refPrompt">
+  <label for="refLabelInput">Reference label (optional)</label>
+  <input type="text" id="refLabelInput" placeholder="reference">
+  <div class="ref-prompt-actions">
+    <button class="btn" id="refCancelBtn">Cancel</button>
+    <button class="btn btn-accent" id="refSaveBtn">Add reference</button>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".png,image/png" style="display:none">
+
+<script>
+'use strict';
+(function(){
+
+const $ = id => document.getElementById(id);
+
+// ===== Constants =====
+const STORAGE_KEY = 'nibset-mindmap-data';
+const AUTOSAVE_DELAY = 1500;
+const MAX_USERS = 8;
+const MAX_RECONNECT = 5;
+const PNG_KEY = 'NibSetMindMap';
+const CARD_W = 280;
+const CARD_H_BASE = 60;       // title-only card height
+const CARD_H_NOTES = 380;     // card with notes height — sized so ~20-30 markdown lines fit when focused
+const RING_BASE = 380;
+const RING_STEP = 300;
+
+// ===== Utility =====
+function uid() { return crypto.randomUUID ? 'n_' + crypto.randomUUID().slice(0, 8) : 'n_' + Math.random().toString(36).slice(2, 10); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
+function debounce(fn, ms) { let t; return function(...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); }; }
+
+// ===== Markdown =====
+if (window.marked) { marked.use({ breaks: true, gfm: true }); }
+function renderMarkdown(md) {
+  if (!md) return '';
+  try {
+    let html = marked.parse(md);
+    html = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      .replace(/javascript:/gi, '');
+    return html;
+  } catch (e) { return escapeHtml(md); }
+}
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// ===== State =====
+let mm = null;
+let selectedId = null;
+let activeTool = 'select';     // 'select' | 'arrow-parent' | 'arrow-ref'
+let refsVisible = true;
+let editingNodeId = null;
+let editingField = null;       // 'title' | 'notes'
+
+// Viewport (world coordinates)
+let viewportX = 0, viewportY = 0, viewportScale = 1;
+const MIN_SCALE = 0.15, MAX_SCALE = 3;
+
+// Presentation mode
+let presentationMode = false;
+let focusAnim = null; // { raf, fromX, fromY, fromS, toX, toY, toS, t0, dur }
+const PRESENT_KEY = 'nibset-mindmap-presentation';
+
+// Layout mode: 'star' (radial, default) or 'tree' (top-down)
+let layoutMode = 'star';
+const LAYOUT_KEY = 'nibset-mindmap-layout';
+
+// Pan state
+let isPanning = false, panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0, spaceHeld = false;
+
+// Arrow drag state
+let arrowDrag = null;          // { fromId, mode: 'parent'|'ref', curX, curY }
+
+// Pending ref to label
+let pendingRef = null;         // { fromId, toId }
+
+// ===== P2P state =====
+let isHost = false;
+let myId = null;
+let connections = [];
+let hostConn = null;
+let guestPeer = null;
+let guestRoomId = null;
+let reconnectAttempts = 0;
+let userCount = 1;
+let isApplyingRemote = false;
+let msgBuffer = [];
+let msgFlushTimer = null;
+const CHUNK_SIZE = 12000;
+let pendingChunks = {};
+
+// DOM refs
+const workspace   = $('workspace');
+const world       = $('world');
+const cardsLayer  = $('cardsLayer');
+const edgesGroup  = $('edgesGroup');
+const refsGroup   = $('refsGroup');
+const pillsGroup  = $('pillsGroup');
+const arrowsLayer = $('arrowsLayer');
+const previewArrow= $('previewArrow');
+const statusDot   = $('statusDot');
+const statusText  = $('statusText');
+const copyLinkBtn = $('copyLinkBtn');
+const toastContainer = $('toastContainer');
+const titleInput  = $('mmTitle');
+const saveStatus  = $('saveStatus');
+const zoomLabel   = $('zoomLabel');
+const statusMsg   = $('statusMsg');
+const refPrompt   = $('refPrompt');
+const refLabelInput = $('refLabelInput');
+const fileInput   = $('fileInput');
+
+// ===== Toast =====
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  toastContainer.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2200);
+}
+
+// ===== Data model =====
+function createMindMap() {
+  const rootId = uid();
+  return {
+    meta: { title: 'Untitled MindMap', createdAt: Date.now(), updatedAt: Date.now() },
+    rootId,
+    nodes: {
+      [rootId]: { id: rootId, parentId: null, title: 'Central Idea', notes: '', collapsed: false }
+    },
+    refs: []
+  };
+}
+
+function getChildren(parentId) {
+  const arr = [];
+  for (const id in mm.nodes) {
+    if (mm.nodes[id].parentId === parentId) arr.push(mm.nodes[id]);
+  }
+  return arr;
+}
+
+function isAncestor(ancestorId, nodeId) {
+  let cur = mm.nodes[nodeId];
+  while (cur) {
+    if (cur.parentId === ancestorId) return true;
+    cur = mm.nodes[cur.parentId];
+  }
+  return false;
+}
+
+function descendantIds(nodeId) {
+  const out = [];
+  function walk(id) { for (const c of getChildren(id)) { out.push(c.id); walk(c.id); } }
+  walk(nodeId);
+  return out;
+}
+
+function setSubtreeCollapsed(nodeId, collapsed) {
+  mm.nodes[nodeId].collapsed = collapsed;
+  for (const id of descendantIds(nodeId)) mm.nodes[id].collapsed = collapsed;
+}
+
+function computeLayout() {
+  return layoutMode === 'tree' ? computeTreeLayout() : computeStarLayout();
+}
+
+// ===== Top-down tree layout =====
+// Root at top, children fan out left-to-right below their parent.
+// First pass measures each subtree's horizontal extent (sum of leaf widths
+// with sibling padding); second pass places each node centered above its
+// children. Vertical spacing per depth derives from card heights at that row.
+function computeTreeLayout() {
+  const positions = {};
+  const visible = new Set();
+  if (!mm || !mm.rootId || !mm.nodes[mm.rootId]) return { positions, visible };
+
+  const H_PAD = 40; // gap between adjacent sibling subtrees
+  const V_PAD = 80; // gap between successive depth rows
+
+  const childrenOf = {};
+  function gather(id) {
+    visible.add(id);
+    const node = mm.nodes[id];
+    if (!node || node.collapsed) { childrenOf[id] = []; return; }
+    const kids = getChildren(id).map(c => c.id);
+    childrenOf[id] = kids;
+    for (const cid of kids) gather(cid);
+  }
+  gather(mm.rootId);
+
+  const depth = {};
+  (function setDepth(id, d) {
+    depth[id] = d;
+    for (const cid of childrenOf[id]) setDepth(cid, d + 1);
+  })(mm.rootId, 0);
+
+  let maxDepth = 0;
+  const maxHByDepth = {};
+  for (const id of visible) {
+    const d = depth[id];
+    if (d > maxDepth) maxDepth = d;
+    const h = cardHeight(mm.nodes[id]);
+    maxHByDepth[d] = Math.max(maxHByDepth[d] || 0, h);
+  }
+  const yByDepth = { 0: 0 };
+  for (let d = 1; d <= maxDepth; d++) {
+    yByDepth[d] = yByDepth[d - 1] + (maxHByDepth[d - 1] || 0) / 2 + (maxHByDepth[d] || 0) / 2 + V_PAD;
+  }
+
+  const subtreeWidth = {};
+  (function computeWidth(id) {
+    const kids = childrenOf[id];
+    if (kids.length === 0) { subtreeWidth[id] = CARD_W; return CARD_W; }
+    let total = 0;
+    for (let i = 0; i < kids.length; i++) {
+      total += computeWidth(kids[i]);
+      if (i > 0) total += H_PAD;
+    }
+    subtreeWidth[id] = Math.max(CARD_W, total);
+    return subtreeWidth[id];
+  })(mm.rootId);
+
+  (function place(id, leftX) {
+    const kids = childrenOf[id];
+    const w = subtreeWidth[id];
+    if (kids.length === 0) {
+      positions[id] = { x: leftX + CARD_W / 2, y: yByDepth[depth[id]] };
+      return;
+    }
+    let totalKids = 0;
+    for (let i = 0; i < kids.length; i++) {
+      totalKids += subtreeWidth[kids[i]];
+      if (i > 0) totalKids += H_PAD;
+    }
+    let cx = leftX + (w - totalKids) / 2;
+    for (const cid of kids) {
+      place(cid, cx);
+      cx += subtreeWidth[cid] + H_PAD;
+    }
+    const firstX = positions[kids[0]].x;
+    const lastX = positions[kids[kids.length - 1]].x;
+    positions[id] = { x: (firstX + lastX) / 2, y: yByDepth[depth[id]] };
+  })(mm.rootId, -subtreeWidth[mm.rootId] / 2);
+
+  return { positions, visible };
+}
+
+// ===== Radial (star) layout =====
+// Returns {x, y} per node, plus visibility (skipping collapsed subtrees).
+// Two passes: first assign angular slots from leaf weights, then derive each
+// ring's radius from its tightest sibling-pair chord so cards never overlap.
+function computeStarLayout() {
+  const positions = {};
+  const visible = new Set();
+  const slots = {}; // id -> { depth, angle, span }
+
+  function leafCount(id) {
+    const n = mm.nodes[id];
+    if (!n) return 1;
+    const kids = getChildren(id);
+    if (kids.length === 0 || n.collapsed) return 1;
+    let total = 0;
+    for (const c of kids) total += leafCount(c.id);
+    return Math.max(1, total);
+  }
+
+  function assignAngles(id, depth, angle, span) {
+    visible.add(id);
+    slots[id] = { depth, angle, span };
+    const node = mm.nodes[id];
+    if (!node || node.collapsed) return;
+    const kids = getChildren(id);
+    if (kids.length === 0) return;
+    const totalLeaves = kids.reduce((s, c) => s + leafCount(c.id), 0);
+    let angularStart = (depth === 0) ? 0 : (angle - span / 2);
+    const totalSpan = (depth === 0) ? Math.PI * 2 : span;
+    for (const c of kids) {
+      const w = leafCount(c.id) / totalLeaves;
+      const childSpan = totalSpan * w;
+      const childAngle = (depth === 0)
+        ? angularStart + childSpan / 2 - Math.PI / 2
+        : angularStart + childSpan / 2;
+      assignAngles(c.id, depth + 1, childAngle, childSpan * 0.92);
+      angularStart += childSpan;
+    }
+  }
+
+  if (!mm || !mm.rootId || !mm.nodes[mm.rootId]) return { positions, visible };
+  assignAngles(mm.rootId, 0, 0, Math.PI * 2);
+
+  // Per-depth required radius from adjacent-sibling chord constraints.
+  const halfDiag = (id) => Math.hypot(CARD_W, cardHeight(mm.nodes[id])) / 2;
+  const SIBLING_PAD = 60;
+  const RADIAL_PAD = 80;
+  const minR = {};
+  // Bucket visible siblings by parent for chord checks.
+  const byParent = {};
+  for (const id of visible) {
+    if (slots[id].depth === 0) continue;
+    const pid = mm.nodes[id].parentId;
+    (byParent[pid] = byParent[pid] || []).push(id);
+  }
+  for (const pid in byParent) {
+    const kids = byParent[pid].slice().sort((a, b) => slots[a].angle - slots[b].angle);
+    if (kids.length === 0) continue;
+    const parentDepth = slots[pid].depth;
+    const wraps = parentDepth === 0; // only the root's children wrap the full circle
+    const pairs = wraps ? kids.length : Math.max(0, kids.length - 1);
+    for (let i = 0; i < pairs; i++) {
+      const a = kids[i], b = kids[(i + 1) % kids.length];
+      let gap = Math.abs(slots[a].angle - slots[b].angle);
+      if (gap > Math.PI) gap = 2 * Math.PI - gap;
+      if (gap < 0.001) continue;
+      const need = halfDiag(a) + halfDiag(b) + SIBLING_PAD;
+      const reqR = need / (2 * Math.sin(gap / 2));
+      const d = slots[a].depth;
+      minR[d] = Math.max(minR[d] || 0, reqR);
+    }
+  }
+
+  // Ring radii: take the larger of the configured ring, the chord requirement,
+  // and a parent-child radial clearance step. Each ring sits outside the prior.
+  const maxDepth = Array.from(visible).reduce((m, id) => Math.max(m, slots[id].depth), 0);
+  const maxHByDepth = {};
+  for (const id of visible) {
+    const d = slots[id].depth;
+    const h = cardHeight(mm.nodes[id]);
+    maxHByDepth[d] = Math.max(maxHByDepth[d] || 0, h);
+  }
+  const ringR = { 0: 0 };
+  let prev = 0;
+  for (let d = 1; d <= maxDepth; d++) {
+    const base = RING_BASE + RING_STEP * (d - 1);
+    const radialStep = (maxHByDepth[d - 1] || 0) / 2 + (maxHByDepth[d] || 0) / 2 + RADIAL_PAD;
+    ringR[d] = Math.max(base, minR[d] || 0, prev + radialStep);
+    prev = ringR[d];
+  }
+
+  for (const id of visible) {
+    const s = slots[id];
+    if (s.depth === 0) {
+      positions[id] = { x: 0, y: 0, angle: 0 };
+    } else {
+      const r = ringR[s.depth];
+      positions[id] = { x: Math.cos(s.angle) * r, y: Math.sin(s.angle) * r, angle: s.angle };
+    }
+  }
+  return { positions, visible };
+}
+
+// Card height grows with notes content (capped at CARD_H_NOTES) so empty
+// or short cards stay compact and dense ones get the full reading panel.
+const CARD_TITLE_BLOCK = 70; // title input + paddings + gap
+const CARD_LINE_PX = 15;     // approx rendered line height for body text
+const CARD_LINE_WRAP = 45;   // approx chars per wrapped line at CARD_W
+function cardHeight(node) {
+  const notes = (node && node.notes ? node.notes : '').trim();
+  if (!notes) return CARD_TITLE_BLOCK + 60; // small body for empty
+  let lines = 0;
+  for (const ln of notes.split('\n')) {
+    lines += Math.max(1, Math.ceil(ln.length / CARD_LINE_WRAP));
+  }
+  const bodyH = clamp(lines * CARD_LINE_PX + 24, 80, CARD_H_NOTES - CARD_TITLE_BLOCK);
+  return CARD_TITLE_BLOCK + bodyH;
+}
+
+// ===== Render =====
+let cachedLayout = { positions: {}, visible: new Set() };
+
+function render() {
+  cachedLayout = computeLayout();
+  const { positions, visible } = cachedLayout;
+
+  // --- Cards ---
+  const existing = new Map();
+  cardsLayer.querySelectorAll('.card').forEach(el => existing.set(el.dataset.id, el));
+
+  for (const id in mm.nodes) {
+    const node = mm.nodes[id];
+    const pos = positions[id];
+    if (!pos || !visible.has(id)) {
+      const el = existing.get(id);
+      if (el) el.remove();
+      existing.delete(id);
+      continue;
+    }
+    let el = existing.get(id);
+    if (!el) {
+      el = createCardElement(node);
+      cardsLayer.appendChild(el);
+    } else {
+      updateCardElement(el, node);
+    }
+    existing.delete(id);
+
+    const h = cardHeight(node);
+    el.style.left = (pos.x - CARD_W / 2) + 'px';
+    el.style.top  = (pos.y - h / 2) + 'px';
+    el.style.height = h + 'px';
+    el.classList.toggle('has-children', getChildren(id).length > 0);
+    el.classList.toggle('selected', selectedId === id);
+    el.classList.toggle('root', id === mm.rootId);
+  }
+  // remove stale
+  for (const el of existing.values()) el.remove();
+
+  renderArrows();
+  updateZoom();
+  if (presentationMode && selectedId && cachedLayout.visible.has(selectedId) && !focusAnim) {
+    focusOnNode(selectedId, { animate: false });
+  }
+}
+
+function createCardElement(node) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.dataset.id = node.id;
+  el.innerHTML = `
+    <div class="card-title-wrap">
+      <input class="card-title" type="text" maxlength="200" value="">
+    </div>
+    <div class="card-body">
+      <div class="notes-view"></div>
+      <textarea class="notes-edit" placeholder="Markdown notes..." style="display:none"></textarea>
+    </div>
+    <div class="card-actions">
+      <button class="card-action delete" title="Delete node"><i class="fa-solid fa-trash"></i></button>
+      <button class="card-action add" title="Add child">+</button>
+    </div>
+    <div class="card-collapse-indicator" title="Collapse / expand"><i class="fa-solid fa-minus"></i></div>
+  `;
+  attachCardHandlers(el);
+  updateCardElement(el, node);
+  return el;
+}
+
+function updateCardElement(el, node) {
+  const titleEl = el.querySelector('.card-title');
+  if (document.activeElement !== titleEl) titleEl.value = node.title || '';
+  const view = el.querySelector('.notes-view');
+  const edit = el.querySelector('.notes-edit');
+  if (document.activeElement !== edit) edit.value = node.notes || '';
+  const md = (node.notes || '').trim();
+  view.innerHTML = md ? renderMarkdown(node.notes) : '';
+  view.classList.toggle('empty', !md);
+  // collapse indicator icon
+  const ind = el.querySelector('.card-collapse-indicator i');
+  ind.className = 'fa-solid ' + (node.collapsed ? 'fa-plus' : 'fa-minus');
+}
+
+function attachCardHandlers(el) {
+  const id = el.dataset.id;
+  const titleEl = el.querySelector('.card-title');
+  const view = el.querySelector('.notes-view');
+  const edit = el.querySelector('.notes-edit');
+  const body = el.querySelector('.card-body');
+  const addBtn = el.querySelector('.card-action.add');
+  const deleteBtn = el.querySelector('.card-action.delete');
+  const collapseInd = el.querySelector('.card-collapse-indicator');
+
+  // Selection on mousedown (so arrow tools can read it before click)
+  el.addEventListener('mousedown', (e) => {
+    if (activeTool === 'arrow-parent' || activeTool === 'arrow-ref') {
+      // Arrow drag start handled at workspace level — set the from card
+      arrowDrag = {
+        fromId: id,
+        mode: activeTool === 'arrow-parent' ? 'parent' : 'ref',
+        curX: 0, curY: 0
+      };
+      e.preventDefault();
+      e.stopPropagation();
+      el.classList.add('dragging-arrow-from');
+      const move = (ev) => {
+        const w = clientToWorld(ev.clientX, ev.clientY);
+        arrowDrag.curX = w.x; arrowDrag.curY = w.y;
+        const target = findCardUnderPoint(ev.clientX, ev.clientY);
+        document.querySelectorAll('.card.drop-target').forEach(c => c.classList.remove('drop-target'));
+        if (target && target.dataset.id !== arrowDrag.fromId) target.classList.add('drop-target');
+        renderPreviewArrow();
+      };
+      const up = (ev) => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        document.querySelectorAll('.card.drop-target').forEach(c => c.classList.remove('drop-target'));
+        el.classList.remove('dragging-arrow-from');
+        previewArrow.style.display = 'none';
+        const target = findCardUnderPoint(ev.clientX, ev.clientY);
+        if (target && target.dataset.id !== arrowDrag.fromId) {
+          if (arrowDrag.mode === 'parent') reparent(target.dataset.id, arrowDrag.fromId);
+          else openRefPrompt(arrowDrag.fromId, target.dataset.id);
+        }
+        arrowDrag = null;
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+      return;
+    }
+    selectNode(id);
+  });
+
+  el.addEventListener('dblclick', (e) => {
+    if (activeTool !== 'select') return;
+    if (e.target.closest('.card-title') || e.target.closest('.notes-edit') || e.target.closest('.card-action')) return;
+    e.stopPropagation();
+    // Double-click on the card body → expand all descendants
+    if (mm.nodes[id]) {
+      setSubtreeCollapsed(id, false);
+      mm.nodes[id].collapsed = false;
+      render();
+      sendMsg({ type: 'subtree-collapse', id, collapsed: false });
+      scheduleSave();
+    }
+  });
+
+  // Title edit
+  titleEl.addEventListener('input', () => {
+    mm.nodes[id].title = titleEl.value;
+    broadcastBuffered({ type: 'node-update', id, changes: { title: titleEl.value } });
+    scheduleSave();
+  });
+  titleEl.addEventListener('focus', () => { editingNodeId = id; editingField = 'title'; });
+  titleEl.addEventListener('blur', () => {
+    if (editingNodeId === id && editingField === 'title') { editingNodeId = null; editingField = null; }
+  });
+  titleEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+  });
+
+  // Notes view → switch to editor
+  view.addEventListener('click', (e) => {
+    if (activeTool !== 'select') return;
+    e.stopPropagation();
+    edit.style.display = 'block';
+    view.style.display = 'none';
+    edit.focus();
+    editingNodeId = id; editingField = 'notes';
+  });
+  edit.addEventListener('input', () => {
+    mm.nodes[id].notes = edit.value;
+    broadcastBuffered({ type: 'node-update', id, changes: { notes: edit.value } });
+    scheduleSave();
+    render();
+  });
+  edit.addEventListener('focus', () => { editingNodeId = id; editingField = 'notes'; });
+  edit.addEventListener('blur', () => {
+    edit.style.display = 'none';
+    view.style.display = '';
+    view.innerHTML = renderMarkdown(mm.nodes[id].notes);
+    editingNodeId = null; editingField = null;
+    render();
+  });
+
+  // + button
+  addBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+  addBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    addChild(id);
+  });
+
+  // Delete button (hidden on root)
+  if (deleteBtn) {
+    deleteBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteNode(id);
+    });
+  }
+
+  // Collapse/expand indicator
+  collapseInd.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+  collapseInd.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleCollapsed(id);
+  });
+}
+
+function selectNode(id) {
+  selectedId = id;
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
+  updateStatusMsg();
+  if (presentationMode && id && editingNodeId !== id) {
+    focusOnNode(id, { animate: true });
+  } else if (presentationMode) {
+    renderConnectionPills(id);
+  }
+}
+
+function findCardUnderPoint(clientX, clientY) {
+  const elements = document.elementsFromPoint(clientX, clientY);
+  for (const el of elements) {
+    if (el.classList && el.classList.contains('card')) return el;
+    const card = el.closest && el.closest('.card');
+    if (card) return card;
+  }
+  return null;
+}
+
+function clientToWorld(cx, cy) {
+  const rect = workspace.getBoundingClientRect();
+  const sx = cx - rect.left;
+  const sy = cy - rect.top;
+  return {
+    x: (sx - rect.width / 2) / viewportScale + viewportX,
+    y: (sy - rect.height / 2) / viewportScale + viewportY
+  };
+}
+
+// ===== Edges & refs (SVG) =====
+function rectEdgeIntersection(cx, cy, w, h, tx, ty) {
+  // Find where the line from (cx,cy) to (tx,ty) exits the rect (cx,cy,w,h).
+  const dx = tx - cx, dy = ty - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const sx = dx === 0 ? Infinity : (Math.sign(dx) * (w / 2)) / dx;
+  const sy = dy === 0 ? Infinity : (Math.sign(dy) * (h / 2)) / dy;
+  const t = Math.min(sx, sy);
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+
+function nodeRect(id) {
+  const pos = cachedLayout.positions[id];
+  if (!pos) return null;
+  const node = mm.nodes[id];
+  if (!node) return null;
+  return { cx: pos.x, cy: pos.y, w: CARD_W, h: cardHeight(node) };
+}
+
+function renderArrows() {
+  // Parent->child edges
+  edgesGroup.innerHTML = '';
+  const visible = cachedLayout.visible;
+  for (const id in mm.nodes) {
+    if (!visible.has(id)) continue;
+    const node = mm.nodes[id];
+    if (!node.parentId) continue;
+    if (!visible.has(node.parentId)) continue;
+    const p = nodeRect(node.parentId);
+    const c = nodeRect(id);
+    if (!p || !c) continue;
+    const a = rectEdgeIntersection(p.cx, p.cy, p.w, p.h, c.cx, c.cy);
+    const b = rectEdgeIntersection(c.cx, c.cy, c.w, c.h, p.cx, p.cy);
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'edge');
+    path.setAttribute('d', `M ${a.x} ${a.y} L ${b.x} ${b.y}`);
+    path.setAttribute('marker-end', 'url(#arrowhead)');
+    path.dataset.fromId = node.parentId;
+    path.dataset.toId = id;
+    edgesGroup.appendChild(path);
+  }
+
+  // Cross-references
+  refsGroup.innerHTML = '';
+  for (const ref of mm.refs) {
+    if (!visible.has(ref.fromId) || !visible.has(ref.toId)) continue;
+    const f = nodeRect(ref.fromId), t = nodeRect(ref.toId);
+    if (!f || !t) continue;
+    const a = rectEdgeIntersection(f.cx, f.cy, f.w, f.h, t.cx, t.cy);
+    const b = rectEdgeIntersection(t.cx, t.cy, t.w, t.h, f.cx, f.cy);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const curveOff = Math.min(80, len * 0.18);
+    const ctrl = { x: mx + nx * curveOff, y: my + ny * curveOff };
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'ref');
+    path.setAttribute('d', `M ${a.x} ${a.y} Q ${ctrl.x} ${ctrl.y} ${b.x} ${b.y}`);
+    path.setAttribute('marker-end', 'url(#refhead)');
+    path.dataset.id = ref.id;
+    path.dataset.fromId = ref.fromId;
+    path.dataset.toId = ref.toId;
+    refsGroup.appendChild(path);
+    if (ref.label) {
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('class', 'ref-label');
+      txt.setAttribute('x', ctrl.x);
+      txt.setAttribute('y', ctrl.y);
+      txt.setAttribute('text-anchor', 'middle');
+      txt.textContent = ref.label;
+      refsGroup.appendChild(txt);
+    }
+  }
+  arrowsLayer.classList.toggle('refs-hidden', !refsVisible);
+  renderConnectionPills(presentationMode ? selectedId : null);
+}
+
+function renderConnectionPills(focusedId) {
+  pillsGroup.innerHTML = '';
+  if (!focusedId || !mm || !mm.nodes[focusedId]) return;
+  const visible = cachedLayout.visible;
+  if (!visible.has(focusedId)) return;
+  const focused = nodeRect(focusedId);
+  if (!focused) return;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const node = mm.nodes[focusedId];
+
+  const entries = [];
+  if (node.parentId && visible.has(node.parentId)) {
+    const p = nodeRect(node.parentId);
+    const pn = mm.nodes[node.parentId];
+    entries.push({ targetId: node.parentId, label: (pn.title || 'Parent'), isRef: false, nx: p.cx, ny: p.cy });
+  }
+  for (const id in mm.nodes) {
+    const n = mm.nodes[id];
+    if (n.parentId !== focusedId || !visible.has(id)) continue;
+    const c = nodeRect(id);
+    entries.push({ targetId: id, label: (n.title || 'Untitled'), isRef: false, nx: c.cx, ny: c.cy });
+  }
+  if (refsVisible) {
+    for (const ref of mm.refs) {
+      if (ref.fromId === focusedId && visible.has(ref.toId)) {
+        const t = nodeRect(ref.toId);
+        const tn = mm.nodes[ref.toId];
+        const lbl = ref.label
+          ? `${ref.label}: ${tn.title || ''}`
+          : (tn.title || '');
+        entries.push({ targetId: ref.toId, label: lbl, isRef: true, refId: ref.id, nx: t.cx, ny: t.cy });
+      } else if (ref.toId === focusedId && visible.has(ref.fromId)) {
+        const f = nodeRect(ref.fromId);
+        const fn = mm.nodes[ref.fromId];
+        const lbl = ref.label
+          ? `${fn.title || ''} (${ref.label})`
+          : (fn.title || '');
+        entries.push({ targetId: ref.fromId, label: lbl, isRef: true, refId: ref.id, nx: f.cx, ny: f.cy });
+      }
+    }
+  }
+
+  const invS = 1 / viewportScale;
+  const MAX_LABEL = 36;
+  for (const e of entries) {
+    const edge = rectEdgeIntersection(focused.cx, focused.cy, focused.w, focused.h, e.nx, e.ny);
+    const dx = e.nx - focused.cx, dy = e.ny - focused.cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', 'conn-pill' + (e.isRef ? ' ref' : ''));
+    g.setAttribute('transform', `translate(${edge.x} ${edge.y}) scale(${invS})`);
+    g.dataset.targetId = e.targetId;
+    if (e.refId) g.dataset.refId = e.refId;
+    const inner = document.createElementNS(SVG_NS, 'g');
+    inner.setAttribute('transform', `translate(${ux * 26} ${uy * 26})`);
+    const txt = document.createElementNS(SVG_NS, 'text');
+    txt.setAttribute('x', 0); txt.setAttribute('y', 0);
+    let label = (e.label || '').trim();
+    if (label.length > MAX_LABEL) label = label.slice(0, MAX_LABEL - 1) + '\u2026';
+    txt.textContent = label;
+    inner.appendChild(txt);
+    g.appendChild(inner);
+    pillsGroup.appendChild(g);
+    let bbW = label.length * 7 + 6, bbH = 16;
+    try { const bb = txt.getBBox(); bbW = bb.width; bbH = bb.height; } catch (_) {}
+    const padX = 10, padY = 5;
+    const w = bbW + padX * 2, h = bbH + padY * 2;
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('x', -w / 2);
+    rect.setAttribute('y', -h / 2);
+    rect.setAttribute('width', w);
+    rect.setAttribute('height', h);
+    rect.setAttribute('rx', 8); rect.setAttribute('ry', 8);
+    inner.insertBefore(rect, txt);
+  }
+}
+
+function renderPreviewArrow() {
+  if (!arrowDrag) { previewArrow.style.display = 'none'; return; }
+  const f = nodeRect(arrowDrag.fromId);
+  if (!f) return;
+  const tx = arrowDrag.curX, ty = arrowDrag.curY;
+  const a = rectEdgeIntersection(f.cx, f.cy, f.w, f.h, tx, ty);
+  previewArrow.setAttribute('d', `M ${a.x} ${a.y} L ${tx} ${ty}`);
+  previewArrow.setAttribute('class', 'preview ' + (arrowDrag.mode === 'ref' ? 'ref' : 'edge'));
+  previewArrow.setAttribute('stroke', arrowDrag.mode === 'ref' ? 'var(--accent)' : 'var(--text-secondary)');
+  previewArrow.style.display = '';
+}
+
+// ===== Mutations =====
+function addChild(parentId, nodeArg) {
+  const id = nodeArg ? nodeArg.id : uid();
+  const node = nodeArg || { id, parentId, title: 'New idea', notes: '', collapsed: false };
+  mm.nodes[id] = node;
+  if (mm.nodes[parentId]) mm.nodes[parentId].collapsed = false;
+  selectedId = id;
+  if (!nodeArg) sendMsg({ type: 'node-add', node: deepClone(node) });
+  render();
+  scheduleSave();
+  // Focus title input for the new card
+  if (!nodeArg) {
+    requestAnimationFrame(() => {
+      const el = cardsLayer.querySelector(`.card[data-id="${id}"] .card-title`);
+      if (el) { el.focus(); el.select(); }
+    });
+  }
+  return id;
+}
+
+function reparent(childId, newParentId) {
+  if (childId === mm.rootId) { toast("Can't re-parent the root."); return; }
+  if (childId === newParentId) return;
+  if (isAncestor(childId, newParentId)) { toast('Would create a cycle.'); return; }
+  if (mm.nodes[childId].parentId === newParentId) return;
+  mm.nodes[childId].parentId = newParentId;
+  mm.nodes[newParentId].collapsed = false;
+  sendMsg({ type: 'reparent', id: childId, newParentId });
+  render();
+  scheduleSave();
+}
+
+function deleteNode(id) {
+  if (id === mm.rootId) { toast("Can't delete the root."); return; }
+  const node = mm.nodes[id];
+  if (!node) return;
+  const newParentId = node.parentId;
+  for (const cid in mm.nodes) {
+    if (mm.nodes[cid].parentId === id) mm.nodes[cid].parentId = newParentId;
+  }
+  delete mm.nodes[id];
+  mm.refs = mm.refs.filter(r => r.fromId !== id && r.toId !== id);
+  if (selectedId === id) selectedId = newParentId;
+  sendMsg({ type: 'node-delete', id });
+  render();
+  scheduleSave();
+}
+
+function toggleCollapsed(id) {
+  const node = mm.nodes[id];
+  if (!node || getChildren(id).length === 0) return;
+  node.collapsed = !node.collapsed;
+  sendMsg({ type: 'node-update', id, changes: { collapsed: node.collapsed } });
+  render();
+  scheduleSave();
+}
+
+function addRef(fromId, toId, label) {
+  if (fromId === toId) return;
+  if (!mm.nodes[fromId] || !mm.nodes[toId]) return;
+  const ref = { id: uid(), fromId, toId, label: label || '' };
+  mm.refs.push(ref);
+  sendMsg({ type: 'ref-add', ref: deepClone(ref) });
+  render();
+  scheduleSave();
+}
+
+// ===== Persistence =====
+function save() {
+  if (!mm) return;
+  if (!isHost && hostConn && hostConn.open) {
+    // Guests don't trample local data while connected.
+    saveStatus.textContent = 'Synced';
+    return;
+  }
+  mm.meta.updatedAt = Date.now();
+  mm.meta.title = titleInput.value || 'Untitled MindMap';
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(mm));
+    saveStatus.textContent = 'Saved';
+  } catch (e) {
+    saveStatus.textContent = 'Save failed';
+    toast('Storage full! Export your map.');
+  }
+}
+const autoSave = debounce(save, AUTOSAVE_DELAY);
+function scheduleSave() { saveStatus.textContent = 'Saving…'; autoSave(); }
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.rootId || !parsed.nodes || !parsed.nodes[parsed.rootId]) return false;
+    mm = parsed;
+    if (!Array.isArray(mm.refs)) mm.refs = [];
+    return true;
+  } catch (e) { return false; }
+}
+
+// ===== Tool selection =====
+function setTool(tool) {
+  activeTool = tool;
+  document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  workspace.classList.remove('tool-select', 'tool-arrow-parent', 'tool-arrow-ref');
+  workspace.classList.add('tool-' + tool);
+  updateStatusMsg();
+}
+
+function updateStatusMsg() {
+  const labels = {
+    'select': selectedId ? 'Selected: ' + (mm.nodes[selectedId]?.title || '') : 'Select tool',
+    'arrow-parent': 'Re-parent: drag from new parent → child',
+    'arrow-ref': 'Cross-reference: drag from any node → any node'
+  };
+  statusMsg.textContent = labels[activeTool] || '';
+}
+
+// ===== Viewport =====
+function updateZoom() {
+  world.style.transform = `translate(${-viewportX * viewportScale}px, ${-viewportY * viewportScale}px) scale(${viewportScale})`;
+  zoomLabel.textContent = Math.round(viewportScale * 100) + '%';
+  if (presentationMode && selectedId && cachedLayout.visible && cachedLayout.visible.has(selectedId)) {
+    renderConnectionPills(selectedId);
+  }
+}
+
+function fitToView() {
+  // Compute bbox of all visible cards
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const id of cachedLayout.visible) {
+    const r = nodeRect(id);
+    if (!r) continue;
+    minX = Math.min(minX, r.cx - r.w / 2);
+    minY = Math.min(minY, r.cy - r.h / 2);
+    maxX = Math.max(maxX, r.cx + r.w / 2);
+    maxY = Math.max(maxY, r.cy + r.h / 2);
+  }
+  if (minX === Infinity) { centerOnRoot(); return; }
+  const pad = 80;
+  const bw = (maxX - minX) + pad * 2;
+  const bh = (maxY - minY) + pad * 2;
+  const rect = workspace.getBoundingClientRect();
+  const scale = clamp(Math.min(rect.width / bw, rect.height / bh), MIN_SCALE, MAX_SCALE);
+  viewportScale = scale;
+  viewportX = (minX + maxX) / 2;
+  viewportY = (minY + maxY) / 2;
+  updateZoom();
+}
+
+function centerOnRoot() {
+  viewportX = 0; viewportY = 0; viewportScale = 1; updateZoom();
+}
+
+function focusOnNode(id, opts) {
+  const animate = !!(opts && opts.animate);
+  const r = nodeRect(id);
+  if (!r) return;
+  const ws = workspace.getBoundingClientRect();
+  // Aim for the card to fill close to the full workspace height, leaving
+  // a margin for connection pills and a sliver of context on either side.
+  const targetScale = clamp(
+    Math.min((ws.width * 0.78) / r.w, (ws.height * 0.92) / r.h),
+    MIN_SCALE, MAX_SCALE
+  );
+  const tx = r.cx, ty = r.cy, ts = targetScale;
+  if (focusAnim) { cancelAnimationFrame(focusAnim.raf); focusAnim = null; }
+  if (!animate) {
+    viewportX = tx; viewportY = ty; viewportScale = ts;
+    updateZoom();
+    return;
+  }
+  const fromX = viewportX, fromY = viewportY, fromS = viewportScale;
+  const t0 = performance.now();
+  const dur = 320;
+  const ease = (k) => 1 - Math.pow(1 - k, 3);
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur);
+    const e = ease(k);
+    viewportX = fromX + (tx - fromX) * e;
+    viewportY = fromY + (ty - fromY) * e;
+    viewportScale = fromS + (ts - fromS) * e;
+    updateZoom();
+    if (k < 1) {
+      focusAnim.raf = requestAnimationFrame(step);
+    } else {
+      focusAnim = null;
+    }
+  };
+  focusAnim = { raf: requestAnimationFrame(step) };
+}
+
+// Pan + zoom
+workspace.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = workspace.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  const before = { x: (sx - rect.width / 2) / viewportScale + viewportX, y: (sy - rect.height / 2) / viewportScale + viewportY };
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  viewportScale = clamp(viewportScale * factor, MIN_SCALE, MAX_SCALE);
+  const after = { x: (sx - rect.width / 2) / viewportScale + viewportX, y: (sy - rect.height / 2) / viewportScale + viewportY };
+  viewportX -= after.x - before.x;
+  viewportY -= after.y - before.y;
+  updateZoom();
+}, { passive: false });
+
+workspace.addEventListener('mousedown', (e) => {
+  // Pan with space or middle button — always wins, regardless of where the click started.
+  if (spaceHeld || e.button === 1) {
+    isPanning = true;
+    panStartX = e.clientX; panStartY = e.clientY;
+    panOriginX = viewportX; panOriginY = viewportY;
+    workspace.classList.add('panning');
+    e.preventDefault();
+    return;
+  }
+  // Click on truly empty workspace (not a card) in select tool clears selection.
+  const onCard = e.target.closest && e.target.closest('.card');
+  if (!onCard && e.button === 0 && activeTool === 'select') {
+    selectedId = null;
+    document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
+    updateStatusMsg();
+  }
+});
+window.addEventListener('mousemove', (e) => {
+  if (isPanning) {
+    const dx = e.clientX - panStartX, dy = e.clientY - panStartY;
+    viewportX = panOriginX - dx / viewportScale;
+    viewportY = panOriginY - dy / viewportScale;
+    updateZoom();
+  }
+});
+window.addEventListener('mouseup', () => {
+  if (isPanning) { isPanning = false; workspace.classList.remove('panning'); }
+});
+
+// Presentation: click an arrow body to navigate to the other endpoint.
+arrowsLayer.addEventListener('click', (e) => {
+  if (!presentationMode) return;
+  if (e.target.closest && e.target.closest('.conn-pill')) return; // pill handler runs instead
+  const path = e.target.closest && e.target.closest('path.edge, path.ref');
+  if (!path) return;
+  const target = path.dataset.toId;
+  if (!target || !mm.nodes[target]) return;
+  e.stopPropagation();
+  selectNode(target);
+});
+
+// Presentation: click a pill to navigate to that connected node.
+pillsGroup.addEventListener('click', (e) => {
+  const g = e.target.closest && e.target.closest('.conn-pill');
+  if (!g) return;
+  e.stopPropagation();
+  const targetId = g.dataset.targetId;
+  if (!targetId || !mm.nodes[targetId]) return;
+  selectNode(targetId);
+});
+
+window.addEventListener('keydown', (e) => {
+  const tag = e.target.tagName;
+  const isText = tag === 'INPUT' || tag === 'TEXTAREA';
+  if (e.code === 'Space' && !isText && !e.repeat) {
+    spaceHeld = true; workspace.classList.add('space-held'); e.preventDefault();
+  }
+  if (isText) return;
+  if (e.key === 'v' || e.key === 'V') setTool('select');
+  else if (e.key === 'p' || e.key === 'P') setTool('arrow-parent');
+  else if (e.key === 'r' || e.key === 'R') setTool('arrow-ref');
+  else if (e.key === 'f' || e.key === 'F') fitToView();
+  else if (e.key === 'Home') centerOnRoot();
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) { deleteNode(selectedId); }
+  else if (e.key === 'Tab' && selectedId) { e.preventDefault(); addChild(selectedId); }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Space') { spaceHeld = false; workspace.classList.remove('space-held'); }
+});
+
+// ===== Toolbar wiring =====
+document.querySelectorAll('.tool-btn[data-tool]').forEach(b =>
+  b.addEventListener('click', () => setTool(b.dataset.tool))
+);
+$('btnCollapseAll').addEventListener('click', () => {
+  for (const id in mm.nodes) {
+    if (id !== mm.rootId && getChildren(id).length > 0) mm.nodes[id].collapsed = true;
+  }
+  sendMsg({ type: 'sync-state', mm: deepClone(mm) });
+  render(); scheduleSave();
+});
+$('btnExpandAll').addEventListener('click', () => {
+  for (const id in mm.nodes) mm.nodes[id].collapsed = false;
+  sendMsg({ type: 'sync-state', mm: deepClone(mm) });
+  render(); scheduleSave();
+});
+const refsBtn = $('btnToggleRefs');
+refsBtn.addEventListener('click', () => {
+  refsVisible = !refsVisible;
+  refsBtn.classList.toggle('toggle-on', refsVisible);
+  refsBtn.querySelector('i').className = refsVisible ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+  arrowsLayer.classList.toggle('refs-hidden', !refsVisible);
+});
+$('btnFit').addEventListener('click', fitToView);
+$('btnCenter').addEventListener('click', centerOnRoot);
+
+const layoutBtn = $('btnLayout');
+const layoutLabel = $('btnLayoutLabel');
+function applyLayoutUI() {
+  const isTree = layoutMode === 'tree';
+  layoutLabel.textContent = isTree ? 'Tree' : 'Star';
+  layoutBtn.querySelector('i').className = 'fa-solid ' + (isTree ? 'fa-sitemap' : 'fa-circle-nodes');
+}
+layoutBtn.addEventListener('click', () => {
+  layoutMode = layoutMode === 'tree' ? 'star' : 'tree';
+  try { localStorage.setItem(LAYOUT_KEY, layoutMode); } catch (_) {}
+  applyLayoutUI();
+  render();
+  if (presentationMode && selectedId && cachedLayout.visible.has(selectedId)) {
+    focusOnNode(selectedId, { animate: true });
+  } else {
+    centerOnRoot();
+  }
+});
+
+const presentBtn = $('btnPresent');
+const toolbarHint = $('toolbarHint');
+const HINT_NORMAL = 'space + drag to pan · scroll to zoom';
+const HINT_PRESENT = 'Presentation mode · click pills or arrows to navigate · click Present to exit';
+function applyPresentationUI() {
+  presentBtn.classList.toggle('toggle-on', presentationMode);
+  workspace.classList.toggle('presentation', presentationMode);
+  toolbarHint.textContent = presentationMode ? HINT_PRESENT : HINT_NORMAL;
+}
+presentBtn.addEventListener('click', () => {
+  presentationMode = !presentationMode;
+  try { localStorage.setItem(PRESENT_KEY, presentationMode ? '1' : '0'); } catch (_) {}
+  applyPresentationUI();
+  if (presentationMode && selectedId && cachedLayout.visible.has(selectedId)) {
+    focusOnNode(selectedId, { animate: true });
+  } else {
+    renderConnectionPills(presentationMode ? selectedId : null);
+  }
+});
+$('btnNew').addEventListener('click', () => {
+  if (!confirm('Discard current mind map and start fresh?')) return;
+  mm = createMindMap();
+  selectedId = mm.rootId;
+  titleInput.value = mm.meta.title;
+  centerOnRoot();
+  sendMsg({ type: 'sync-state', mm: deepClone(mm) });
+  render(); scheduleSave();
+});
+titleInput.addEventListener('input', () => {
+  if (!mm) return;
+  mm.meta.title = titleInput.value;
+  broadcastBuffered({ type: 'meta-update', title: titleInput.value });
+  scheduleSave();
+});
+
+// Theme toggle
+(function(){
+  const btn = $('themeToggle');
+  let mode = localStorage.getItem('nibset-theme') || 'dark';
+  function apply(m) {
+    mode = m;
+    document.documentElement.setAttribute('data-theme', m);
+    localStorage.setItem('nibset-theme', m);
+    btn.title = m === 'light' ? 'Theme: Light' : 'Theme: Dark';
+  }
+  btn.addEventListener('click', () => apply(mode === 'light' ? 'dark' : 'light'));
+})();
+
+// ===== Cross-reference label prompt =====
+function openRefPrompt(fromId, toId) {
+  pendingRef = { fromId, toId };
+  refLabelInput.value = '';
+  refPrompt.classList.add('open');
+  setTimeout(() => refLabelInput.focus(), 30);
+}
+function closeRefPrompt() { refPrompt.classList.remove('open'); pendingRef = null; }
+$('refCancelBtn').addEventListener('click', closeRefPrompt);
+$('refSaveBtn').addEventListener('click', () => {
+  if (!pendingRef) return;
+  addRef(pendingRef.fromId, pendingRef.toId, refLabelInput.value.trim());
+  closeRefPrompt();
+});
+refLabelInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('refSaveBtn').click();
+  else if (e.key === 'Escape') closeRefPrompt();
+});
+
+// ===== PNG metadata (tEXt) =====
+function crc32(buf) {
+  let crc = -1;
+  for (let i = 0; i < buf.length; i++) {
+    crc ^= buf[i];
+    for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+  }
+  return (crc ^ -1) >>> 0;
+}
+function embedPngMetadata(pngBuf, key, value) {
+  const png = new Uint8Array(pngBuf);
+  let iendPos = -1;
+  for (let i = png.length - 12; i >= 8; i--) {
+    if (png[i+4] === 0x49 && png[i+5] === 0x45 && png[i+6] === 0x4E && png[i+7] === 0x44) { iendPos = i; break; }
+  }
+  if (iendPos < 0) return pngBuf;
+  const enc = new TextEncoder();
+  const keyBytes = enc.encode(key);
+  const valBytes = enc.encode(value);
+  const dataLen = keyBytes.length + 1 + valBytes.length;
+  const chunk = new Uint8Array(12 + dataLen);
+  const dv = new DataView(chunk.buffer);
+  dv.setUint32(0, dataLen);
+  chunk[4] = 0x74; chunk[5] = 0x45; chunk[6] = 0x58; chunk[7] = 0x74;
+  chunk.set(keyBytes, 8);
+  chunk[8 + keyBytes.length] = 0;
+  chunk.set(valBytes, 9 + keyBytes.length);
+  const crcData = chunk.slice(4, 8 + dataLen);
+  dv.setUint32(8 + dataLen, crc32(crcData));
+  const result = new Uint8Array(png.length + chunk.length);
+  result.set(png.slice(0, iendPos));
+  result.set(chunk, iendPos);
+  result.set(png.slice(iendPos), iendPos + chunk.length);
+  return result.buffer;
+}
+function extractPngMetadata(pngBuf, key) {
+  const png = new Uint8Array(pngBuf);
+  const enc = new TextEncoder();
+  const keyBytes = enc.encode(key);
+  let pos = 8;
+  while (pos < png.length - 8) {
+    const dv = new DataView(png.buffer, pos);
+    const len = dv.getUint32(0);
+    const type = String.fromCharCode(png[pos+4], png[pos+5], png[pos+6], png[pos+7]);
+    if (type === 'tEXt') {
+      let match = keyBytes.length < len;
+      for (let i = 0; match && i < keyBytes.length; i++) if (png[pos + 8 + i] !== keyBytes[i]) match = false;
+      if (match && png[pos + 8 + keyBytes.length] === 0) {
+        const valStart = pos + 9 + keyBytes.length;
+        const valEnd = pos + 8 + len;
+        return new TextDecoder().decode(png.slice(valStart, valEnd));
+      }
+    }
+    if (type === 'IEND') break;
+    pos += 12 + len;
+  }
+  return null;
+}
+
+// ===== PNG render via SVG (so cards render exactly) =====
+async function renderToPngBlob() {
+  // Compute bbox of visible nodes in world coords
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const id of cachedLayout.visible) {
+    const r = nodeRect(id);
+    if (!r) continue;
+    minX = Math.min(minX, r.cx - r.w / 2);
+    minY = Math.min(minY, r.cy - r.h / 2);
+    maxX = Math.max(maxX, r.cx + r.w / 2);
+    maxY = Math.max(maxY, r.cy + r.h / 2);
+  }
+  if (minX === Infinity) return null;
+  const pad = 60;
+  const bw = (maxX - minX) + pad * 2;
+  const bh = (maxY - minY) + pad * 2;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const bg = isLight ? '#f5f5f7' : '#060608';
+  const cardBg = isLight ? '#ffffff' : '#0e0e13';
+  const titleBg = isLight ? '#f0f0f4' : '#16161e';
+  const text = isLight ? '#1a1a1e' : '#e8e8ec';
+  const muted = isLight ? '#5a5a64' : '#8b8b95';
+  const border = isLight ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.22)';
+  const accent = isLight ? '#5a8a1a' : '#c9f270';
+
+  // Build standalone SVG
+  const parts = [];
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${bw}" height="${bh}" viewBox="${minX - pad} ${minY - pad} ${bw} ${bh}">`);
+  parts.push(`<rect x="${minX - pad}" y="${minY - pad}" width="${bw}" height="${bh}" fill="${bg}"/>`);
+  parts.push(`<defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${muted}"/></marker>
+    <marker id="rh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${accent}"/></marker>
+  </defs>`);
+  // Edges
+  for (const id in mm.nodes) {
+    if (!cachedLayout.visible.has(id)) continue;
+    const node = mm.nodes[id];
+    if (!node.parentId || !cachedLayout.visible.has(node.parentId)) continue;
+    const p = nodeRect(node.parentId), c = nodeRect(id);
+    const a = rectEdgeIntersection(p.cx, p.cy, p.w, p.h, c.cx, c.cy);
+    const b = rectEdgeIntersection(c.cx, c.cy, c.w, c.h, p.cx, p.cy);
+    parts.push(`<path d="M ${a.x} ${a.y} L ${b.x} ${b.y}" stroke="${muted}" stroke-width="1.5" fill="none" marker-end="url(#ah)"/>`);
+  }
+  // Refs
+  if (refsVisible) for (const ref of mm.refs) {
+    if (!cachedLayout.visible.has(ref.fromId) || !cachedLayout.visible.has(ref.toId)) continue;
+    const f = nodeRect(ref.fromId), t = nodeRect(ref.toId);
+    const a = rectEdgeIntersection(f.cx, f.cy, f.w, f.h, t.cx, t.cy);
+    const b = rectEdgeIntersection(t.cx, t.cy, t.w, t.h, f.cx, f.cy);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const off = Math.min(80, len * 0.18);
+    const ctrl = { x: mx + nx * off, y: my + ny * off };
+    parts.push(`<path d="M ${a.x} ${a.y} Q ${ctrl.x} ${ctrl.y} ${b.x} ${b.y}" stroke="${accent}" stroke-width="1.6" stroke-dasharray="7 5" fill="none" marker-end="url(#rh)"/>`);
+    if (ref.label) parts.push(`<text x="${ctrl.x}" y="${ctrl.y}" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="14" font-style="italic" fill="${accent}">${escapeXml(ref.label)}</text>`);
+  }
+  // Cards
+  for (const id of cachedLayout.visible) {
+    const node = mm.nodes[id];
+    const r = nodeRect(id);
+    const x = r.cx - r.w / 2, y = r.cy - r.h / 2;
+    const isSel = (id === selectedId);
+    parts.push(`<rect x="${x}" y="${y}" width="${r.w}" height="${r.h}" rx="14" ry="14" fill="${cardBg}" stroke="${isSel ? accent : border}" stroke-width="${isSel ? 2 : 1.5}"/>`);
+    // title bar
+    parts.push(`<rect x="${x + 10}" y="${y + 10}" width="${r.w - 20}" height="22" rx="6" ry="6" fill="${titleBg}" stroke="${border}" stroke-width="1"/>`);
+    parts.push(`<text x="${x + 18}" y="${y + 25}" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="600" fill="${text}" text-anchor="start">${escapeXml((node.title || '').toUpperCase())}</text>`);
+    if (r.h === CARD_H_NOTES) {
+      // notes preview (plain text, first 6 lines)
+      const lines = (node.notes || '').replace(/[#*_`>\[\]]/g, '').split(/\r?\n/).filter(Boolean).slice(0, 6);
+      parts.push(`<rect x="${x + 10}" y="${y + 40}" width="${r.w - 20}" height="${r.h - 50}" rx="6" ry="6" fill="none" stroke="${border}" stroke-width="1"/>`);
+      let ty = y + 56;
+      for (const ln of lines) {
+        parts.push(`<text x="${x + 18}" y="${ty}" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-style="italic" fill="${muted}">${escapeXml(truncate(ln, 30))}</text>`);
+        ty += 14;
+      }
+    }
+  }
+  parts.push(`</svg>`);
+  const svg = parts.join('');
+
+  // Rasterize via Image
+  const blob = await new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    img.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(bw);
+      cv.height = Math.round(bh);
+      const cx = cv.getContext('2d');
+      cx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      cv.toBlob((b) => resolve(b), 'image/png');
+    };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+  return blob;
+}
+
+function escapeXml(s) {
+  return String(s || '').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+// Export / import
+$('btnExport').addEventListener('click', async () => {
+  const blob = await renderToPngBlob();
+  if (!blob) { toast('Nothing to export.'); return; }
+  const buf = await blob.arrayBuffer();
+  const payload = JSON.stringify({ version: 1, mm });
+  const enhanced = embedPngMetadata(buf, PNG_KEY, payload);
+  const newBlob = new Blob([enhanced], { type: 'image/png' });
+  const url = URL.createObjectURL(newBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (mm.meta.title || 'mindmap').replace(/[^a-z0-9_-]+/gi, '_') + '.png';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Exported PNG.');
+});
+$('btnImport').addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const meta = extractPngMetadata(reader.result, PNG_KEY);
+    if (!meta) { alert('This PNG does not contain mind-map data.'); return; }
+    try {
+      const data = JSON.parse(meta);
+      if (!data.mm || !data.mm.rootId || !data.mm.nodes) throw new Error('Invalid');
+      mm = data.mm;
+      if (!Array.isArray(mm.refs)) mm.refs = [];
+      titleInput.value = mm.meta.title || 'Untitled MindMap';
+      selectedId = null;
+      sendMsg({ type: 'sync-state', mm: deepClone(mm) });
+      render(); centerOnRoot(); scheduleSave();
+      toast('Imported.');
+    } catch (err) { alert('Failed to parse embedded data: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+  fileInput.value = '';
+});
+
+// ===== P2P =====
+function setStatus(text, state) {
+  statusText.textContent = text;
+  statusDot.className = 'dot dot-' + state;
+}
+function updateP2PStatus() {
+  const count = isHost ? connections.length + 1 : userCount;
+  setStatus('Connected (' + count + (count === 1 ? ' user)' : ' users)'), 'connected');
+}
+function showConnectionBanner(text) { const b = $('connectionBanner'); b.textContent = text; b.classList.add('visible'); }
+function hideConnectionBanner() { $('connectionBanner').classList.remove('visible'); }
+
+function sendToConn(conn, msg) {
+  const str = JSON.stringify(msg);
+  if (str.length <= CHUNK_SIZE) { conn.send(msg); return; }
+  const id = uid();
+  const total = Math.ceil(str.length / CHUNK_SIZE);
+  for (let i = 0; i < total; i++) {
+    conn.send({ type: '__chunk', id, idx: i, total, data: str.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE) });
+  }
+}
+function reassembleChunk(chunk) {
+  const key = chunk.id;
+  if (!pendingChunks[key]) pendingChunks[key] = { parts: new Array(chunk.total), received: 0 };
+  const entry = pendingChunks[key];
+  entry.parts[chunk.idx] = chunk.data;
+  entry.received++;
+  if (entry.received === chunk.total) {
+    delete pendingChunks[key];
+    try { return JSON.parse(entry.parts.join('')); } catch (e) { return null; }
+  }
+  return null;
+}
+function broadcast(msg) {
+  if (isHost) { for (const e of connections) if (e.conn.open) sendToConn(e.conn, msg); }
+  else if (hostConn && hostConn.open) sendToConn(hostConn, msg);
+}
+function broadcastExcept(msg, except) {
+  for (const e of connections) if (e.conn !== except && e.conn.open) sendToConn(e.conn, msg);
+}
+function sendMsg(msg) { if (isApplyingRemote) return; broadcast(msg); }
+function broadcastBuffered(msg) {
+  if (isApplyingRemote) return;
+  msgBuffer.push(msg);
+  if (!msgFlushTimer) msgFlushTimer = setTimeout(flushMessages, 50);
+}
+function flushMessages() {
+  msgFlushTimer = null;
+  if (msgBuffer.length === 0) return;
+  if (msgBuffer.length === 1) broadcast(msgBuffer[0]);
+  else broadcast({ type: 'batch', messages: msgBuffer });
+  msgBuffer = [];
+}
+function broadcastUserCount() {
+  const count = connections.length + 1;
+  for (const e of connections) if (e.conn.open) sendToConn(e.conn, { type: 'user-count', count });
+  updateP2PStatus();
+}
+
+function handleMessage(msg, fromConn) {
+  if (!msg || !msg.type) return;
+  if (msg.type === '__chunk') { const a = reassembleChunk(msg); if (a) handleMessage(a, fromConn); return; }
+  if (msg.type === 'batch') { for (const m of msg.messages) handleMessage(m, fromConn); return; }
+
+  if (msg.type === 'sync-state') {
+    isApplyingRemote = true;
+    const incoming = msg.mm;
+    if (!incoming || !incoming.rootId || !incoming.nodes) { isApplyingRemote = false; return; }
+    mm = incoming;
+    if (!Array.isArray(mm.refs)) mm.refs = [];
+    titleInput.value = mm.meta.title || 'Untitled MindMap';
+    selectedId = null;
+    render();
+    isApplyingRemote = false;
+    return;
+  }
+  if (msg.type === 'request-resync') {
+    if (isHost && fromConn) sendToConn(fromConn, { type: 'sync-state', mm: deepClone(mm) });
+    return;
+  }
+  if (msg.type === 'user-count') { userCount = msg.count; updateP2PStatus(); return; }
+  if (msg.type === 'error') { toast(msg.message); return; }
+
+  isApplyingRemote = true;
+  try {
+    if (msg.type === 'node-add') {
+      if (msg.node && !mm.nodes[msg.node.id] && mm.nodes[msg.node.parentId]) {
+        mm.nodes[msg.node.id] = msg.node;
+        render();
+      }
+    } else if (msg.type === 'node-update') {
+      const n = mm.nodes[msg.id];
+      if (n) {
+        if (editingNodeId === msg.id) {
+          // skip fields the user is currently editing
+          const ch = Object.assign({}, msg.changes);
+          if (editingField === 'title') delete ch.title;
+          if (editingField === 'notes') delete ch.notes;
+          Object.assign(n, ch);
+        } else {
+          Object.assign(n, msg.changes);
+        }
+        render();
+      }
+    } else if (msg.type === 'node-delete') {
+      if (mm.nodes[msg.id] && msg.id !== mm.rootId) {
+        const newParentId = mm.nodes[msg.id].parentId;
+        for (const cid in mm.nodes) {
+          if (mm.nodes[cid].parentId === msg.id) mm.nodes[cid].parentId = newParentId;
+        }
+        delete mm.nodes[msg.id];
+        mm.refs = mm.refs.filter(r => r.fromId !== msg.id && r.toId !== msg.id);
+        if (selectedId === msg.id) selectedId = newParentId;
+        render();
+      }
+    } else if (msg.type === 'reparent') {
+      const n = mm.nodes[msg.id];
+      if (n && mm.nodes[msg.newParentId] && msg.id !== mm.rootId && !isAncestor(msg.id, msg.newParentId)) {
+        n.parentId = msg.newParentId;
+        render();
+      }
+    } else if (msg.type === 'ref-add') {
+      if (msg.ref && mm.nodes[msg.ref.fromId] && mm.nodes[msg.ref.toId] && !mm.refs.find(r => r.id === msg.ref.id)) {
+        mm.refs.push(msg.ref);
+        render();
+      }
+    } else if (msg.type === 'ref-delete') {
+      mm.refs = mm.refs.filter(r => r.id !== msg.id);
+      render();
+    } else if (msg.type === 'meta-update') {
+      mm.meta.title = msg.title;
+      titleInput.value = msg.title;
+    } else if (msg.type === 'subtree-collapse') {
+      if (mm.nodes[msg.id]) { setSubtreeCollapsed(msg.id, msg.collapsed); render(); }
+    }
+    scheduleSave();
+  } finally {
+    isApplyingRemote = false;
+    if (isHost && fromConn) broadcastExcept(msg, fromConn);
+  }
+}
+
+function startHosting() {
+  isHost = true;
+  if (typeof Peer === 'undefined') { setStatus('Offline (no P2P)', 'disconnected'); return; }
+  setStatus('Initializing…', 'waiting');
+  const peer = new Peer();
+  peer.on('open', (id) => {
+    myId = id;
+    const link = window.location.origin + window.location.pathname + '#room=' + id;
+    setStatus('Solo (sharable)', 'waiting');
+    copyLinkBtn.classList.remove('hidden');
+    copyLinkBtn.onclick = () => {
+      navigator.clipboard.writeText(link).then(() => toast('Invite link copied!'));
+    };
+  });
+  peer.on('connection', (c) => {
+    if (connections.length >= MAX_USERS - 1) {
+      c.on('open', () => { sendToConn(c, { type: 'error', message: 'Room is full' }); setTimeout(() => c.close(), 500); });
+      return;
+    }
+    const entry = { conn: c };
+    connections.push(entry);
+    c.on('open', () => {
+      sendToConn(c, { type: 'user-count', count: connections.length + 1 });
+      sendToConn(c, { type: 'sync-state', mm: deepClone(mm) });
+      updateP2PStatus(); broadcastUserCount();
+    });
+    c.on('data', (msg) => handleMessage(msg, c));
+    c.on('close', () => {
+      connections = connections.filter(e => e.conn !== c);
+      broadcastUserCount();
+      if (connections.length === 0) setStatus('Solo (sharable)', 'waiting');
+    });
+  });
+  peer.on('error', (err) => setStatus('Error: ' + err.type, 'disconnected'));
+}
+
+function connectAsGuest(roomId) {
+  isHost = false;
+  if (typeof Peer === 'undefined') { setStatus('Offline (no P2P)', 'disconnected'); return; }
+  setStatus('Connecting…', 'waiting');
+  const peer = new Peer();
+  guestPeer = peer;
+  peer.on('open', () => {
+    const c = peer.connect(roomId, { reliable: true, serialization: 'json' });
+    hostConn = c;
+    c.on('open', () => {
+      reconnectAttempts = 0; hideConnectionBanner();
+      setStatus('Connected', 'connected'); copyLinkBtn.classList.add('hidden');
+      if (window.location.protocol !== 'file:') history.replaceState(null, '', window.location.pathname + '#room=' + roomId);
+      setTimeout(() => { if (hostConn && hostConn.open) hostConn.send({ type: 'request-resync' }); }, 1500);
+    });
+    c.on('data', (msg) => {
+      if (msg.type === 'error') { setStatus(msg.message, 'disconnected'); c.close(); return; }
+      handleMessage(msg, null);
+    });
+    c.on('close', () => { setStatus('Disconnected', 'disconnected'); hostConn = null; attemptReconnect(); });
+  });
+  peer.on('error', (err) => {
+    if (err.type === 'peer-unavailable') setStatus('Room not found', 'disconnected');
+    else { setStatus('Error: ' + err.type, 'disconnected'); attemptReconnect(); }
+  });
+}
+
+function attemptReconnect() {
+  if (!guestRoomId || reconnectAttempts >= MAX_RECONNECT) { showConnectionBanner('Disconnected. Could not reconnect.'); return; }
+  reconnectAttempts++;
+  const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000);
+  showConnectionBanner('Reconnecting… (attempt ' + reconnectAttempts + '/' + MAX_RECONNECT + ')');
+  setStatus('Reconnecting…', 'reconnecting');
+  setTimeout(() => {
+    if (guestPeer) { try { guestPeer.destroy(); } catch (e) {} guestPeer = null; }
+    connectAsGuest(guestRoomId);
+  }, delay);
+}
+
+// ===== Init =====
+function init() {
+  if (!load()) {
+    mm = createMindMap();
+  }
+  titleInput.value = mm.meta.title || 'Untitled MindMap';
+  selectedId = mm.rootId;
+  try { presentationMode = localStorage.getItem(PRESENT_KEY) === '1'; } catch (_) {}
+  try { const l = localStorage.getItem(LAYOUT_KEY); if (l === 'tree' || l === 'star') layoutMode = l; } catch (_) {}
+  applyPresentationUI();
+  applyLayoutUI();
+  render();
+  if (presentationMode && selectedId) focusOnNode(selectedId, { animate: false });
+  else centerOnRoot();
+
+  const hash = window.location.hash;
+  if (hash.startsWith('#room=')) {
+    guestRoomId = hash.substring(6);
+    if (guestRoomId) { connectAsGuest(guestRoomId); return; }
+  }
+  startHosting();
+}
+
+window.addEventListener('resize', () => updateZoom());
+init();
+
+})();
+</script>
+</body>
+</html>

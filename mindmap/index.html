@@ -186,6 +186,16 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
   stroke-linecap: round; pointer-events: none;
 }
 
+.workspace.tool-select .arrows-layer .ref,
+.workspace.tool-select .arrows-layer .ref-hit { pointer-events: stroke; cursor: pointer; }
+.workspace.tool-select .arrows-layer .ref:hover { stroke-width: 2.4; }
+.arrows-layer .ref.selected { stroke-width: 2.6; stroke-dasharray: none; filter: drop-shadow(0 0 4px var(--accent)); }
+.arrows-layer .ref-delete { cursor: pointer; pointer-events: all; }
+.arrows-layer .ref-delete circle { fill: var(--bg-tertiary); stroke: var(--accent); stroke-width: 1.4; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 60%, transparent)); }
+.arrows-layer .ref-delete:hover circle { fill: #ef4444; stroke: #ef4444; }
+.arrows-layer .ref-delete path { stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; fill: none; pointer-events: none; }
+.arrows-layer .ref-delete:hover path { stroke: #fff; }
+
 .workspace.presentation .arrows-layer { pointer-events: none; }
 .workspace.presentation .arrows-layer .edge,
 .workspace.presentation .arrows-layer .ref { pointer-events: stroke; cursor: pointer; }
@@ -250,7 +260,7 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
   width: 100%;
   border: none; outline: none; background: transparent;
   font-family: var(--font-ui); font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
-  color: var(--text-primary); text-transform: uppercase;
+  color: var(--text-primary); text-align: center;
   padding: 0;
 }
 .card-body {
@@ -651,6 +661,7 @@ function wrapText(text, maxChars) {
 
 let mm = null;
 let selectedId = null;
+let selectedRefId = null;
 let activeTool = 'select';     
 let refsVisible = true;
 let editingNodeId = null;
@@ -1259,6 +1270,7 @@ function attachCardHandlers(el) {
 function selectNode(id) {
   const selectionChanged = selectedId !== id;
   selectedId = id;
+  if (selectedRefId) { selectedRefId = null; renderArrows(); }
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
   updateStatusMsg();
   if (presentationMode) {
@@ -1367,7 +1379,7 @@ function renderArrows() {
     hit.dataset.toId = ref.toId;
     refsGroup.appendChild(hit);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('class', 'ref');
+    path.setAttribute('class', 'ref' + (selectedRefId === ref.id ? ' selected' : ''));
     path.setAttribute('d', d);
     path.setAttribute('marker-end', 'url(#refhead)');
     path.dataset.id = ref.id;
@@ -1382,6 +1394,22 @@ function renderArrows() {
       txt.setAttribute('text-anchor', 'middle');
       txt.textContent = ref.label;
       refsGroup.appendChild(txt);
+    }
+    if (selectedRefId === ref.id && !presentationMode) {
+      const bx = (mx + ctrl.x) / 2;
+      const by = (my + ctrl.y) / 2 + (ref.label ? 18 : 0);
+      const btn = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      btn.setAttribute('class', 'ref-delete');
+      btn.dataset.id = ref.id;
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', bx);
+      circle.setAttribute('cy', by);
+      circle.setAttribute('r', 11);
+      btn.appendChild(circle);
+      const x1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      x1.setAttribute('d', `M ${bx - 4} ${by - 4} L ${bx + 4} ${by + 4} M ${bx + 4} ${by - 4} L ${bx - 4} ${by + 4}`);
+      btn.appendChild(x1);
+      refsGroup.appendChild(btn);
     }
   }
   arrowsLayer.classList.toggle('refs-hidden', !refsVisible);
@@ -1544,6 +1572,24 @@ function addRef(fromId, toId, label) {
   scheduleSave();
 }
 
+function removeRef(id) {
+  if (!mm.refs.some(r => r.id === id)) return;
+  mm.refs = mm.refs.filter(r => r.id !== id);
+  if (selectedRefId === id) selectedRefId = null;
+  sendMsg({ type: 'ref-delete', id });
+  render();
+  scheduleSave();
+}
+
+function selectRef(id) {
+  if (!mm.refs.some(r => r.id === id)) return;
+  selectedRefId = id;
+  selectedId = null;
+  document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
+  renderArrows();
+  updateStatusMsg();
+}
+
 function save() {
   if (!mm) return;
   if (!isHost && hostConn && hostConn.open) {
@@ -1586,7 +1632,9 @@ function setTool(tool) {
 
 function updateStatusMsg() {
   const labels = {
-    'select': selectedId ? 'Selected: ' + (mm.nodes[selectedId]?.title || '') : 'Select tool',
+    'select': selectedRefId ? 'Reference selected — Delete to remove'
+              : selectedId ? 'Selected: ' + (mm.nodes[selectedId]?.title || '')
+              : 'Select tool',
     'arrow-parent': 'Re-parent: drag from new parent → child',
     'arrow-ref': 'Cross-reference: drag from any node → any node'
   };
@@ -1695,8 +1743,28 @@ workspace.addEventListener('mousedown', (e) => {
   }
 
   const onCard = e.target.closest && e.target.closest('.card');
-  if (!onCard && e.button === 0 && activeTool === 'select') {
+  const onRefDelete = e.target.closest && e.target.closest('.ref-delete');
+  if (onRefDelete && e.button === 0 && !presentationMode) {
+    const refId = onRefDelete.dataset.id;
+    if (refId) {
+      e.preventDefault();
+      e.stopPropagation();
+      removeRef(refId);
+      return;
+    }
+  }
+  const onRefPath = e.target.closest && e.target.closest('path.ref, path.ref-hit');
+  if (onRefPath && !onCard && e.button === 0 && activeTool === 'select' && !presentationMode) {
+    const refId = onRefPath.dataset.id;
+    if (refId) {
+      e.preventDefault();
+      selectRef(refId);
+      return;
+    }
+  }
+  if (!onCard && !onRefPath && !onRefDelete && e.button === 0 && activeTool === 'select') {
     selectedId = null;
+    if (selectedRefId) { selectedRefId = null; renderArrows(); }
     document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
     updateStatusMsg();
   }
@@ -1747,6 +1815,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'r' || e.key === 'R') setTool('arrow-ref');
   else if (e.key === 'f' || e.key === 'F') fitToView();
   else if (e.key === 'Home') centerOnRoot();
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedRefId) { e.preventDefault(); removeRef(selectedRefId); }
   else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) { deleteNode(selectedId); }
   else if (e.key === 'Tab' && selectedId) { e.preventDefault(); addChild(selectedId); }
 });
@@ -1994,7 +2063,7 @@ async function renderToPngBlob() {
     parts.push(`<rect x="${x}" y="${y}" width="${r.w}" height="${r.h}" rx="14" ry="14" fill="${cardBg}" stroke="${isSel ? accent : border}" stroke-width="${isSel ? 2 : 1.5}"/>`);
 
     parts.push(`<rect x="${x + 10}" y="${y + 10}" width="${r.w - 20}" height="22" rx="6" ry="6" fill="${titleBg}" stroke="${border}" stroke-width="1"/>`);
-    parts.push(`<text x="${x + 18}" y="${y + 25}" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="600" fill="${text}" text-anchor="start">${escapeXml((node.title || '').toUpperCase())}</text>`);
+    parts.push(`<text x="${x + r.w / 2}" y="${y + 25}" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="600" fill="${text}" text-anchor="middle">${escapeXml(node.title || '')}</text>`);
     if ((node.notes || '').trim()) {
       const boxX = x + 10, boxY = y + 40;
       const boxW = r.w - 20, boxH = r.h - 50;

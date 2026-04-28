@@ -74,7 +74,6 @@
 html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
 .app { display: flex; flex-direction: column; height: 100dvh; }
 
-/* ===== Header ===== */
 .header { display: flex; align-items: center; justify-content: space-between; height: var(--header-height); padding: 0 12px; background: var(--header-bg); backdrop-filter: blur(16px); border-bottom: 1px solid var(--header-border); flex-shrink: 0; gap: 12px; }
 .header-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
@@ -109,7 +108,6 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
 [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
 [data-theme="light"] .theme-toggle .icon-moon { display: none; }
 
-/* ===== Toolbar ===== */
 .toolbar { display: flex; align-items: center; gap: 4px; padding: 0 12px; height: var(--toolbar-height); border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto; }
 .tool-btn { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
 .tool-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
@@ -120,7 +118,6 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
 .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
 .toolbar-spacer { flex: 1; }
 
-/* ===== Workspace ===== */
 .workspace { position: relative; flex: 1; overflow: hidden; background:
   radial-gradient(circle at 50% 50%, var(--bg-secondary) 0%, var(--bg-primary) 100%);
 }
@@ -133,29 +130,44 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
   position: absolute; left: 50%; top: 50%;
   transform-origin: 0 0;
   width: 0; height: 0;
-  /* Children use absolute positioning in world coords; the parent transform places them. */
+
 }
 
 .arrows-layer {
   position: absolute; overflow: visible; pointer-events: none;
   left: 0; top: 0; width: 1px; height: 1px;
+  z-index: 2;
 }
+
+.cards-layer { position: relative; z-index: 3; }
+.pills-layer {
+  position: absolute; overflow: visible; pointer-events: none;
+  left: 0; top: 0; width: 1px; height: 1px;
+  z-index: 4;
+}
+.pills-layer .conn-pill { pointer-events: all; }
 .arrows-layer .edge { fill: none; stroke: var(--text-secondary); stroke-width: 1.5; stroke-linecap: round; opacity: 0.85; }
 .arrows-layer .edge-head { fill: var(--text-secondary); }
 .arrows-layer .ref { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 7 5; stroke-linecap: round; }
 .arrows-layer .ref-head { fill: var(--accent); }
 .arrows-layer .ref-label { fill: var(--accent); font-family: var(--font-ui); font-size: 14px; font-style: italic; font-weight: 500; }
 .arrows-layer.refs-hidden .ref, .arrows-layer.refs-hidden .ref-head, .arrows-layer.refs-hidden .ref-label { opacity: 0.10; }
+.arrows-layer.refs-hidden .ref-hit { pointer-events: none; }
 .arrows-layer .preview { stroke-dasharray: 4 4; opacity: 0.7; }
+.arrows-layer .edge-hit,
+.arrows-layer .ref-hit {
+  fill: none; stroke: transparent; stroke-width: 14;
+  stroke-linecap: round; pointer-events: none;
+}
 
-/* Presentation mode: arrows become clickable so users can navigate between focused nodes. */
 .workspace.presentation .arrows-layer { pointer-events: none; }
 .workspace.presentation .arrows-layer .edge,
 .workspace.presentation .arrows-layer .ref { pointer-events: stroke; cursor: pointer; }
+.workspace.presentation .arrows-layer .edge-hit,
+.workspace.presentation .arrows-layer .ref-hit { pointer-events: stroke; cursor: pointer; }
 .workspace.presentation .arrows-layer .edge:hover { stroke: var(--accent); stroke-width: 2.4; }
 .workspace.presentation .arrows-layer .ref:hover { stroke-width: 2.4; }
 
-/* Connection pills shown around the focused node in presentation mode. */
 .conn-pill { pointer-events: all; cursor: pointer; }
 .conn-pill rect { fill: var(--bg-tertiary); stroke: var(--border-strong); stroke-width: 1; }
 .conn-pill text { fill: var(--text-primary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; dominant-baseline: middle; text-anchor: middle; pointer-events: none; user-select: none; }
@@ -165,7 +177,6 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
 .conn-pill .pill-arrow { fill: var(--text-secondary); }
 .conn-pill.ref .pill-arrow { fill: var(--accent); }
 
-/* ===== Card ===== */
 .card {
   position: absolute;
   width: 280px;
@@ -209,22 +220,40 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
   font-size: 10.5px; line-height: 1.4;
   color: var(--text-secondary);
   cursor: text;
-  overflow: hidden;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
-.card-body .notes-view { font-style: italic; min-height: 48px; }
+.card-body::-webkit-scrollbar { width: 6px; height: 6px; }
+.card-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.card-body::-webkit-scrollbar-track { background: transparent; }
+.card-body .notes-view { color: var(--text-primary); }
+.card-body .notes-view.empty { min-height: 0; }
 .card-body .notes-view.empty::before {
   content: 'Click to add notes…';
   color: var(--text-muted);
   font-style: italic;
   opacity: 0.6;
 }
-.card-body .notes-view :where(p, ul, ol, blockquote, pre) { margin: 0 0 6px; }
-.card-body .notes-view :where(p, ul, ol, blockquote, pre):last-child { margin-bottom: 0; }
+.card-body .notes-view :where(p, ul, ol, blockquote, pre, table, hr) { margin: 0 0 6px; }
+.card-body .notes-view :where(p, ul, ol, blockquote, pre, table, hr):last-child { margin-bottom: 0; }
 .card-body .notes-view ul, .card-body .notes-view ol { padding-left: 18px; }
-.card-body .notes-view code { font-family: var(--font-mono); font-size: 10px; background: var(--bg-tertiary); padding: 1px 4px; border-radius: 3px; font-style: normal; }
-.card-body .notes-view pre { font-family: var(--font-mono); font-size: 10px; line-height: 1.4; background: var(--bg-tertiary); padding: 6px 8px; border-radius: 4px; font-style: normal; white-space: pre-wrap; }
+.card-body .notes-view li { margin: 0 0 2px; }
+.card-body .notes-view code { font-family: var(--font-mono); font-size: 10px; background: var(--bg-tertiary); padding: 1px 4px; border-radius: 3px; }
+.card-body .notes-view pre { font-family: var(--font-mono); font-size: 10px; line-height: 1.4; background: var(--bg-tertiary); padding: 6px 8px; border-radius: 4px; white-space: pre-wrap; }
+.card-body .notes-view pre code { background: none; padding: 0; font-size: inherit; }
 .card-body .notes-view a { color: var(--accent); text-decoration: underline; }
-.card-body .notes-view h1, .card-body .notes-view h2, .card-body .notes-view h3 { font-size: 12px; font-weight: 600; color: var(--text-primary); font-style: normal; margin-bottom: 4px; }
+.card-body .notes-view h1 { font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 4px 0 6px; line-height: 1.25; }
+.card-body .notes-view h2 { font-size: 14px; font-weight: 700; color: var(--text-primary); margin: 4px 0 5px; line-height: 1.25; }
+.card-body .notes-view h3 { font-size: 12px; font-weight: 700; color: var(--text-primary); margin: 3px 0 4px; line-height: 1.3; }
+.card-body .notes-view :where(h4, h5, h6) { font-size: 11px; font-weight: 700; color: var(--text-primary); margin: 3px 0 4px; line-height: 1.3; text-transform: uppercase; letter-spacing: 0.02em; }
+.card-body .notes-view blockquote { margin: 0 0 6px; padding: 2px 0 2px 8px; border-left: 2px solid var(--border); color: var(--text-secondary); font-style: italic; }
+.card-body .notes-view hr { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+.card-body .notes-view strong { font-weight: 700; color: var(--text-primary); }
+.card-body .notes-view em { font-style: italic; }
+.card-body .notes-view table { border-collapse: collapse; width: 100%; font-size: 10px; }
+.card-body .notes-view th, .card-body .notes-view td { border: 1px solid var(--border); padding: 2px 5px; text-align: left; vertical-align: top; }
+.card-body .notes-view th { background: var(--bg-tertiary); font-weight: 700; color: var(--text-primary); }
 .card-body .notes-edit {
   width: 100%; height: 100%; min-height: 48px;
   border: none; outline: none; resize: none; background: transparent;
@@ -266,21 +295,17 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
 
 .card.dragging-arrow-from { box-shadow: 0 0 0 2px var(--accent); }
 
-/* ===== Status Bar ===== */
 .statusbar { display: flex; align-items: center; justify-content: space-between; height: var(--statusbar-height); padding: 0 12px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); flex-shrink: 0; gap: 12px; }
 .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .statusbar-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* ===== Toast ===== */
 .toast-container { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
 .toast { padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; white-space: nowrap; }
 .toast.show { opacity: 1; transform: translateY(0); }
 
-/* ===== Connection banner ===== */
 #connectionBanner { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); padding: 8px 16px; background: rgba(239,68,68,0.9); color: #fff; border-radius: 8px; font-size: 13px; z-index: 800; display: none; }
 #connectionBanner.visible { display: block; }
 
-/* ===== Reference label dialog ===== */
 .ref-prompt {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
   background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius);
@@ -298,7 +323,6 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
 <body>
 <div class="app">
 
-  <!-- Header -->
   <header class="header">
     <div class="header-left">
       <a href="../index.html" class="header-home" title="Back to NibSet">
@@ -339,7 +363,6 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
     </div>
   </header>
 
-  <!-- Toolbar -->
   <div class="toolbar">
     <button class="tool-btn active" data-tool="select" title="Select / move (V)"><i class="fa-solid fa-arrow-pointer"></i> Select</button>
     <button class="tool-btn" data-tool="arrow-parent" title="Re-parent arrow: drag from new parent to child (P)"><i class="fa-solid fa-diagram-successor"></i> Re-parent</button>
@@ -357,7 +380,6 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
     <span class="statusbar-hint" id="toolbarHint" style="font-size:11px;color:var(--text-muted);">space + drag to pan · scroll to zoom</span>
   </div>
 
-  <!-- Workspace -->
   <div class="workspace tool-select" id="workspace">
     <div class="world" id="world">
       <svg class="arrows-layer" id="arrowsLayer" xmlns="http://www.w3.org/2000/svg">
@@ -371,14 +393,15 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
         </defs>
         <g id="edgesGroup"></g>
         <g id="refsGroup"></g>
-        <g id="pillsGroup"></g>
         <path id="previewArrow" class="preview" style="display:none"/>
       </svg>
       <div class="cards-layer" id="cardsLayer"></div>
+      <svg class="pills-layer" id="pillsLayer" xmlns="http://www.w3.org/2000/svg">
+        <g id="pillsGroup"></g>
+      </svg>
     </div>
   </div>
 
-  <!-- Status bar -->
   <div class="statusbar">
     <div class="statusbar-left">
       <span id="statusMsg">Ready</span>
@@ -394,7 +417,6 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
 <div class="toast-container" id="toastContainer"></div>
 <div id="connectionBanner"></div>
 
-<!-- Cross-reference label prompt -->
 <div class="ref-prompt" id="refPrompt">
   <label for="refLabelInput">Reference label (optional)</label>
   <input type="text" id="refLabelInput" placeholder="reference">
@@ -412,25 +434,22 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
 
 const $ = id => document.getElementById(id);
 
-// ===== Constants =====
 const STORAGE_KEY = 'nibset-mindmap-data';
 const AUTOSAVE_DELAY = 1500;
 const MAX_USERS = 8;
 const MAX_RECONNECT = 5;
 const PNG_KEY = 'NibSetMindMap';
 const CARD_W = 280;
-const CARD_H_BASE = 60;       // title-only card height
-const CARD_H_NOTES = 380;     // card with notes height — sized so ~20-30 markdown lines fit when focused
+const CARD_H_BASE = 60;       
+const CARD_H_NOTES = 380;     
 const RING_BASE = 380;
 const RING_STEP = 300;
 
-// ===== Utility =====
 function uid() { return crypto.randomUUID ? 'n_' + crypto.randomUUID().slice(0, 8) : 'n_' + Math.random().toString(36).slice(2, 10); }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
 function debounce(fn, ms) { let t; return function(...a) { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); }; }
 
-// ===== Markdown =====
 if (window.marked) { marked.use({ breaks: true, gfm: true }); }
 function renderMarkdown(md) {
   if (!md) return '';
@@ -447,37 +466,168 @@ function renderMarkdown(md) {
 }
 function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
-// ===== State =====
+function renderNotesAsSvg(notesMd, boxX, boxY, boxW, boxH, fillText, fillMuted) {
+  const html = renderMarkdown(notesMd);
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const padX = 10, padY = 8;
+  const innerW = Math.max(20, boxW - padX * 2);
+  const innerH = Math.max(20, boxH - padY * 2);
+  const blocks = [];
+  function pushText(text, opts) {
+    const t = (text || '').replace(/\s+/g, ' ').trim();
+    if (!t) return;
+    blocks.push(Object.assign({ kind: 'text', text: t, size: 11, weight: '400', style: 'normal', fill: fillText, indent: 0, mono: false, gapAfter: 4 }, opts || {}));
+  }
+  function walkChildren(parent, depth) {
+    for (const el of parent.children) {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'h1') pushText(el.textContent, { size: 16, weight: '700', gapAfter: 6 });
+      else if (tag === 'h2') pushText(el.textContent, { size: 14, weight: '700', gapAfter: 5 });
+      else if (tag === 'h3') pushText(el.textContent, { size: 12, weight: '700', gapAfter: 4 });
+      else if (tag === 'h4' || tag === 'h5' || tag === 'h6') pushText(el.textContent, { weight: '700', gapAfter: 4 });
+      else if (tag === 'p') pushText(el.textContent, { indent: depth * 10 });
+      else if (tag === 'blockquote') pushText(el.textContent, { style: 'italic', fill: fillMuted, indent: 6 + depth * 10 });
+      else if (tag === 'pre') {
+        const lines = (el.textContent || '').replace(/\n+$/, '').split('\n');
+        for (const ln of lines) blocks.push({ kind: 'text', text: ln, size: 10, weight: '400', style: 'normal', fill: fillMuted, indent: 6 + depth * 10, mono: true, gapAfter: 0 });
+        if (blocks.length) blocks[blocks.length - 1].gapAfter = 4;
+      }
+      else if (tag === 'ul' || tag === 'ol') {
+        let i = 1;
+        for (const li of el.children) {
+          if (li.tagName !== 'LI') continue;
+          const prefix = tag === 'ol' ? `${i++}. ` : '• ';
+          let liText = '';
+          for (const n of li.childNodes) {
+            if (n.nodeType === 3) liText += n.textContent;
+            else if (n.nodeType === 1 && !/^(UL|OL)$/.test(n.tagName)) liText += n.textContent;
+          }
+          pushText(prefix + liText, { indent: 6 + depth * 12 });
+          for (const sub of li.children) {
+            if (sub.tagName === 'UL' || sub.tagName === 'OL') walkChildren({ children: [sub] }, depth + 1);
+          }
+        }
+      }
+      else if (tag === 'hr') blocks.push({ kind: 'hr' });
+      else if (tag === 'table') {
+        const rows = [];
+        for (const section of el.children) {
+          if (!/^(THEAD|TBODY|TFOOT)$/.test(section.tagName)) continue;
+          const isHead = section.tagName === 'THEAD';
+          for (const tr of section.children) {
+            if (tr.tagName !== 'TR') continue;
+            const cells = [];
+            for (const c of tr.children) {
+              if (c.tagName !== 'TH' && c.tagName !== 'TD') continue;
+              cells.push((c.textContent || '').replace(/\s+/g, ' ').trim());
+            }
+            if (cells.length) rows.push({ cells, head: isHead || tr.querySelector('th') !== null });
+          }
+        }
+        if (rows.length) blocks.push({ kind: 'table', rows, indent: depth * 10 });
+      }
+      else walkChildren(el, depth);
+    }
+  }
+  walkChildren(tmp, 0);
+  if (!blocks.length) return '';
+  const parts = [];
+  let y = boxY + padY;
+  const bottom = boxY + padY + innerH;
+  for (const b of blocks) {
+    if (y >= bottom) break;
+    if (b.kind === 'hr') { parts.push(`<line x1="${boxX + padX}" y1="${(y + 3).toFixed(2)}" x2="${boxX + boxW - padX}" y2="${(y + 3).toFixed(2)}" stroke="${fillMuted}" stroke-width="0.6"/>`); y += 7; continue; }
+    if (b.kind === 'table') {
+      const size = 10;
+      const rowH = size * 1.6;
+      const cols = Math.max(1, b.rows.reduce((m, r) => Math.max(m, r.cells.length), 0));
+      const tableLeft = boxX + padX + b.indent;
+      const tableRight = boxX + boxW - padX;
+      const tableW = Math.max(40, tableRight - tableLeft);
+      const colW = tableW / cols;
+      const charW = size * 0.52;
+      const maxChars = Math.max(3, Math.floor((colW - 6) / charW));
+      const tableTop = y;
+      for (const row of b.rows) {
+        if (y + rowH > bottom) break;
+        for (let ci = 0; ci < cols; ci++) {
+          const cell = row.cells[ci] || '';
+          const txt = cell.length > maxChars ? cell.slice(0, Math.max(1, maxChars - 1)) + '…' : cell;
+          const cx = tableLeft + ci * colW + 4;
+          const cy = y + size * 1.05;
+          parts.push(`<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-family="Plus Jakarta Sans, sans-serif" font-size="${size}" font-weight="${row.head ? '700' : '400'}" font-style="normal" fill="${fillText}" xml:space="preserve">${escapeXml(txt)}</text>`);
+        }
+        const lineY = (y + rowH - 1).toFixed(2);
+        parts.push(`<line x1="${tableLeft.toFixed(2)}" y1="${lineY}" x2="${(tableLeft + colW * cols).toFixed(2)}" y2="${lineY}" stroke="${fillMuted}" stroke-width="0.4"/>`);
+        y += rowH;
+      }
+      const tableBottom = y;
+      for (let ci = 0; ci <= cols; ci++) {
+        const lx = (tableLeft + ci * colW).toFixed(2);
+        parts.push(`<line x1="${lx}" y1="${tableTop.toFixed(2)}" x2="${lx}" y2="${tableBottom.toFixed(2)}" stroke="${fillMuted}" stroke-width="0.4"/>`);
+      }
+      y += 4;
+      continue;
+    }
+    const lineH = b.size * 1.35;
+    const charW = b.size * (b.mono ? 0.6 : 0.52);
+    const maxChars = Math.max(6, Math.floor((innerW - b.indent) / charW));
+    const lines = wrapText(b.text, maxChars);
+    const fam = b.mono ? 'ui-monospace, Menlo, Consolas, monospace' : 'Plus Jakarta Sans, sans-serif';
+    for (const ln of lines) {
+      if (y + b.size > bottom) break;
+      const tx = boxX + padX + b.indent;
+      const ty = y + b.size * 0.85;
+      parts.push(`<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" font-family="${fam}" font-size="${b.size}" font-weight="${b.weight}" font-style="${b.style}" fill="${b.fill}" xml:space="preserve">${escapeXml(ln)}</text>`);
+      y += lineH;
+    }
+    y += b.gapAfter;
+  }
+  return parts.join('');
+}
+function wrapText(text, maxChars) {
+  const out = [];
+  const words = String(text).split(/\s+/).filter(Boolean);
+  let cur = '';
+  for (const w of words) {
+    if (w.length > maxChars) {
+      if (cur) { out.push(cur); cur = ''; }
+      for (let i = 0; i < w.length; i += maxChars) out.push(w.slice(i, i + maxChars));
+      continue;
+    }
+    if (!cur) cur = w;
+    else if (cur.length + 1 + w.length <= maxChars) cur += ' ' + w;
+    else { out.push(cur); cur = w; }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 let mm = null;
 let selectedId = null;
-let activeTool = 'select';     // 'select' | 'arrow-parent' | 'arrow-ref'
+let activeTool = 'select';     
 let refsVisible = true;
 let editingNodeId = null;
-let editingField = null;       // 'title' | 'notes'
+let editingField = null;       
 
-// Viewport (world coordinates)
 let viewportX = 0, viewportY = 0, viewportScale = 1;
 const MIN_SCALE = 0.15, MAX_SCALE = 3;
 
-// Presentation mode
 let presentationMode = false;
-let focusAnim = null; // { raf, fromX, fromY, fromS, toX, toY, toS, t0, dur }
+let focusAnim = null; 
 const PRESENT_KEY = 'nibset-mindmap-presentation';
 
-// Layout mode: 'tree' (top-down, default) or 'star' (radial)
 let layoutMode = 'tree';
 const LAYOUT_KEY = 'nibset-mindmap-layout';
 
-// Pan state
 let isPanning = false, panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0, spaceHeld = false;
 
-// Arrow drag state
-let arrowDrag = null;          // { fromId, mode: 'parent'|'ref', curX, curY }
+let arrowDrag = null;          
 
-// Pending ref to label
-let pendingRef = null;         // { fromId, toId }
+let pendingRef = null;         
 
-// ===== P2P state =====
 let isHost = false;
 let myId = null;
 let connections = [];
@@ -492,7 +642,6 @@ let msgFlushTimer = null;
 const CHUNK_SIZE = 12000;
 let pendingChunks = {};
 
-// DOM refs
 const workspace   = $('workspace');
 const world       = $('world');
 const cardsLayer  = $('cardsLayer');
@@ -513,7 +662,6 @@ const refPrompt   = $('refPrompt');
 const refLabelInput = $('refLabelInput');
 const fileInput   = $('fileInput');
 
-// ===== Toast =====
 function toast(msg) {
   const el = document.createElement('div');
   el.className = 'toast';
@@ -523,7 +671,6 @@ function toast(msg) {
   setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2200);
 }
 
-// ===== Data model =====
 function createMindMap() {
   const rootId = uid();
   const c1 = uid(), c2 = uid();
@@ -572,18 +719,13 @@ function computeLayout() {
   return layoutMode === 'tree' ? computeTreeLayout() : computeStarLayout();
 }
 
-// ===== Top-down tree layout =====
-// Root at top, children fan out left-to-right below their parent.
-// First pass measures each subtree's horizontal extent (sum of leaf widths
-// with sibling padding); second pass places each node centered above its
-// children. Vertical spacing per depth derives from card heights at that row.
 function computeTreeLayout() {
   const positions = {};
   const visible = new Set();
   if (!mm || !mm.rootId || !mm.nodes[mm.rootId]) return { positions, visible };
 
-  const H_PAD = 40; // gap between adjacent sibling subtrees
-  const V_PAD = 80; // gap between successive depth rows
+  const H_PAD = 40; 
+  const V_PAD = 80; 
 
   const childrenOf = {};
   function gather(id) {
@@ -653,14 +795,10 @@ function computeTreeLayout() {
   return { positions, visible };
 }
 
-// ===== Radial (star) layout =====
-// Returns {x, y} per node, plus visibility (skipping collapsed subtrees).
-// Two passes: first assign angular slots from leaf weights, then derive each
-// ring's radius from its tightest sibling-pair chord so cards never overlap.
 function computeStarLayout() {
   const positions = {};
   const visible = new Set();
-  const slots = {}; // id -> { depth, angle, span }
+  const slots = {}; 
 
   function leafCount(id) {
     const n = mm.nodes[id];
@@ -696,12 +834,11 @@ function computeStarLayout() {
   if (!mm || !mm.rootId || !mm.nodes[mm.rootId]) return { positions, visible };
   assignAngles(mm.rootId, 0, 0, Math.PI * 2);
 
-  // Per-depth required radius from adjacent-sibling chord constraints.
   const halfDiag = (id) => Math.hypot(CARD_W, cardHeight(mm.nodes[id])) / 2;
   const SIBLING_PAD = 60;
   const RADIAL_PAD = 80;
   const minR = {};
-  // Bucket visible siblings by parent for chord checks.
+
   const byParent = {};
   for (const id of visible) {
     if (slots[id].depth === 0) continue;
@@ -712,7 +849,7 @@ function computeStarLayout() {
     const kids = byParent[pid].slice().sort((a, b) => slots[a].angle - slots[b].angle);
     if (kids.length === 0) continue;
     const parentDepth = slots[pid].depth;
-    const wraps = parentDepth === 0; // only the root's children wrap the full circle
+    const wraps = parentDepth === 0; 
     const pairs = wraps ? kids.length : Math.max(0, kids.length - 1);
     for (let i = 0; i < pairs; i++) {
       const a = kids[i], b = kids[(i + 1) % kids.length];
@@ -726,8 +863,6 @@ function computeStarLayout() {
     }
   }
 
-  // Ring radii: take the larger of the configured ring, the chord requirement,
-  // and a parent-child radial clearance step. Each ring sits outside the prior.
   const maxDepth = Array.from(visible).reduce((m, id) => Math.max(m, slots[id].depth), 0);
   const maxHByDepth = {};
   for (const id of visible) {
@@ -756,14 +891,12 @@ function computeStarLayout() {
   return { positions, visible };
 }
 
-// Card height grows with notes content (capped at CARD_H_NOTES) so empty
-// or short cards stay compact and dense ones get the full reading panel.
-const CARD_TITLE_BLOCK = 70; // title input + paddings + gap
-const CARD_LINE_PX = 15;     // approx rendered line height for body text
-const CARD_LINE_WRAP = 45;   // approx chars per wrapped line at CARD_W
+const CARD_TITLE_BLOCK = 70; 
+const CARD_LINE_PX = 15;     
+const CARD_LINE_WRAP = 45;   
 function cardHeight(node) {
   const notes = (node && node.notes ? node.notes : '').trim();
-  if (!notes) return CARD_TITLE_BLOCK + 60; // small body for empty
+  if (!notes) return CARD_TITLE_BLOCK + 60; 
   let lines = 0;
   for (const ln of notes.split('\n')) {
     lines += Math.max(1, Math.ceil(ln.length / CARD_LINE_WRAP));
@@ -772,14 +905,56 @@ function cardHeight(node) {
   return CARD_TITLE_BLOCK + bodyH;
 }
 
-// ===== Render =====
+let _sizeProbe = null;
+function ensureSizeProbe() {
+  if (_sizeProbe) return _sizeProbe;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.cssText = 'position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;height:auto;';
+  card.innerHTML = '<div class="card-title-wrap"><input class="card-title" type="text" value=""></div>'
+    + '<div class="card-body" style="overflow:visible;height:auto;max-height:none;flex:none;"><div class="notes-view"></div></div>';
+  document.body.appendChild(card);
+  _sizeProbe = {
+    card,
+    title: card.querySelector('.card-title'),
+    view: card.querySelector('.notes-view'),
+  };
+  return _sizeProbe;
+}
+
+function presentCardDims(node) {
+  const ws = workspace.getBoundingClientRect();
+  const maxW = Math.max(CARD_W, Math.floor(ws.width * 0.80));
+  const maxH = Math.max(CARD_TITLE_BLOCK + 80, Math.floor(ws.height * 0.80));
+  const probe = ensureSizeProbe();
+  probe.title.value = node.title || '';
+  const md = (node.notes || '').trim();
+  probe.view.innerHTML = md ? renderMarkdown(node.notes) : '';
+
+  probe.card.style.width = 'auto';
+  probe.card.style.maxWidth = maxW + 'px';
+  const naturalW = clamp(probe.card.offsetWidth, CARD_W, maxW);
+
+  probe.card.style.maxWidth = '';
+  probe.card.style.width = naturalW + 'px';
+  const naturalH = probe.card.offsetHeight;
+  return { w: naturalW, h: clamp(naturalH, CARD_TITLE_BLOCK + 60, maxH) };
+}
+
+function cardDims(id) {
+  const node = mm.nodes[id];
+  if (!node) return { w: CARD_W, h: CARD_TITLE_BLOCK + 60 };
+  if (presentationMode && id === selectedId) return presentCardDims(node);
+  return { w: CARD_W, h: cardHeight(node) };
+}
+
 let cachedLayout = { positions: {}, visible: new Set() };
 
-function render() {
+function render(opts) {
+  const skipAutoFocus = !!(opts && opts.skipAutoFocus);
   cachedLayout = computeLayout();
   const { positions, visible } = cachedLayout;
 
-  // --- Cards ---
   const existing = new Map();
   cardsLayer.querySelectorAll('.card').forEach(el => existing.set(el.dataset.id, el));
 
@@ -801,20 +976,22 @@ function render() {
     }
     existing.delete(id);
 
-    const h = cardHeight(node);
-    el.style.left = (pos.x - CARD_W / 2) + 'px';
-    el.style.top  = (pos.y - h / 2) + 'px';
-    el.style.height = h + 'px';
+    const dims = cardDims(id);
+    const isFocusedPresent = presentationMode && id === selectedId;
+    el.style.left = (pos.x - dims.w / 2) + 'px';
+    el.style.top  = (pos.y - dims.h / 2) + 'px';
+    el.style.width = isFocusedPresent ? (dims.w + 'px') : '';
+    el.style.height = dims.h + 'px';
     el.classList.toggle('has-children', getChildren(id).length > 0);
     el.classList.toggle('selected', selectedId === id);
     el.classList.toggle('root', id === mm.rootId);
   }
-  // remove stale
+
   for (const el of existing.values()) el.remove();
 
   renderArrows();
   updateZoom();
-  if (presentationMode && selectedId && cachedLayout.visible.has(selectedId) && !focusAnim) {
+  if (!skipAutoFocus && presentationMode && selectedId && cachedLayout.visible.has(selectedId) && !focusAnim) {
     focusOnNode(selectedId, { animate: false });
   }
 }
@@ -851,7 +1028,7 @@ function updateCardElement(el, node) {
   const md = (node.notes || '').trim();
   view.innerHTML = md ? renderMarkdown(node.notes) : '';
   view.classList.toggle('empty', !md);
-  // collapse indicator icon
+
   const ind = el.querySelector('.card-collapse-indicator i');
   ind.className = 'fa-solid ' + (node.collapsed ? 'fa-plus' : 'fa-minus');
 }
@@ -866,10 +1043,14 @@ function attachCardHandlers(el) {
   const deleteBtn = el.querySelector('.card-action.delete');
   const collapseInd = el.querySelector('.card-collapse-indicator');
 
-  // Selection on mousedown (so arrow tools can read it before click)
   el.addEventListener('mousedown', (e) => {
+
+    if (focusAnim) {
+      cancelAnimationFrame(focusAnim.raf);
+      focusAnim = null;
+    }
     if (activeTool === 'arrow-parent' || activeTool === 'arrow-ref') {
-      // Arrow drag start handled at workspace level — set the from card
+
       arrowDrag = {
         fromId: id,
         mode: activeTool === 'arrow-parent' ? 'parent' : 'ref',
@@ -903,6 +1084,7 @@ function attachCardHandlers(el) {
       document.addEventListener('mouseup', up);
       return;
     }
+    if (e.target.closest('.notes-view')) return;
     selectNode(id);
   });
 
@@ -910,7 +1092,7 @@ function attachCardHandlers(el) {
     if (activeTool !== 'select') return;
     if (e.target.closest('.card-title') || e.target.closest('.notes-edit') || e.target.closest('.card-action')) return;
     e.stopPropagation();
-    // Double-click on the card body → expand all descendants
+
     if (mm.nodes[id]) {
       setSubtreeCollapsed(id, false);
       mm.nodes[id].collapsed = false;
@@ -920,7 +1102,6 @@ function attachCardHandlers(el) {
     }
   });
 
-  // Title edit
   titleEl.addEventListener('input', () => {
     mm.nodes[id].title = titleEl.value;
     broadcastBuffered({ type: 'node-update', id, changes: { title: titleEl.value } });
@@ -934,20 +1115,20 @@ function attachCardHandlers(el) {
     if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
   });
 
-  // Notes view → switch to editor
-  view.addEventListener('click', (e) => {
-    if (activeTool !== 'select') return;
+  body.addEventListener('click', (e) => {
+    if (e.target.closest('.notes-edit')) return;
+    if (e.target.closest('a[href]')) e.preventDefault();
     e.stopPropagation();
+    editingNodeId = id; editingField = 'notes';
     edit.style.display = 'block';
     view.style.display = 'none';
     edit.focus();
-    editingNodeId = id; editingField = 'notes';
+    selectNode(id);
   });
   edit.addEventListener('input', () => {
     mm.nodes[id].notes = edit.value;
     broadcastBuffered({ type: 'node-update', id, changes: { notes: edit.value } });
     scheduleSave();
-    render();
   });
   edit.addEventListener('focus', () => { editingNodeId = id; editingField = 'notes'; });
   edit.addEventListener('blur', () => {
@@ -958,14 +1139,12 @@ function attachCardHandlers(el) {
     render();
   });
 
-  // + button
   addBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
   addBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     addChild(id);
   });
 
-  // Delete button (hidden on root)
   if (deleteBtn) {
     deleteBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
     deleteBtn.addEventListener('click', (e) => {
@@ -974,7 +1153,6 @@ function attachCardHandlers(el) {
     });
   }
 
-  // Collapse/expand indicator
   collapseInd.addEventListener('mousedown', (e) => { e.stopPropagation(); });
   collapseInd.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -983,13 +1161,22 @@ function attachCardHandlers(el) {
 }
 
 function selectNode(id) {
+  const selectionChanged = selectedId !== id;
   selectedId = id;
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('selected', c.dataset.id === id));
   updateStatusMsg();
-  if (presentationMode && id && editingNodeId !== id) {
-    focusOnNode(id, { animate: true });
-  } else if (presentationMode) {
-    renderConnectionPills(id);
+  if (presentationMode) {
+
+    setTimeout(() => {
+      if (selectedId !== id || !presentationMode) return;
+      render({ skipAutoFocus: true });
+
+      if (id && selectionChanged && editingNodeId !== id) {
+        focusOnNode(id, { animate: true });
+      } else {
+        renderConnectionPills(id);
+      }
+    }, 0);
   }
 }
 
@@ -1013,9 +1200,8 @@ function clientToWorld(cx, cy) {
   };
 }
 
-// ===== Edges & refs (SVG) =====
 function rectEdgeIntersection(cx, cy, w, h, tx, ty) {
-  // Find where the line from (cx,cy) to (tx,ty) exits the rect (cx,cy,w,h).
+
   const dx = tx - cx, dy = ty - cy;
   if (dx === 0 && dy === 0) return { x: cx, y: cy };
   const sx = dx === 0 ? Infinity : (Math.sign(dx) * (w / 2)) / dx;
@@ -1029,11 +1215,12 @@ function nodeRect(id) {
   if (!pos) return null;
   const node = mm.nodes[id];
   if (!node) return null;
-  return { cx: pos.x, cy: pos.y, w: CARD_W, h: cardHeight(node) };
+  const dims = cardDims(id);
+  return { cx: pos.x, cy: pos.y, w: dims.w, h: dims.h };
 }
 
 function renderArrows() {
-  // Parent->child edges
+
   edgesGroup.innerHTML = '';
   const visible = cachedLayout.visible;
   for (const id in mm.nodes) {
@@ -1046,16 +1233,22 @@ function renderArrows() {
     if (!p || !c) continue;
     const a = rectEdgeIntersection(p.cx, p.cy, p.w, p.h, c.cx, c.cy);
     const b = rectEdgeIntersection(c.cx, c.cy, c.w, c.h, p.cx, p.cy);
+    const d = `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hit.setAttribute('class', 'edge-hit');
+    hit.setAttribute('d', d);
+    hit.dataset.fromId = node.parentId;
+    hit.dataset.toId = id;
+    edgesGroup.appendChild(hit);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('class', 'edge');
-    path.setAttribute('d', `M ${a.x} ${a.y} L ${b.x} ${b.y}`);
+    path.setAttribute('d', d);
     path.setAttribute('marker-end', 'url(#arrowhead)');
     path.dataset.fromId = node.parentId;
     path.dataset.toId = id;
     edgesGroup.appendChild(path);
   }
 
-  // Cross-references
   refsGroup.innerHTML = '';
   for (const ref of mm.refs) {
     if (!visible.has(ref.fromId) || !visible.has(ref.toId)) continue;
@@ -1069,9 +1262,17 @@ function renderArrows() {
     const nx = -dy / len, ny = dx / len;
     const curveOff = Math.min(80, len * 0.18);
     const ctrl = { x: mx + nx * curveOff, y: my + ny * curveOff };
+    const d = `M ${a.x} ${a.y} Q ${ctrl.x} ${ctrl.y} ${b.x} ${b.y}`;
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hit.setAttribute('class', 'ref-hit');
+    hit.setAttribute('d', d);
+    hit.dataset.id = ref.id;
+    hit.dataset.fromId = ref.fromId;
+    hit.dataset.toId = ref.toId;
+    refsGroup.appendChild(hit);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('class', 'ref');
-    path.setAttribute('d', `M ${a.x} ${a.y} Q ${ctrl.x} ${ctrl.y} ${b.x} ${b.y}`);
+    path.setAttribute('d', d);
     path.setAttribute('marker-end', 'url(#refhead)');
     path.dataset.id = ref.id;
     path.dataset.fromId = ref.fromId;
@@ -1181,7 +1382,6 @@ function renderPreviewArrow() {
   previewArrow.style.display = '';
 }
 
-// ===== Mutations =====
 function addChild(parentId, nodeArg) {
   const id = nodeArg ? nodeArg.id : uid();
   const node = nodeArg || { id, parentId, title: 'New idea', notes: '', collapsed: false };
@@ -1191,7 +1391,7 @@ function addChild(parentId, nodeArg) {
   if (!nodeArg) sendMsg({ type: 'node-add', node: deepClone(node) });
   render();
   scheduleSave();
-  // Focus title input for the new card
+
   if (!nodeArg) {
     requestAnimationFrame(() => {
       const el = cardsLayer.querySelector(`.card[data-id="${id}"] .card-title`);
@@ -1248,11 +1448,10 @@ function addRef(fromId, toId, label) {
   scheduleSave();
 }
 
-// ===== Persistence =====
 function save() {
   if (!mm) return;
   if (!isHost && hostConn && hostConn.open) {
-    // Guests don't trample local data while connected.
+
     saveStatus.textContent = 'Synced';
     return;
   }
@@ -1281,7 +1480,6 @@ function load() {
   } catch (e) { return false; }
 }
 
-// ===== Tool selection =====
 function setTool(tool) {
   activeTool = tool;
   document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
@@ -1299,7 +1497,6 @@ function updateStatusMsg() {
   statusMsg.textContent = labels[activeTool] || '';
 }
 
-// ===== Viewport =====
 function updateZoom() {
   world.style.transform = `translate(${-viewportX * viewportScale}px, ${-viewportY * viewportScale}px) scale(${viewportScale})`;
   zoomLabel.textContent = Math.round(viewportScale * 100) + '%';
@@ -1309,7 +1506,7 @@ function updateZoom() {
 }
 
 function fitToView() {
-  // Compute bbox of all visible cards
+
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const id of cachedLayout.visible) {
     const r = nodeRect(id);
@@ -1340,12 +1537,16 @@ function focusOnNode(id, opts) {
   const r = nodeRect(id);
   if (!r) return;
   const ws = workspace.getBoundingClientRect();
-  // Aim for the card to fill close to the full workspace height, leaving
-  // a margin for connection pills and a sliver of context on either side.
-  const targetScale = clamp(
-    Math.min((ws.width * 0.78) / r.w, (ws.height * 0.92) / r.h),
-    MIN_SCALE, MAX_SCALE
-  );
+
+  const targetScale = presentationMode
+    ? clamp(
+        Math.min((ws.width * 0.80) / r.w, (ws.height * 0.80) / r.h),
+        MIN_SCALE, MAX_SCALE
+      )
+    : clamp(
+        Math.min((ws.width * 0.78) / r.w, (ws.height * 0.92) / r.h),
+        MIN_SCALE, MAX_SCALE
+      );
   const tx = r.cx, ty = r.cy, ts = targetScale;
   if (focusAnim) { cancelAnimationFrame(focusAnim.raf); focusAnim = null; }
   if (!animate) {
@@ -1373,7 +1574,6 @@ function focusOnNode(id, opts) {
   focusAnim = { raf: requestAnimationFrame(step) };
 }
 
-// Pan + zoom
 workspace.addEventListener('wheel', (e) => {
   e.preventDefault();
   const rect = workspace.getBoundingClientRect();
@@ -1388,7 +1588,7 @@ workspace.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 workspace.addEventListener('mousedown', (e) => {
-  // Pan with space or middle button — always wins, regardless of where the click started.
+
   if (spaceHeld || e.button === 1) {
     isPanning = true;
     panStartX = e.clientX; panStartY = e.clientY;
@@ -1397,7 +1597,7 @@ workspace.addEventListener('mousedown', (e) => {
     e.preventDefault();
     return;
   }
-  // Click on truly empty workspace (not a card) in select tool clears selection.
+
   const onCard = e.target.closest && e.target.closest('.card');
   if (!onCard && e.button === 0 && activeTool === 'select') {
     selectedId = null;
@@ -1417,19 +1617,19 @@ window.addEventListener('mouseup', () => {
   if (isPanning) { isPanning = false; workspace.classList.remove('panning'); }
 });
 
-// Presentation: click an arrow body to navigate to the other endpoint.
 arrowsLayer.addEventListener('click', (e) => {
   if (!presentationMode) return;
-  if (e.target.closest && e.target.closest('.conn-pill')) return; // pill handler runs instead
-  const path = e.target.closest && e.target.closest('path.edge, path.ref');
+  if (e.target.closest && e.target.closest('.conn-pill')) return; 
+  const path = e.target.closest && e.target.closest('path.edge, path.ref, path.edge-hit, path.ref-hit');
   if (!path) return;
-  const target = path.dataset.toId;
-  if (!target || !mm.nodes[target]) return;
+  const fromId = path.dataset.fromId;
+  const toId = path.dataset.toId;
+  const dest = (selectedId === toId) ? fromId : toId;
+  if (!dest || !mm.nodes[dest]) return;
   e.stopPropagation();
-  selectNode(target);
+  selectNode(dest);
 });
 
-// Presentation: click a pill to navigate to that connected node.
 pillsGroup.addEventListener('click', (e) => {
   const g = e.target.closest && e.target.closest('.conn-pill');
   if (!g) return;
@@ -1458,7 +1658,6 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') { spaceHeld = false; workspace.classList.remove('space-held'); }
 });
 
-// ===== Toolbar wiring =====
 document.querySelectorAll('.tool-btn[data-tool]').forEach(b =>
   b.addEventListener('click', () => setTool(b.dataset.tool))
 );
@@ -1516,6 +1715,8 @@ presentBtn.addEventListener('click', () => {
   presentationMode = !presentationMode;
   try { localStorage.setItem(PRESENT_KEY, presentationMode ? '1' : '0'); } catch (_) {}
   applyPresentationUI();
+
+  render();
   if (presentationMode && selectedId && cachedLayout.visible.has(selectedId)) {
     focusOnNode(selectedId, { animate: true });
   } else {
@@ -1544,7 +1745,6 @@ titleInput.addEventListener('input', () => {
   scheduleSave();
 });
 
-// Theme toggle
 (function(){
   const btn = $('themeToggle');
   let mode = localStorage.getItem('nibset-theme') || 'dark';
@@ -1557,7 +1757,6 @@ titleInput.addEventListener('input', () => {
   btn.addEventListener('click', () => apply(mode === 'light' ? 'dark' : 'light'));
 })();
 
-// ===== Cross-reference label prompt =====
 function openRefPrompt(fromId, toId) {
   pendingRef = { fromId, toId };
   refLabelInput.value = '';
@@ -1576,7 +1775,6 @@ refLabelInput.addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') closeRefPrompt();
 });
 
-// ===== PNG metadata (tEXt) =====
 function crc32(buf) {
   let crc = -1;
   for (let i = 0; i < buf.length; i++) {
@@ -1635,9 +1833,8 @@ function extractPngMetadata(pngBuf, key) {
   return null;
 }
 
-// ===== PNG render via SVG (so cards render exactly) =====
 async function renderToPngBlob() {
-  // Compute bbox of visible nodes in world coords
+
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const id of cachedLayout.visible) {
     const r = nodeRect(id);
@@ -1660,7 +1857,6 @@ async function renderToPngBlob() {
   const border = isLight ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.22)';
   const accent = isLight ? '#5a8a1a' : '#c9f270';
 
-  // Build standalone SVG
   const parts = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${bw}" height="${bh}" viewBox="${minX - pad} ${minY - pad} ${bw} ${bh}">`);
   parts.push(`<rect x="${minX - pad}" y="${minY - pad}" width="${bw}" height="${bh}" fill="${bg}"/>`);
@@ -1668,7 +1864,7 @@ async function renderToPngBlob() {
     <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${muted}"/></marker>
     <marker id="rh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${accent}"/></marker>
   </defs>`);
-  // Edges
+
   for (const id in mm.nodes) {
     if (!cachedLayout.visible.has(id)) continue;
     const node = mm.nodes[id];
@@ -1678,7 +1874,7 @@ async function renderToPngBlob() {
     const b = rectEdgeIntersection(c.cx, c.cy, c.w, c.h, p.cx, p.cy);
     parts.push(`<path d="M ${a.x} ${a.y} L ${b.x} ${b.y}" stroke="${muted}" stroke-width="1.5" fill="none" marker-end="url(#ah)"/>`);
   }
-  // Refs
+
   if (refsVisible) for (const ref of mm.refs) {
     if (!cachedLayout.visible.has(ref.fromId) || !cachedLayout.visible.has(ref.toId)) continue;
     const f = nodeRect(ref.fromId), t = nodeRect(ref.toId);
@@ -1693,31 +1889,26 @@ async function renderToPngBlob() {
     parts.push(`<path d="M ${a.x} ${a.y} Q ${ctrl.x} ${ctrl.y} ${b.x} ${b.y}" stroke="${accent}" stroke-width="1.6" stroke-dasharray="7 5" fill="none" marker-end="url(#rh)"/>`);
     if (ref.label) parts.push(`<text x="${ctrl.x}" y="${ctrl.y}" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-size="14" font-style="italic" fill="${accent}">${escapeXml(ref.label)}</text>`);
   }
-  // Cards
+
   for (const id of cachedLayout.visible) {
     const node = mm.nodes[id];
     const r = nodeRect(id);
     const x = r.cx - r.w / 2, y = r.cy - r.h / 2;
     const isSel = (id === selectedId);
     parts.push(`<rect x="${x}" y="${y}" width="${r.w}" height="${r.h}" rx="14" ry="14" fill="${cardBg}" stroke="${isSel ? accent : border}" stroke-width="${isSel ? 2 : 1.5}"/>`);
-    // title bar
+
     parts.push(`<rect x="${x + 10}" y="${y + 10}" width="${r.w - 20}" height="22" rx="6" ry="6" fill="${titleBg}" stroke="${border}" stroke-width="1"/>`);
     parts.push(`<text x="${x + 18}" y="${y + 25}" font-family="Plus Jakarta Sans, sans-serif" font-size="12" font-weight="600" fill="${text}" text-anchor="start">${escapeXml((node.title || '').toUpperCase())}</text>`);
-    if (r.h === CARD_H_NOTES) {
-      // notes preview (plain text, first 6 lines)
-      const lines = (node.notes || '').replace(/[#*_`>\[\]]/g, '').split(/\r?\n/).filter(Boolean).slice(0, 6);
-      parts.push(`<rect x="${x + 10}" y="${y + 40}" width="${r.w - 20}" height="${r.h - 50}" rx="6" ry="6" fill="none" stroke="${border}" stroke-width="1"/>`);
-      let ty = y + 56;
-      for (const ln of lines) {
-        parts.push(`<text x="${x + 18}" y="${ty}" font-family="Plus Jakarta Sans, sans-serif" font-size="11" font-style="italic" fill="${muted}">${escapeXml(truncate(ln, 30))}</text>`);
-        ty += 14;
-      }
+    if ((node.notes || '').trim()) {
+      const boxX = x + 10, boxY = y + 40;
+      const boxW = r.w - 20, boxH = r.h - 50;
+      parts.push(`<rect x="${boxX}" y="${boxY}" width="${boxW}" height="${boxH}" rx="6" ry="6" fill="none" stroke="${border}" stroke-width="1"/>`);
+      parts.push(renderNotesAsSvg(node.notes, boxX, boxY, boxW, boxH, text, muted));
     }
   }
   parts.push(`</svg>`);
   const svg = parts.join('');
 
-  // Rasterize via Image
   const blob = await new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
@@ -1741,7 +1932,6 @@ function escapeXml(s) {
 }
 function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-// Export / import
 $('btnExport').addEventListener('click', async () => {
   const blob = await renderToPngBlob();
   if (!blob) { toast('Nothing to export.'); return; }
@@ -1781,7 +1971,6 @@ fileInput.addEventListener('change', () => {
   fileInput.value = '';
 });
 
-// ===== P2P =====
 function setStatus(text, state) {
   statusText.textContent = text;
   statusDot.className = 'dot dot-' + state;
@@ -1875,7 +2064,7 @@ function handleMessage(msg, fromConn) {
       const n = mm.nodes[msg.id];
       if (n) {
         if (editingNodeId === msg.id) {
-          // skip fields the user is currently editing
+
           const ch = Object.assign({}, msg.changes);
           if (editingField === 'title') delete ch.title;
           if (editingField === 'notes') delete ch.notes;
@@ -1998,7 +2187,6 @@ function attemptReconnect() {
   }, delay);
 }
 
-// ===== Init =====
 function init() {
   if (!load()) {
     mm = createMindMap();
@@ -2024,7 +2212,14 @@ function init() {
   startHosting();
 }
 
-window.addEventListener('resize', () => updateZoom());
+window.addEventListener('resize', () => {
+  if (presentationMode && selectedId && cachedLayout.visible && cachedLayout.visible.has(selectedId)) {
+    render();
+    focusOnNode(selectedId, { animate: false });
+  } else {
+    updateZoom();
+  }
+});
 init();
 
 })();

@@ -221,6 +221,7 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-inner) * 100%), transparent),
     0 0 0 1px color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-outer) * 100%), transparent),
+    0 0 22px -6px color-mix(in srgb, var(--branch-color) 28%, transparent),
     0 1px 0 rgba(0,0,0,0.4),
     0 8px 24px -12px rgba(0,0,0,0.6);
 }
@@ -228,6 +229,7 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-inner) * 100%), transparent),
     0 0 0 1px color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-outer) * 100%), transparent),
+    0 0 18px -6px color-mix(in srgb, var(--branch-color) 18%, transparent),
     0 1px 0 rgba(0,0,0,0.04),
     0 8px 24px -12px rgba(0,0,0,0.18);
 }
@@ -1022,19 +1024,21 @@ let cachedLayout = { positions: {}, visible: new Set() };
 
 const BRANCH_PALETTE_SIZE = 10;
 
-function buildBranchColorMap() {
+function buildBranchColorMap(positions) {
   const colorOf = {};
-  if (!mm || !mm.rootId) return colorOf;
-  const topLevel = getChildren(mm.rootId).slice().sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-  topLevel.forEach((branchRoot, i) => {
-    const color = `var(--branch-${(i % BRANCH_PALETTE_SIZE) + 1})`;
-    const stack = [branchRoot.id];
-    while (stack.length) {
-      const id = stack.pop();
-      colorOf[id] = color;
-      for (const c of getChildren(id)) stack.push(c.id);
-    }
-  });
+  if (!mm || !mm.rootId || !positions) return colorOf;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const sat = isLight ? 55 : 52;
+  const light = isLight ? 46 : 64;
+  for (const id in mm.nodes) {
+    if (id === mm.rootId) continue;
+    const p = positions[id];
+    if (!p) continue;
+    if (p.x === 0 && p.y === 0) continue;
+    let deg = Math.atan2(p.y, p.x) * 180 / Math.PI;
+    if (deg < 0) deg += 360;
+    colorOf[id] = `hsl(${deg.toFixed(1)} ${sat}% ${light}%)`;
+  }
   return colorOf;
 }
 
@@ -1042,7 +1046,7 @@ function render(opts) {
   const skipAutoFocus = !!(opts && opts.skipAutoFocus);
   cachedLayout = computeLayout();
   const { positions, visible } = cachedLayout;
-  const branchColor = buildBranchColorMap();
+  const branchColor = buildBranchColorMap(positions);
 
   const existing = new Map();
   cardsLayer.querySelectorAll('.card').forEach(el => existing.set(el.dataset.id, el));

@@ -50,6 +50,19 @@
   --radius-card: 14px;
   --card-bg: #0e0e13;
   --card-bg-soft: #16161e;
+
+  --branch-1:  hsl(  8, 55%, 68%);
+  --branch-2:  hsl( 32, 60%, 65%);
+  --branch-3:  hsl( 52, 55%, 65%);
+  --branch-4:  hsl( 92, 40%, 62%);
+  --branch-5:  hsl(150, 40%, 60%);
+  --branch-6:  hsl(180, 40%, 60%);
+  --branch-7:  hsl(205, 50%, 65%);
+  --branch-8:  hsl(232, 45%, 70%);
+  --branch-9:  hsl(275, 40%, 70%);
+  --branch-10: hsl(320, 45%, 68%);
+  --branch-tint-inner: 0.32;
+  --branch-tint-outer: 0.18;
 }
 
 [data-theme="light"] {
@@ -69,6 +82,19 @@
   --header-border: rgba(0,0,0,0.08);
   --card-bg: #ffffff;
   --card-bg-soft: #f0f0f4;
+
+  --branch-1:  hsl(  8, 55%, 48%);
+  --branch-2:  hsl( 32, 60%, 45%);
+  --branch-3:  hsl( 48, 60%, 42%);
+  --branch-4:  hsl( 92, 40%, 38%);
+  --branch-5:  hsl(150, 40%, 38%);
+  --branch-6:  hsl(180, 40%, 38%);
+  --branch-7:  hsl(205, 55%, 45%);
+  --branch-8:  hsl(232, 45%, 52%);
+  --branch-9:  hsl(275, 40%, 50%);
+  --branch-10: hsl(320, 45%, 48%);
+  --branch-tint-inner: 0.55;
+  --branch-tint-outer: 0.28;
 }
 
 html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
@@ -190,6 +216,21 @@ html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); back
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 [data-theme="light"] .card { box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 8px 24px -12px rgba(0,0,0,0.18); }
+.card[style*="--branch-color"]:not(.root):not(.selected):not(.drop-target) {
+  border-color: color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-inner) * 100%), var(--border-strong));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-inner) * 100%), transparent),
+    0 0 0 1px color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-outer) * 100%), transparent),
+    0 1px 0 rgba(0,0,0,0.4),
+    0 8px 24px -12px rgba(0,0,0,0.6);
+}
+[data-theme="light"] .card[style*="--branch-color"]:not(.root):not(.selected):not(.drop-target) {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-inner) * 100%), transparent),
+    0 0 0 1px color-mix(in srgb, var(--branch-color) calc(var(--branch-tint-outer) * 100%), transparent),
+    0 1px 0 rgba(0,0,0,0.04),
+    0 8px 24px -12px rgba(0,0,0,0.18);
+}
 .card.root {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
               0 0 14px 2px color-mix(in srgb, var(--accent) 18%, transparent),
@@ -442,8 +483,9 @@ const PNG_KEY = 'NibSetMindMap';
 const CARD_W = 280;
 const CARD_H_BASE = 60;       
 const CARD_H_NOTES = 380;     
-const RING_BASE = 380;
-const RING_STEP = 300;
+const STAR_SIBLING_PAD = 28;
+const STAR_RADIAL_PAD = 36;
+const STAR_INNER_MIN = 240;
 
 function uid() { return crypto.randomUUID ? 'n_' + crypto.randomUUID().slice(0, 8) : 'n_' + Math.random().toString(36).slice(2, 10); }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -798,7 +840,20 @@ function computeTreeLayout() {
 function computeStarLayout() {
   const positions = {};
   const visible = new Set();
-  const slots = {}; 
+  if (!mm || !mm.rootId || !mm.nodes[mm.rootId]) return { positions, visible };
+
+  const rootId = mm.rootId;
+  const rootNode = mm.nodes[rootId];
+  visible.add(rootId);
+  positions[rootId] = { x: 0, y: 0, angle: 0 };
+
+  const rootKids = (rootNode && !rootNode.collapsed) ? getChildren(rootId) : [];
+  if (rootKids.length === 0) return { positions, visible };
+
+  const projOutward = (node, theta) =>
+    Math.abs(Math.cos(theta)) * CARD_W + Math.abs(Math.sin(theta)) * cardHeight(node);
+  const projTangent = (node, theta) =>
+    Math.abs(Math.sin(theta)) * CARD_W + Math.abs(Math.cos(theta)) * cardHeight(node);
 
   function leafCount(id) {
     const n = mm.nodes[id];
@@ -810,84 +865,99 @@ function computeStarLayout() {
     return Math.max(1, total);
   }
 
-  function assignAngles(id, depth, angle, span) {
+  function subtreeExtent(id, theta) {
+    const node = mm.nodes[id];
+    if (!node) return CARD_W + STAR_SIBLING_PAD;
+    const self = projTangent(node, theta) + STAR_SIBLING_PAD;
+    if (node.collapsed) return self;
+    const kids = getChildren(id);
+    if (kids.length === 0) return self;
+    let sum = 0;
+    for (const c of kids) sum += subtreeExtent(c.id, theta);
+    return Math.max(self, sum);
+  }
+
+  function placeSubtree(id, x, y, dirAngle) {
     visible.add(id);
-    slots[id] = { depth, angle, span };
+    positions[id] = { x, y, angle: dirAngle };
     const node = mm.nodes[id];
     if (!node || node.collapsed) return;
     const kids = getChildren(id);
     if (kids.length === 0) return;
-    const totalLeaves = kids.reduce((s, c) => s + leafCount(c.id), 0);
-    let angularStart = (depth === 0) ? 0 : (angle - span / 2);
-    const totalSpan = (depth === 0) ? Math.PI * 2 : span;
-    for (const c of kids) {
-      const w = leafCount(c.id) / totalLeaves;
-      const childSpan = totalSpan * w;
-      const childAngle = (depth === 0)
-        ? angularStart + childSpan / 2 - Math.PI / 2
-        : angularStart + childSpan / 2;
-      assignAngles(c.id, depth + 1, childAngle, childSpan * 0.92);
-      angularStart += childSpan;
+
+    const ox = Math.cos(dirAngle), oy = Math.sin(dirAngle);
+    const tx = -Math.sin(dirAngle), ty = Math.cos(dirAngle);
+
+    const myProj = projOutward(node, dirAngle);
+    let maxKidProj = 0;
+    for (const c of kids) maxKidProj = Math.max(maxKidProj, projOutward(c, dirAngle));
+    const step = myProj / 2 + maxKidProj / 2 + STAR_RADIAL_PAD;
+
+    const childExtents = kids.map(c => subtreeExtent(c.id, dirAngle));
+    const total = childExtents.reduce((s, e) => s + e, 0);
+    let offset = -total / 2;
+    for (let i = 0; i < kids.length; i++) {
+      const c = kids[i];
+      const tCenter = offset + childExtents[i] / 2;
+      offset += childExtents[i];
+      const cx = x + ox * step + tx * tCenter;
+      const cy = y + oy * step + ty * tCenter;
+      placeSubtree(c.id, cx, cy, dirAngle);
     }
   }
 
-  if (!mm || !mm.rootId || !mm.nodes[mm.rootId]) return { positions, visible };
-  assignAngles(mm.rootId, 0, 0, Math.PI * 2);
-
-  const halfDiag = (id) => Math.hypot(CARD_W, cardHeight(mm.nodes[id])) / 2;
-  const SIBLING_PAD = 60;
-  const RADIAL_PAD = 80;
-  const minR = {};
-
-  const byParent = {};
-  for (const id of visible) {
-    if (slots[id].depth === 0) continue;
-    const pid = mm.nodes[id].parentId;
-    (byParent[pid] = byParent[pid] || []).push(id);
-  }
-  for (const pid in byParent) {
-    const kids = byParent[pid].slice().sort((a, b) => slots[a].angle - slots[b].angle);
-    if (kids.length === 0) continue;
-    const parentDepth = slots[pid].depth;
-    const wraps = parentDepth === 0; 
-    const pairs = wraps ? kids.length : Math.max(0, kids.length - 1);
-    for (let i = 0; i < pairs; i++) {
-      const a = kids[i], b = kids[(i + 1) % kids.length];
-      let gap = Math.abs(slots[a].angle - slots[b].angle);
-      if (gap > Math.PI) gap = 2 * Math.PI - gap;
-      if (gap < 0.001) continue;
-      const need = halfDiag(a) + halfDiag(b) + SIBLING_PAD;
-      const reqR = need / (2 * Math.sin(gap / 2));
-      const d = slots[a].depth;
-      minR[d] = Math.max(minR[d] || 0, reqR);
-    }
+  if (rootKids.length === 1) {
+    const only = rootKids[0];
+    const a = Math.PI; // largest (only) branch goes left
+    const r = Math.max(STAR_INNER_MIN,
+      projOutward(rootNode, a) / 2 + projOutward(only, a) / 2 + STAR_RADIAL_PAD);
+    placeSubtree(only.id, Math.cos(a) * r, Math.sin(a) * r, a);
+    return { positions, visible };
   }
 
-  const maxDepth = Array.from(visible).reduce((m, id) => Math.max(m, slots[id].depth), 0);
-  const maxHByDepth = {};
-  for (const id of visible) {
-    const d = slots[id].depth;
-    const h = cardHeight(mm.nodes[id]);
-    maxHByDepth[d] = Math.max(maxHByDepth[d] || 0, h);
-  }
-  const ringR = { 0: 0 };
-  let prev = 0;
-  for (let d = 1; d <= maxDepth; d++) {
-    const base = RING_BASE + RING_STEP * (d - 1);
-    const radialStep = (maxHByDepth[d - 1] || 0) / 2 + (maxHByDepth[d] || 0) / 2 + RADIAL_PAD;
-    ringR[d] = Math.max(base, minR[d] || 0, prev + radialStep);
-    prev = ringR[d];
+  const N = rootKids.length;
+  const leaves = rootKids.map(c => leafCount(c.id));
+  const weights = leaves.map(l => Math.sqrt(l));
+  const totalW = weights.reduce((a, b) => a + b, 0);
+  const shares = weights.map(w => (w / totalW) * Math.PI * 2);
+
+  let largestIdx = 0;
+  for (let i = 1; i < N; i++) if (leaves[i] > leaves[largestIdx]) largestIdx = i;
+  let cumulativeBefore = 0;
+  for (let i = 0; i < largestIdx; i++) cumulativeBefore += shares[i];
+  const startAngle = Math.PI - cumulativeBefore - shares[largestIdx] / 2;
+
+  const centers = [];
+  let angle = startAngle;
+  for (let i = 0; i < N; i++) {
+    centers.push(angle + shares[i] / 2);
+    angle += shares[i];
   }
 
-  for (const id of visible) {
-    const s = slots[id];
-    if (s.depth === 0) {
-      positions[id] = { x: 0, y: 0, angle: 0 };
-    } else {
-      const r = ringR[s.depth];
-      positions[id] = { x: Math.cos(s.angle) * r, y: Math.sin(s.angle) * r, angle: s.angle };
-    }
+  let r1 = STAR_INNER_MIN;
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    let dTheta = centers[j] - centers[i];
+    while (dTheta < 0) dTheta += 2 * Math.PI;
+    if (dTheta > Math.PI) dTheta = 2 * Math.PI - dTheta;
+    const e_i = subtreeExtent(rootKids[i].id, centers[i]);
+    const e_j = subtreeExtent(rootKids[j].id, centers[j]);
+    const need = ((e_i + e_j) / 2 + STAR_SIBLING_PAD) / Math.max(0.001, dTheta);
+    if (need > r1) r1 = need;
   }
+  for (let i = 0; i < N; i++) {
+    const need = projOutward(rootNode, centers[i]) / 2
+               + projOutward(rootKids[i], centers[i]) / 2
+               + STAR_RADIAL_PAD;
+    if (r1 < need) r1 = need;
+  }
+
+  for (let i = 0; i < N; i++) {
+    const cx = Math.cos(centers[i]) * r1;
+    const cy = Math.sin(centers[i]) * r1;
+    placeSubtree(rootKids[i].id, cx, cy, centers[i]);
+  }
+
   return { positions, visible };
 }
 
@@ -950,10 +1020,29 @@ function cardDims(id) {
 
 let cachedLayout = { positions: {}, visible: new Set() };
 
+const BRANCH_PALETTE_SIZE = 10;
+
+function buildBranchColorMap() {
+  const colorOf = {};
+  if (!mm || !mm.rootId) return colorOf;
+  const topLevel = getChildren(mm.rootId).slice().sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  topLevel.forEach((branchRoot, i) => {
+    const color = `var(--branch-${(i % BRANCH_PALETTE_SIZE) + 1})`;
+    const stack = [branchRoot.id];
+    while (stack.length) {
+      const id = stack.pop();
+      colorOf[id] = color;
+      for (const c of getChildren(id)) stack.push(c.id);
+    }
+  });
+  return colorOf;
+}
+
 function render(opts) {
   const skipAutoFocus = !!(opts && opts.skipAutoFocus);
   cachedLayout = computeLayout();
   const { positions, visible } = cachedLayout;
+  const branchColor = buildBranchColorMap();
 
   const existing = new Map();
   cardsLayer.querySelectorAll('.card').forEach(el => existing.set(el.dataset.id, el));
@@ -985,6 +1074,9 @@ function render(opts) {
     el.classList.toggle('has-children', getChildren(id).length > 0);
     el.classList.toggle('selected', selectedId === id);
     el.classList.toggle('root', id === mm.rootId);
+    const bc = branchColor[id];
+    if (bc && id !== mm.rootId) el.style.setProperty('--branch-color', bc);
+    else el.style.removeProperty('--branch-color');
   }
 
   for (const el of existing.values()) el.remove();

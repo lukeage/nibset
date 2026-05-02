@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
@@ -161,7 +161,7 @@
       if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
       document.documentElement.setAttribute('data-theme', t);
       var link = document.getElementById('hljs-theme');
-      if (link && t === 'light') link.href = link.href.replace('github-dark.min.css', 'github.min.css');
+      if (link && t === 'light') link.href = link.href.replace('atom-one-dark.min.css', 'atom-one-light.min.css');
     })();
     </script>
 
@@ -1382,8 +1382,8 @@
         const link = document.getElementById('hljs-theme');
         if (link) {
             link.href = next === 'light'
-                ? link.href.replace('github-dark.min.css', 'github.min.css')
-                : link.href.replace('github.min.css', 'github-dark.min.css');
+                ? link.href.replace('atom-one-dark.min.css', 'atom-one-light.min.css')
+                : link.href.replace('atom-one-light.min.css', 'atom-one-dark.min.css');
         }
         // Re-render formatted view if active
         if (state.viewMode === 'formatted' && state.isValid) renderCurrentView();

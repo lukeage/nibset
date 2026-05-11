@@ -1403,7 +1403,7 @@
     svg.addEventListener('dblclick', (e) => {
       if (e.target.closest('.bar, .milestone, .group-bar, .resize-handle, .bar-label')) return;
       const paneRect = timelineBody.getBoundingClientRect();
-      const xLocal = e.clientX - paneRect.left + timelineBody.parentElement.scrollLeft;
+      const xLocal = e.clientX - paneRect.left;
       const start = xToDate(xLocal, lastCols);
       const end = addDays(start, zoomToDefaultDuration(view.zoom));
       // Deselect so the task is appended at root rather than under selection.
@@ -1600,8 +1600,8 @@
     function snapDateOffset(dxPx) {
       // figure out the date that startX + dxPx maps to vs startX maps to
       const paneRect = timelineBody.getBoundingClientRect();
-      const xNow = startX - paneRect.left + timelineBody.parentElement.scrollLeft + dxPx;
-      const xRef = startX - paneRect.left + timelineBody.parentElement.scrollLeft;
+      const xNow = startX - paneRect.left + dxPx;
+      const xRef = startX - paneRect.left;
       const dRef = xToDate(xRef, lastCols);
       const dNow = xToDate(xNow, lastCols);
       return diffDays(dRef, dNow);

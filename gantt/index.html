@@ -1460,6 +1460,7 @@
     }
 
     // Bars
+    const pendingLabels = [];
     for (let i = 0; i < lastRows.length; i++) {
       const { task } = lastRows[i];
       const y = i * ROW_HEIGHT + BAR_PAD;
@@ -1546,16 +1547,17 @@
         sd.setAttribute('pointer-events', 'none');
         g.appendChild(sd);
 
-        // Title label
-        if (rect.width > 36) {
-          const label = document.createElementNS(SVG_NS, 'text');
-          label.setAttribute('class', 'bar-label');
-          label.setAttribute('x', rect.x + 18);
-          label.setAttribute('y', y + BAR_HEIGHT / 2 + 4);
-          label.setAttribute('fill', task.color ? '#000' : '#fff');
-          label.textContent = task.title.length > 30 ? task.title.slice(0, 27) + '…' : task.title;
-          g.appendChild(label);
-        }
+        // Title label — always render; we'll measure after attach and flip
+        // it outside the bar (milestone-style) if it doesn't fit inside.
+        const label = document.createElementNS(SVG_NS, 'text');
+        label.setAttribute('class', 'bar-label');
+        label.setAttribute('x', rect.x + 18);
+        label.setAttribute('y', y + BAR_HEIGHT / 2 + 4);
+        label.setAttribute('fill', task.color ? '#000' : '#fff');
+        const fullTitle = task.title;
+        label.textContent = fullTitle.length > 30 ? fullTitle.slice(0, 27) + '…' : fullTitle;
+        g.appendChild(label);
+        pendingLabels.push({ label, rect, fullTitle });
         // Resize handles
         if (rect.width > 14) {
           const lh = document.createElementNS(SVG_NS, 'rect');
@@ -1580,6 +1582,18 @@
     }
 
     timelineBody.appendChild(svg);
+
+    // Now that the SVG is in the DOM, measure each task label. If it overflows
+    // its bar, reposition it next to the bar with the muted milestone styling.
+    const INSIDE_PAD = 22; // status-dot gutter + small right margin
+    for (const { label, rect, fullTitle } of pendingLabels) {
+      const textLen = label.getComputedTextLength();
+      if (textLen + INSIDE_PAD > rect.width) {
+        label.setAttribute('x', rect.x + rect.width + 6);
+        label.setAttribute('fill', 'var(--muted)');
+        label.textContent = fullTitle;
+      }
+    }
   }
 
   // ============================================================

@@ -734,6 +734,30 @@
   // Drag state
   let dragState = null;
 
+  // Local autosave (browser storage)
+  const LOCAL_STATE_KEY = 'nibset-gantt-state';
+  let saveTimer = null;
+  function saveLocalState() {
+    // Don't overwrite our own saved state while joined as a guest in someone else's room.
+    if (appState === 'room' && !isHost) return;
+    try {
+      localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify({ version: 1, tasks, view }));
+    } catch (e) {}
+  }
+  function scheduleSaveLocal() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveLocalState, 300);
+  }
+  function loadLocalState() {
+    try {
+      const raw = localStorage.getItem(LOCAL_STATE_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.tasks)) return null;
+      return data;
+    } catch (e) { return null; }
+  }
+
   // ============================================================
   // DOM
   // ============================================================
@@ -1117,6 +1141,7 @@
     renderTimelineBody();
     renderInspector();
     updateUndoButtons();
+    scheduleSaveLocal();
   }
 
   function appendAddRow() {
@@ -2597,8 +2622,18 @@
   // ============================================================
   // Init
   // ============================================================
+  function restoreLocalState() {
+    const data = loadLocalState();
+    if (!data) return false;
+    tasks = data.tasks;
+    if (data.view) view = Object.assign({ zoom: 'week', customColumns: [], columnCollapse: {} }, data.view);
+    document.querySelectorAll('#zoomGroup .tool-btn').forEach(b => b.classList.toggle('tool-active', b.dataset.zoom === view.zoom));
+    return true;
+  }
+
   function ensureDemoState() {
     if (tasks.length > 0) return;
+    if (restoreLocalState() && tasks.length > 0) return;
     // Seed with a small example so the empty state isn't blank.
     const t = todayISO();
     const groupId = uuid();

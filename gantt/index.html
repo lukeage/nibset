@@ -1,0 +1,2632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gantt — NibSet</title>
+<link rel="icon" type="image/png" href="../assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+(function(){
+  var t = localStorage.getItem('nibset-theme');
+  if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+<style>
+  :root {
+    --bg: #060608; --text: #e8e8ec; --muted: #8b8b95;
+    --toolbar-bg: rgba(17,17,21,0.95); --border: #1c1c24; --border-light: rgba(255,255,255,0.08);
+    --grid-color: rgba(255,255,255,0.05); --grid-strong: rgba(255,255,255,0.10);
+    --accent: #c9f270; --accent-bg: rgba(201,242,112,0.15); --accent-ring: rgba(201,242,112,0.3);
+    --toolbar-border: rgba(255,255,255,0.05);
+    --row-hover: rgba(255,255,255,0.04);
+    --row-selected: rgba(201,242,112,0.10);
+    --bar-default: #6b7280;
+    --status-todo: #6b7280; --status-doing: #f59e0b; --status-done: #22c55e;
+  }
+  [data-theme="light"] {
+    --bg: #f5f5f7; --text: #1a1a1e; --muted: #5a5a64;
+    --toolbar-bg: rgba(245,245,247,0.95); --border: #dcdce0; --border-light: rgba(0,0,0,0.08);
+    --grid-color: rgba(0,0,0,0.05); --grid-strong: rgba(0,0,0,0.10);
+    --accent: #5a8a1a; --accent-bg: rgba(90,138,26,0.15); --accent-ring: rgba(90,138,26,0.3);
+    --toolbar-border: rgba(0,0,0,0.08);
+    --row-hover: rgba(0,0,0,0.04);
+    --row-selected: rgba(90,138,26,0.12);
+    --bar-default: #94a3b8;
+    --status-todo: #94a3b8; --status-doing: #f59e0b; --status-done: #16a34a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; color: var(--text); font-size: 13px; }
+
+  /* Toolbar (matches draw tool look) */
+  .toolbar-home { display: flex; align-items: center; opacity: 0.6; transition: opacity 0.15s; flex-shrink: 0; }
+  .toolbar-home:hover { opacity: 1; }
+
+  #toolbar {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    background: var(--toolbar-bg); border-radius: 14px;
+    backdrop-filter: blur(16px); border: 1px solid var(--toolbar-border);
+    z-index: 30;
+    animation: slideDown 0.25s ease;
+    max-width: calc(100vw - 32px);
+  }
+  .tb-sep { width: 1px; height: 24px; background: var(--border-light); margin: 0 2px; flex-shrink: 0; }
+  .hidden { display: none !important; }
+
+  #status { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  #status .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot-waiting { background: #f59e0b; }
+  .dot-connected { background: #22c55e; }
+  .dot-disconnected { background: #ef4444; }
+  .dot-reconnecting { background: #f59e0b; animation: pulse 1.5s ease-in-out infinite; }
+
+  .tool-btn {
+    height: 34px; min-width: 34px; padding: 0 8px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    border: 1px solid transparent; border-radius: 10px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    position: relative; font-family: inherit; font-size: 12px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .tool-btn:hover { background: var(--border); color: var(--text); }
+  .tool-btn.tool-active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .tool-btn.disabled { opacity: 0.35; pointer-events: none; }
+  .tool-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .tool-btn.icon-only { width: 34px; padding: 0; }
+  .tool-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    margin-top: 6px; padding: 4px 8px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border-light);
+    border-radius: 6px; font-size: 11px; white-space: nowrap;
+    pointer-events: none; z-index: 100;
+  }
+
+  .zoom-group { display: inline-flex; background: var(--border); border-radius: 10px; padding: 2px; gap: 2px; }
+  .zoom-group .tool-btn { height: 28px; padding: 0 10px; font-size: 11px; font-weight: 600; }
+  .zoom-group .tool-btn.tool-active { background: var(--accent); color: var(--bg); border-radius: 8px; }
+
+  .dropdown {
+    position: fixed; padding: 4px 0;
+    background: var(--toolbar-bg); border: 1px solid var(--border-light);
+    border-radius: 8px; z-index: 100; display: none;
+    backdrop-filter: blur(16px);
+  }
+  .dropdown.open { display: block; }
+  .dropdown button {
+    width: 100%; padding: 6px 14px; min-width: 100px;
+    background: transparent; border: none; color: var(--text);
+    font-size: 13px; text-align: left; cursor: pointer; font-family: inherit;
+  }
+  .dropdown button:hover { background: var(--border-light); }
+
+  @keyframes slideDown { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Layout */
+  .app {
+    position: fixed; inset: 0;
+    display: grid;
+    grid-template-columns: 320px 1fr 320px;
+    grid-template-rows: 64px 1fr;
+    grid-template-areas:
+      "tb tb tb"
+      "left right inspector";
+  }
+  .app.inspector-collapsed {
+    grid-template-columns: 320px 1fr 0;
+  }
+  .app .tb-row { grid-area: tb; }
+  .left-pane {
+    grid-area: left;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .right-pane {
+    grid-area: right;
+    overflow: auto;
+    position: relative;
+    background: var(--bg);
+  }
+  .inspector {
+    grid-area: inspector;
+    border-left: 1px solid var(--border);
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .app.inspector-collapsed .inspector { display: none; }
+  .inspector .ins-head {
+    height: 44px; flex-shrink: 0;
+    padding: 0 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--bg);
+  }
+  .inspector .ins-body {
+    flex: 1; overflow-y: auto; padding: 18px 20px;
+  }
+  .inspector .ins-body textarea { min-height: 140px; }
+  .inspector .ins-empty {
+    color: var(--muted); font-size: 12px;
+    text-align: center; padding: 40px 16px;
+  }
+  .inspector .ins-foot {
+    padding: 12px 16px; border-top: 1px solid var(--border);
+  }
+
+  /* Left pane: row list */
+  .left-header {
+    height: 44px;
+    flex-shrink: 0;
+    display: flex; align-items: center;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--bg);
+    position: sticky; top: 0; z-index: 2;
+  }
+  .left-scroll { overflow-y: auto; overflow-x: hidden; flex: 1; }
+  .left-scroll::-webkit-scrollbar { width: 0; height: 0; }
+  .row {
+    height: 36px;
+    display: flex; align-items: center;
+    padding: 0 12px 0 6px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    position: relative;
+    gap: 8px;
+  }
+  .row:hover { background: var(--row-hover); }
+  .row.selected { background: var(--row-selected); }
+  .row.drag-source { opacity: 0.4; }
+  body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+  .row .drag-handle {
+    width: 14px; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); cursor: grab; opacity: 0; transition: opacity 0.15s;
+    flex-shrink: 0;
+  }
+  .row:hover .drag-handle { opacity: 0.8; }
+  .row .drag-handle:active { cursor: grabbing; }
+  .row .chev {
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); cursor: pointer; flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+  .row.expanded .chev { transform: rotate(90deg); }
+  .row .chev.placeholder { visibility: hidden; }
+  .row .type-glyph {
+    width: 14px; height: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted);
+  }
+  .row .title {
+    flex: 1; min-width: 0;
+    font-size: 13px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .row .title.editing {
+    background: var(--border); border: 1px solid var(--accent);
+    border-radius: 4px; padding: 2px 4px;
+  }
+  .row .title[contenteditable] { outline: none; }
+  .row .assignee {
+    font-size: 11px; color: var(--muted);
+    background: var(--border); padding: 2px 6px; border-radius: 8px;
+    max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .row .assignee:empty { display: none; }
+  .row .color-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid var(--border-light);
+  }
+  .row.add-row {
+    cursor: default; gap: 8px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .row.add-row:hover { background: transparent; }
+  .row .add-btn {
+    height: 24px; width: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border-light); border-radius: 6px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    padding: 0;
+  }
+  .row .add-btn:hover { background: var(--border); color: var(--text); border-color: var(--border); }
+  .row .add-btn svg { display: block; }
+  .drop-indicator {
+    position: absolute;
+    height: 2px; background: var(--accent);
+    pointer-events: none; z-index: 25;
+  }
+  .drop-indicator.into {
+    background: var(--accent-bg); border: 1px dashed var(--accent);
+  }
+
+  /* Right pane: timeline */
+  .timeline-header {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    height: 40px;
+    display: flex;
+  }
+  .col-header {
+    height: 100%;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--muted); font-weight: 600;
+    flex-shrink: 0;
+    position: relative;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .col-header:hover { background: var(--row-hover); }
+  .col-header .col-chev {
+    position: absolute; top: 2px; right: 4px;
+    width: 12px; height: 12px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; color: var(--muted); transition: opacity 0.15s;
+    font-size: 10px;
+  }
+  .col-header:hover .col-chev { opacity: 0.8; }
+  .col-header.weekend { background: var(--row-hover); }
+  .col-header.today { color: var(--accent); }
+  .col-header.collapsed {
+    width: 18px !important;
+    background: var(--border);
+    cursor: pointer;
+  }
+  .col-header.collapsed .col-label { display: none; }
+  .col-header.collapsed .col-sub { display: none; }
+  .col-header .col-collapsed-glyph { display: none; color: var(--muted); font-size: 10px; }
+  .col-header.collapsed .col-collapsed-glyph { display: flex; align-items: center; justify-content: center; height: 100%; }
+  .col-sub { font-size: 9px; opacity: 0.7; margin-top: 2px; }
+  .timeline-body {
+    position: relative;
+    min-height: 100%;
+  }
+  .timeline-svg { display: block; }
+  .timeline-svg .row-bg { fill: transparent; }
+  .timeline-svg .row-bg:hover { fill: var(--row-hover); }
+  .timeline-svg .row-bg.selected { fill: var(--row-selected); }
+  .timeline-svg .grid-line { stroke: var(--grid-color); stroke-width: 1; shape-rendering: crispEdges; }
+  .timeline-svg .grid-strong { stroke: var(--grid-strong); stroke-width: 1; shape-rendering: crispEdges; }
+  .timeline-svg .today-line { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+  .timeline-svg .bar { cursor: grab; transition: filter 0.1s; }
+  .timeline-svg .bar.dragging { cursor: grabbing; filter: brightness(1.15); }
+  .timeline-svg .bar:hover { filter: brightness(1.10); }
+  .timeline-svg .resize-handle { cursor: ew-resize; opacity: 0; transition: opacity 0.15s; }
+  .timeline-svg .bar-group:hover .resize-handle { opacity: 1; }
+  .timeline-svg .bar-label {
+    font-size: 11px; pointer-events: none;
+    font-weight: 500;
+  }
+  .timeline-svg .milestone { cursor: grab; }
+  .timeline-svg .milestone.dragging { cursor: grabbing; }
+  .timeline-svg .group-bar {
+    cursor: pointer;
+  }
+  .bar-edit-input {
+    position: absolute;
+    border: 2px solid var(--accent);
+    border-radius: 5px;
+    padding: 0 8px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    outline: none;
+    box-sizing: border-box;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--bg);
+    border: 1px solid var(--border-light);
+    border-radius: 14px;
+    width: min(520px, 92vw);
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 22px 26px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+  .field { margin-bottom: 14px; display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+  .field input[type="text"],
+  .field input[type="date"],
+  .field textarea,
+  .field select {
+    width: 100%; padding: 8px 10px;
+    background: var(--border); color: var(--text);
+    border: 1px solid var(--border-light);
+    border-radius: 8px; font-family: inherit; font-size: 13px;
+    outline: none;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
+  .field textarea { min-height: 80px; resize: vertical; }
+  .row-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .swatch {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent;
+  }
+  .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
+  .swatch.default {
+    background: var(--bar-default) !important;
+    position: relative;
+  }
+  .swatch.default::after {
+    content: 'A'; position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: #fff;
+  }
+  .status-pills { display: flex; gap: 6px; }
+  .status-pill {
+    padding: 4px 10px; border-radius: 8px;
+    background: var(--border); color: var(--text);
+    font-size: 12px; cursor: pointer; border: 1px solid transparent;
+  }
+  .status-pill.active { border-color: var(--accent); background: var(--accent-bg); }
+  .status-pill .pill-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+  }
+  .modal-actions {
+    display: flex; justify-content: space-between; gap: 8px;
+    margin-top: 18px;
+  }
+  .modal-actions .left { display: flex; gap: 8px; }
+  .modal-actions .right { display: flex; gap: 8px; }
+  .btn {
+    padding: 8px 14px; border: 1px solid var(--border-light); border-radius: 10px;
+    background: var(--border); color: var(--text); font-size: 13px; cursor: pointer;
+    font-family: inherit; font-weight: 600;
+  }
+  .btn:hover { background: var(--border-light); }
+  .btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .btn.primary:hover { opacity: 0.9; }
+  .btn.danger { background: transparent; color: #ef4444; border-color: rgba(239,68,68,0.3); }
+  .btn.danger:hover { background: rgba(239,68,68,0.1); }
+
+  /* Custom columns side panel */
+  .side-panel {
+    position: fixed;
+    top: 64px; right: 0; bottom: 0;
+    width: 320px;
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    z-index: 25;
+    display: none;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+  }
+  .side-panel.open { display: flex; transform: translateX(0); }
+  .side-panel .sp-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .side-panel .sp-head h3 { font-size: 14px; font-weight: 700; }
+  .side-panel .sp-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+  .side-panel .sp-foot { padding: 12px 14px; border-top: 1px solid var(--border); }
+  .col-item {
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: var(--border);
+  }
+  .col-item .ci-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .col-item input[type="text"], .col-item input[type="date"] {
+    flex: 1; padding: 6px 8px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border-light); border-radius: 6px;
+    font-family: inherit; font-size: 12px; outline: none;
+    min-width: 0;
+  }
+  .col-item .ci-actions { display: flex; gap: 4px; justify-content: flex-end; margin-top: 4px; }
+  .icon-btn {
+    width: 24px; height: 24px; padding: 0;
+    background: transparent; border: 1px solid transparent;
+    border-radius: 6px; color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover { background: var(--border-light); color: var(--text); }
+  .icon-btn svg { width: 14px; height: 14px; }
+
+  /* Banners */
+  #connectionBanner {
+    position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+    padding: 8px 16px; background: rgba(239,68,68,0.9); color: #fff;
+    border-radius: 8px; font-size: 13px; z-index: 50; display: none;
+  }
+  #connectionBanner.visible { display: block; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 240px 1fr 0; }
+    .app:not(.inspector-collapsed) .inspector { display: none; }
+    #toolbar { gap: 4px; padding: 6px 8px; }
+    .tool-btn { padding: 0 6px; font-size: 11px; }
+    .tb-sep { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="tb-row"></div>
+  <div class="left-pane">
+    <div class="left-header">
+      <span>Tasks</span>
+    </div>
+    <div class="left-scroll" id="rowList"></div>
+  </div>
+  <div class="right-pane" id="rightPane">
+    <div class="timeline-header" id="timelineHeader"></div>
+    <div class="timeline-body" id="timelineBody"></div>
+  </div>
+  <div class="inspector" id="inspector">
+    <div class="ins-head">
+      <span id="insTitle">Details</span>
+      <button class="icon-btn" id="insCollapseBtn" title="Collapse inspector">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg>
+      </button>
+    </div>
+    <div class="ins-body">
+      <div class="ins-empty" id="insEmpty">Select a task to view its details.</div>
+      <div id="insFields" style="display:none">
+        <div class="field">
+          <label>Title</label>
+          <input type="text" id="iTitle" placeholder="Task title">
+        </div>
+        <div class="field row-fields">
+          <div>
+            <label>Start</label>
+            <input type="date" id="iStart">
+          </div>
+          <div id="iEndWrap">
+            <label>End</label>
+            <input type="date" id="iEnd">
+          </div>
+        </div>
+        <div class="field">
+          <label>Color</label>
+          <div class="swatches" id="iSwatches"></div>
+        </div>
+        <div class="field">
+          <label>Assignee</label>
+          <input type="text" id="iAssignee" placeholder="(unassigned)">
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <div class="status-pills" id="iStatusPills">
+            <div class="status-pill" data-status="todo"><span class="pill-dot" style="background:var(--status-todo)"></span>Todo</div>
+            <div class="status-pill" data-status="doing"><span class="pill-dot" style="background:var(--status-doing)"></span>Doing</div>
+            <div class="status-pill" data-status="done"><span class="pill-dot" style="background:var(--status-done)"></span>Done</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Notes</label>
+          <textarea id="iNotes" placeholder="Description, links, context…"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="ins-foot" id="insFoot" style="display:none">
+      <button class="btn danger" id="iDeleteBtn" style="width:100%">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="toolbar">
+  <a href="../index.html" class="toolbar-home" title="Back to NibSet">
+    <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="16" height="20">
+      <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+      <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#thg)" stroke="var(--border-light)" stroke-width="0.5"/>
+      <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#thg)" />
+      <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+      <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+      <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#thg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#thg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <line x1="10" y1="33" x2="22" y2="33" stroke="url(#thg)" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#thg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+      <defs><linearGradient id="thg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text)"/><stop offset="100%" stop-color="var(--muted)"/></linearGradient></defs>
+    </svg>
+  </a>
+  <div class="tb-sep"></div>
+  <div id="status"><span class="dot dot-waiting"></span><span id="statusText">Not connected</span></div>
+  <button class="tool-btn icon-only hidden" id="copyLinkBtn" title="Copy Link">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 12l4-4M6.5 10.5l-1 1a2.83 2.83 0 004 4l1-1M13.5 9.5l1-1a2.83 2.83 0 00-4-4l-1 1"/>
+    </svg>
+  </button>
+  <div class="tb-sep"></div>
+
+  <div class="zoom-group" id="zoomGroup">
+    <button class="tool-btn" data-zoom="day">Day</button>
+    <button class="tool-btn tool-active" data-zoom="week">Week</button>
+    <button class="tool-btn" data-zoom="month">Month</button>
+    <button class="tool-btn" data-zoom="quarter">Qtr</button>
+    <button class="tool-btn" data-zoom="custom">Custom</button>
+  </div>
+  <button class="tool-btn icon-only" id="editColsBtn" title="Edit custom columns">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="1"/><line x1="8" y1="4" x2="8" y2="16"/><line x1="13" y1="4" x2="13" y2="16"/></svg>
+  </button>
+
+  <div class="tb-sep"></div>
+
+  <button class="tool-btn icon-only disabled" id="undoBtn" title="Undo (Ctrl+Z)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l4-4M4 8l4 4M5 8h8a4 4 0 010 8H9"/></svg>
+  </button>
+  <button class="tool-btn icon-only disabled" id="redoBtn" title="Redo (Ctrl+Shift+Z)">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8l-4-4M16 8l-4 4M15 8H7a4 4 0 000 8h4"/></svg>
+  </button>
+
+  <div class="tb-sep"></div>
+
+  <button class="tool-btn icon-only" id="exportBtn" title="Export">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 9l4 4 4-4M4 15v2h12v-2"/></svg>
+  </button>
+  <button class="tool-btn icon-only" id="importBtn" title="Import">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13V3M6 7l4-4 4 4M4 15v2h12v-2"/></svg>
+  </button>
+
+  <div class="tb-sep"></div>
+
+  <button class="tool-btn icon-only tool-active" id="inspectorToggle" title="Toggle inspector" aria-pressed="true">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="1"/><line x1="13" y1="4" x2="13" y2="16"/></svg>
+  </button>
+
+  <button class="tool-btn icon-only" id="themeToggle" title="Toggle theme">
+    <svg class="icon-sun" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="10" r="4"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"/></svg>
+    <svg class="icon-moon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="display:none"><path d="M17 12.5A7.5 7.5 0 017.5 3 7 7 0 1017 12.5z"/></svg>
+  </button>
+</div>
+
+<div class="dropdown" id="exportDropdown">
+  <button id="exportJsonBtn">JSON</button>
+  <button id="exportPngBtn">PNG</button>
+</div>
+
+<!-- Custom column editor -->
+<div class="side-panel" id="customPanel">
+  <div class="sp-head">
+    <h3>Custom columns</h3>
+    <button class="icon-btn" id="closeCustomPanel" title="Close">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg>
+    </button>
+  </div>
+  <div class="sp-body" id="customList"></div>
+  <div class="sp-foot">
+    <button class="btn primary" id="addCustomColBtn" style="width:100%">+ Add column</button>
+  </div>
+</div>
+
+<div id="connectionBanner"></div>
+
+<script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ============================================================
+  // Constants
+  // ============================================================
+  const SWATCH_COLORS = [null, '#c9f270', '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#a3a3a3'];
+  const MAX_USERS = 10;
+  const MAX_RECONNECT = 5;
+  const ROW_HEIGHT = 36;
+  const HEADER_HEIGHT = 40;
+  const BAR_HEIGHT = 22;
+  const BAR_PAD = (ROW_HEIGHT - BAR_HEIGHT) / 2;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function getAccent() { return document.documentElement.getAttribute('data-theme') === 'light' ? '#5a8a1a' : '#c9f270'; }
+  function getBgColor() { return document.documentElement.getAttribute('data-theme') === 'light' ? '#f5f5f7' : '#060608'; }
+  function getDefaultBar() { return document.documentElement.getAttribute('data-theme') === 'light' ? '#94a3b8' : '#6b7280'; }
+
+  // ============================================================
+  // Date utilities
+  // ============================================================
+  function todayISO() {
+    const d = new Date(); d.setHours(0,0,0,0);
+    return formatDate(d);
+  }
+  function formatDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  function parseDate(iso) {
+    if (!iso) return new Date(NaN);
+    const parts = iso.split('-').map(Number);
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  function addDays(iso, n) {
+    const d = parseDate(iso);
+    d.setDate(d.getDate() + n);
+    return formatDate(d);
+  }
+  function diffDays(aISO, bISO) {
+    const a = parseDate(aISO), b = parseDate(bISO);
+    return Math.round((b - a) / 86400000);
+  }
+  function minISO(a, b) { return diffDays(a, b) < 0 ? b : a; }
+  function maxISO(a, b) { return diffDays(a, b) > 0 ? b : a; }
+  function startOfWeek(iso) {
+    const d = parseDate(iso);
+    const dow = d.getDay(); // 0=Sun
+    const mondayOffset = (dow === 0 ? -6 : 1 - dow);
+    d.setDate(d.getDate() + mondayOffset);
+    return formatDate(d);
+  }
+  function startOfMonth(iso) {
+    const d = parseDate(iso);
+    return formatDate(new Date(d.getFullYear(), d.getMonth(), 1));
+  }
+  function startOfQuarter(iso) {
+    const d = parseDate(iso);
+    const q = Math.floor(d.getMonth() / 3) * 3;
+    return formatDate(new Date(d.getFullYear(), q, 1));
+  }
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+  // ============================================================
+  // State
+  // ============================================================
+  let tasks = [];
+  let view = {
+    zoom: 'week',
+    customColumns: [],
+    columnCollapse: {}
+  };
+
+  let selectedId = null;
+  let editingId = null;
+
+  // Collaboration state
+  let isHost = false;
+  let myId = null;
+  let connections = [];
+  let hostConn = null;
+  let guestPeer = null;
+  let guestRoomId = null;
+  let userCount = 1;
+  let reconnectAttempts = 0;
+  let appState = 'room';
+
+  // Undo/redo
+  let undoStack = [];
+  let redoStack = [];
+  const UNDO_LIMIT = 100;
+
+  // Drag state
+  let dragState = null;
+
+  // ============================================================
+  // DOM
+  // ============================================================
+  const rowList = document.getElementById('rowList');
+  const rightPane = document.getElementById('rightPane');
+  const timelineHeader = document.getElementById('timelineHeader');
+  const timelineBody = document.getElementById('timelineBody');
+  const statusDot = document.querySelector('#status .dot');
+  const statusText = document.getElementById('statusText');
+  const copyLinkBtn = document.getElementById('copyLinkBtn');
+  const connectionBanner = document.getElementById('connectionBanner');
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
+  const exportBtn = document.getElementById('exportBtn');
+  const exportDropdown = document.getElementById('exportDropdown');
+  const importBtn = document.getElementById('importBtn');
+  const appEl = document.querySelector('.app');
+  const inspectorEl = document.getElementById('inspector');
+  const customPanel = document.getElementById('customPanel');
+  const customList = document.getElementById('customList');
+
+  // ============================================================
+  // Status helpers
+  // ============================================================
+  function setStatus(text, state) {
+    statusText.textContent = text;
+    statusDot.className = 'dot dot-' + state;
+  }
+  function updateStatusCount() {
+    const count = isHost ? connections.length + 1 : userCount;
+    setStatus('Connected (' + count + (count === 1 ? ' user)' : ' users)'), 'connected');
+  }
+  function showConnectionBanner(text) {
+    connectionBanner.textContent = text;
+    connectionBanner.classList.add('visible');
+  }
+  function hideConnectionBanner() { connectionBanner.classList.remove('visible'); }
+
+  // ============================================================
+  // Task helpers
+  // ============================================================
+  function uuid() {
+    return 't-' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  }
+  function findTask(id) { return tasks.find(t => t.id === id) || null; }
+  function childrenOf(parentId) {
+    return tasks.filter(t => t.parentId === parentId).sort((a, b) => a.orderIndex - b.orderIndex);
+  }
+  function descendantsOf(parentId) {
+    const out = [];
+    const stack = childrenOf(parentId);
+    while (stack.length) {
+      const c = stack.shift();
+      out.push(c);
+      stack.unshift(...childrenOf(c.id));
+    }
+    return out;
+  }
+  function isAncestorOf(maybeAncestorId, descId) {
+    let cur = findTask(descId);
+    while (cur && cur.parentId) {
+      if (cur.parentId === maybeAncestorId) return true;
+      cur = findTask(cur.parentId);
+    }
+    return false;
+  }
+  function computeGroupSpan(group) {
+    const kids = descendantsOf(group.id).filter(c => c.type !== 'group');
+    if (kids.length === 0) return { start: group.start, end: group.end };
+    let s = kids[0].start, e = kids[0].end;
+    for (const k of kids) { if (diffDays(k.start, s) > 0) s = k.start; if (diffDays(k.end, e) < 0) e = k.end; }
+    return { start: s, end: e };
+  }
+  function visibleRows() {
+    const out = [];
+    function walk(parentId, depth) {
+      const kids = childrenOf(parentId);
+      for (const k of kids) {
+        out.push({ task: k, depth: depth });
+        if (k.type === 'group' && !k.collapsed) walk(k.id, depth + 1);
+      }
+    }
+    walk(null, 0);
+    return out;
+  }
+
+  function defaultTaskColor() { return null; }
+
+  function newTask(opts) {
+    opts = opts || {};
+    const t = todayISO();
+    const task = {
+      id: uuid(),
+      type: opts.type || 'task',
+      parentId: opts.parentId !== undefined ? opts.parentId : null,
+      orderIndex: 0,
+      collapsed: false,
+      title: opts.title || (opts.type === 'milestone' ? 'Milestone' : opts.type === 'group' ? 'Group' : 'New task'),
+      start: opts.start || t,
+      end: opts.end || (opts.type === 'milestone' ? (opts.start || t) : addDays(opts.start || t, 3)),
+      color: defaultTaskColor(),
+      assignee: '',
+      notes: '',
+      status: 'todo',
+      authorId: myId || null
+    };
+    const sibs = childrenOf(task.parentId);
+    task.orderIndex = sibs.length;
+    return task;
+  }
+
+  // ============================================================
+  // Undo/redo (snapshot-based for simplicity)
+  // ============================================================
+  function snapshot() {
+    return JSON.parse(JSON.stringify({ tasks, view }));
+  }
+  function applySnapshot(s) {
+    tasks = JSON.parse(JSON.stringify(s.tasks));
+    view = JSON.parse(JSON.stringify(s.view));
+    selectedId = null;
+    render();
+    broadcast({ type: 'sync-state', tasks: tasks, view: view });
+  }
+  function pushUndo() {
+    undoStack.push(snapshot());
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack = [];
+    updateUndoButtons();
+  }
+  function performUndo() {
+    if (!undoStack.length) return;
+    redoStack.push(snapshot());
+    const s = undoStack.pop();
+    applySnapshot(s);
+    updateUndoButtons();
+  }
+  function performRedo() {
+    if (!redoStack.length) return;
+    undoStack.push(snapshot());
+    const s = redoStack.pop();
+    applySnapshot(s);
+    updateUndoButtons();
+  }
+  function updateUndoButtons() {
+    undoBtn.classList.toggle('disabled', undoStack.length === 0);
+    redoBtn.classList.toggle('disabled', redoStack.length === 0);
+  }
+
+  // ============================================================
+  // Column model
+  // ============================================================
+  function defaultVisibleRange() {
+    // Determine a date range that covers all tasks with padding,
+    // or a sensible default if there are no tasks.
+    if (tasks.length === 0) {
+      const t = todayISO();
+      return { start: startOfWeek(addDays(t, -7)), end: addDays(t, 35) };
+    }
+    let s = tasks[0].start, e = tasks[0].end;
+    for (const t of tasks) {
+      if (diffDays(t.start, s) > 0) s = t.start;
+      if (diffDays(t.end, e) < 0) e = t.end;
+    }
+    s = addDays(s, -3);
+    e = addDays(e, 7);
+    return { start: s, end: e };
+  }
+
+  function zoomToDefaultDuration(z) {
+    switch (z) {
+      case 'day': return 2;
+      case 'week': return 14;
+      case 'month': return 60;
+      case 'quarter': return 180;
+      case 'year': return 730;
+      default: return 3;
+    }
+  }
+
+  function columnWidthForZoom(z) {
+    if (z === 'day') return 36;
+    if (z === 'week') return 56;
+    if (z === 'month') return 110;
+    if (z === 'quarter') return 140;
+    return 120; // custom
+  }
+
+  function columnsForView() {
+    const z = view.zoom;
+    const cols = [];
+    let x = 0;
+    if (z === 'custom') {
+      for (const c of (view.customColumns || [])) {
+        const collapsed = !!c.collapsed;
+        const w = collapsed ? 18 : columnWidthForZoom(z);
+        cols.push({
+          key: 'c-' + c.id,
+          label: c.name || '(unnamed)',
+          sub: '',
+          startDate: c.start,
+          endDate: c.end,
+          x: x, width: w, collapsed: collapsed,
+          customId: c.id
+        });
+        x += w;
+      }
+      return cols;
+    }
+    const range = defaultVisibleRange();
+    let cursor;
+    if (z === 'day') {
+      cursor = range.start;
+      const baseW = columnWidthForZoom(z);
+      while (diffDays(cursor, range.end) >= 0) {
+        const collapsed = !!view.columnCollapse['d-' + cursor];
+        const w = collapsed ? 18 : baseW;
+        const d = parseDate(cursor);
+        cols.push({
+          key: 'd-' + cursor,
+          label: String(d.getDate()),
+          sub: MONTHS[d.getMonth()],
+          startDate: cursor, endDate: cursor,
+          x: x, width: w, collapsed: collapsed,
+          weekend: d.getDay() === 0 || d.getDay() === 6
+        });
+        x += w; cursor = addDays(cursor, 1);
+      }
+    } else if (z === 'week') {
+      cursor = startOfWeek(range.start);
+      const baseW = columnWidthForZoom(z);
+      while (diffDays(cursor, range.end) >= 0) {
+        const endOfWeek = addDays(cursor, 6);
+        const collapsed = !!view.columnCollapse['w-' + cursor];
+        const w = collapsed ? 18 : baseW;
+        const d = parseDate(cursor);
+        cols.push({
+          key: 'w-' + cursor,
+          label: 'W' + isoWeekNum(cursor),
+          sub: MONTHS[d.getMonth()] + ' ' + d.getDate(),
+          startDate: cursor, endDate: endOfWeek,
+          x: x, width: w, collapsed: collapsed
+        });
+        x += w; cursor = addDays(endOfWeek, 1);
+      }
+    } else if (z === 'month') {
+      cursor = startOfMonth(range.start);
+      const baseW = columnWidthForZoom(z);
+      while (diffDays(cursor, range.end) >= 0) {
+        const d = parseDate(cursor);
+        const next = formatDate(new Date(d.getFullYear(), d.getMonth() + 1, 1));
+        const last = addDays(next, -1);
+        const collapsed = !!view.columnCollapse['m-' + cursor];
+        const w = collapsed ? 18 : baseW;
+        cols.push({
+          key: 'm-' + cursor,
+          label: MONTHS[d.getMonth()],
+          sub: String(d.getFullYear()),
+          startDate: cursor, endDate: last,
+          x: x, width: w, collapsed: collapsed
+        });
+        x += w; cursor = next;
+      }
+    } else { // quarter
+      cursor = startOfQuarter(range.start);
+      const baseW = columnWidthForZoom(z);
+      while (diffDays(cursor, range.end) >= 0) {
+        const d = parseDate(cursor);
+        const next = formatDate(new Date(d.getFullYear(), d.getMonth() + 3, 1));
+        const last = addDays(next, -1);
+        const q = Math.floor(d.getMonth() / 3) + 1;
+        const collapsed = !!view.columnCollapse['q-' + cursor];
+        const w = collapsed ? 18 : baseW;
+        cols.push({
+          key: 'q-' + cursor,
+          label: 'Q' + q,
+          sub: String(d.getFullYear()),
+          startDate: cursor, endDate: last,
+          x: x, width: w, collapsed: collapsed
+        });
+        x += w; cursor = next;
+      }
+    }
+    fitColumnsToPane(cols);
+    return cols;
+  }
+
+  // If the natural total width of all columns is narrower than the right pane,
+  // scale non-collapsed columns up so the timeline fills the available space.
+  function fitColumnsToPane(cols) {
+    if (!cols.length) return;
+    const available = rightPane.clientWidth;
+    if (!available) return;
+    const naturalTotal = cols[cols.length - 1].x + cols[cols.length - 1].width;
+    if (naturalTotal >= available) return;
+    const nonCollapsed = cols.filter(c => !c.collapsed);
+    if (!nonCollapsed.length) return;
+    const bonus = (available - naturalTotal) / nonCollapsed.length;
+    let acc = 0;
+    for (const c of cols) {
+      const rawX = acc;
+      const rawW = c.collapsed ? c.width : c.width + bonus;
+      const x = Math.round(rawX);
+      const xEnd = Math.round(rawX + rawW);
+      c.x = x;
+      c.width = xEnd - x;
+      acc = rawX + rawW;
+    }
+  }
+
+  function isoWeekNum(iso) {
+    const d = parseDate(iso);
+    const target = new Date(d.valueOf());
+    const dayNr = (d.getDay() + 6) % 7;
+    target.setDate(target.getDate() - dayNr + 3);
+    const jan4 = new Date(target.getFullYear(), 0, 4);
+    const diff = (target - jan4) / 86400000;
+    return 1 + Math.round((diff - 3 + (jan4.getDay() + 6) % 7) / 7);
+  }
+
+  // Project a date onto the column array, returning x in px (or null if out of range / inside collapsed)
+  function dateToX(iso, cols) {
+    if (!iso) return null;
+    for (const c of cols) {
+      if (diffDays(c.startDate, iso) >= 0 && diffDays(iso, c.endDate) >= 0) {
+        if (c.collapsed) return c.x + c.width / 2;
+        const span = diffDays(c.startDate, c.endDate) + 1; // inclusive days
+        const offset = diffDays(c.startDate, iso); // days into this column
+        return c.x + (offset / span) * c.width;
+      }
+    }
+    // before/after range — clamp
+    if (cols.length === 0) return 0;
+    if (diffDays(iso, cols[0].startDate) > 0) return 0;
+    return cols[cols.length - 1].x + cols[cols.length - 1].width;
+  }
+  // Project a date span [start, endInclusive] to x and width
+  function spanToRect(startISO, endISO, cols) {
+    const x1 = dateToX(startISO, cols);
+    const x2End = endISO ? addDays(endISO, 1) : startISO;
+    const x2 = dateToX(x2End, cols);
+    return { x: Math.min(x1, x2), width: Math.max(2, Math.abs(x2 - x1)) };
+  }
+  // Convert an x position back to a date by interpolating in the column it falls in.
+  function xToDate(x, cols) {
+    if (cols.length === 0) return todayISO();
+    if (x <= 0) return cols[0].startDate;
+    for (const c of cols) {
+      if (x >= c.x && x <= c.x + c.width) {
+        if (c.collapsed) return c.startDate;
+        const span = diffDays(c.startDate, c.endDate) + 1;
+        const frac = (x - c.x) / c.width;
+        const dayOffset = Math.round(frac * span);
+        return addDays(c.startDate, Math.max(0, Math.min(span - 1, dayOffset)));
+      }
+    }
+    return cols[cols.length - 1].endDate;
+  }
+  function snapDateToColumn(iso, cols, mode) {
+    // mode: 'start' => snap to col.startDate; 'end' => snap to col.endDate; 'nearest' => round
+    for (const c of cols) {
+      if (diffDays(c.startDate, iso) >= 0 && diffDays(iso, c.endDate) >= 0) {
+        if (mode === 'start') return c.startDate;
+        if (mode === 'end') return c.endDate;
+      }
+    }
+    return iso;
+  }
+
+  // ============================================================
+  // Rendering
+  // ============================================================
+  let lastCols = [];
+  let lastRows = [];
+
+  function render() {
+    lastCols = columnsForView();
+    lastRows = visibleRows();
+    renderRowList();
+    renderTimelineHeader();
+    renderTimelineBody();
+    renderInspector();
+    updateUndoButtons();
+  }
+
+  function appendAddRow() {
+    const row = document.createElement('div');
+    row.className = 'row add-row';
+    const mk = (type, label, svgInner) => {
+      const b = document.createElement('button');
+      b.className = 'add-btn';
+      b.title = 'Add ' + label;
+      b.innerHTML = '<svg viewBox="0 0 14 14" width="11" height="11" fill="currentColor">' + svgInner + '</svg>';
+      b.addEventListener('click', (e) => { e.stopPropagation(); addNewTask(type); });
+      return b;
+    };
+    row.appendChild(mk('group', 'Group', '<path fill="none" stroke="currentColor" stroke-width="1.5" d="M1 3h5l1 2h6v7H1z"/>'));
+    row.appendChild(mk('task', 'Task', '<rect x="1" y="5" width="12" height="4" rx="1"/>'));
+    row.appendChild(mk('milestone', 'Milestone', '<path d="M7 1l6 6-6 6-6-6z"/>'));
+    rowList.appendChild(row);
+  }
+
+  function renderRowList() {
+    rowList.innerHTML = '';
+    if (lastRows.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding: 24px 16px; color: var(--muted); font-size: 12px; text-align: center;';
+      empty.textContent = 'No tasks yet — click "Group", "Task", or "Milestone" below to add one.';
+      rowList.appendChild(empty);
+      appendAddRow();
+      return;
+    }
+    for (const { task, depth } of lastRows) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.dataset.taskId = task.id;
+      row.dataset.depth = depth;
+      if (task.id === selectedId) row.classList.add('selected');
+      if (task.type === 'group' && !task.collapsed) row.classList.add('expanded');
+      row.style.paddingLeft = (4 + depth * 14) + 'px';
+
+      // Drag handle
+      const handle = document.createElement('div');
+      handle.className = 'drag-handle';
+      handle.innerHTML = '<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><circle cx="5" cy="3" r="1.4"/><circle cx="11" cy="3" r="1.4"/><circle cx="5" cy="8" r="1.4"/><circle cx="11" cy="8" r="1.4"/><circle cx="5" cy="13" r="1.4"/><circle cx="11" cy="13" r="1.4"/></svg>';
+      row.appendChild(handle);
+
+      // Chevron (groups only)
+      const chev = document.createElement('div');
+      chev.className = 'chev' + (task.type === 'group' ? '' : ' placeholder');
+      chev.innerHTML = '<svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M5 3l5 5-5 5z"/></svg>';
+      if (task.type === 'group') {
+        chev.addEventListener('click', (e) => {
+          e.stopPropagation();
+          task.collapsed = !task.collapsed;
+          broadcast({ type: 'task-update', id: task.id, patch: { collapsed: task.collapsed } });
+          render();
+        });
+      }
+      row.appendChild(chev);
+
+      // Type glyph
+      const glyph = document.createElement('div');
+      glyph.className = 'type-glyph';
+      if (task.type === 'milestone') {
+        glyph.innerHTML = '<svg viewBox="0 0 14 14" width="11" height="11" fill="currentColor"><path d="M7 1l6 6-6 6-6-6z"/></svg>';
+      } else if (task.type === 'group') {
+        glyph.innerHTML = '<svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3h5l1 2h6v7H1z"/></svg>';
+      } else {
+        glyph.innerHTML = '<svg viewBox="0 0 14 14" width="11" height="11" fill="currentColor"><rect x="1" y="5" width="12" height="4" rx="1"/></svg>';
+      }
+      row.appendChild(glyph);
+
+      // Color dot
+      const dot = document.createElement('div');
+      dot.className = 'color-dot';
+      dot.style.background = task.color || getDefaultBar();
+      row.appendChild(dot);
+
+      // Title
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = task.title;
+      title.title = task.title;
+      title.addEventListener('click', (e) => {
+        // If the row is already selected, treat a title click as an "edit"
+        // intent (Finder / spreadsheet style). Otherwise let the row click
+        // handler select the row first.
+        if (task.id === selectedId) {
+          e.stopPropagation();
+          beginInlineEdit(title, task);
+        }
+      });
+      title.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        beginInlineEdit(title, task);
+      });
+      row.appendChild(title);
+
+      // Assignee chip
+      if (task.assignee) {
+        const a = document.createElement('div');
+        a.className = 'assignee';
+        a.textContent = task.assignee;
+        a.title = 'Assignee: ' + task.assignee;
+        row.appendChild(a);
+      }
+
+      row.addEventListener('mousedown', (e) => armRowDrag(e, task.id));
+
+      // Row click selects
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.drag-handle') || e.target.closest('.chev')) return;
+        if (e.target.classList && e.target.classList.contains('editing')) return;
+        selectedId = task.id;
+        render();
+      });
+
+      rowList.appendChild(row);
+    }
+    appendAddRow();
+  }
+
+  function beginInlineEdit(titleEl, task) {
+    titleEl.contentEditable = 'true';
+    titleEl.classList.add('editing');
+    titleEl.focus();
+    const r = document.createRange(); r.selectNodeContents(titleEl);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    const finish = (commit) => {
+      titleEl.removeEventListener('blur', onBlur);
+      titleEl.removeEventListener('keydown', onKey);
+      titleEl.contentEditable = 'false';
+      titleEl.classList.remove('editing');
+      if (commit) {
+        const newTitle = titleEl.textContent.trim() || task.title;
+        if (newTitle !== task.title) {
+          pushUndo();
+          task.title = newTitle;
+          broadcast({ type: 'task-update', id: task.id, patch: { title: newTitle } });
+        }
+      } else {
+        titleEl.textContent = task.title;
+      }
+    };
+    const onBlur = () => finish(true);
+    const onKey = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    };
+    titleEl.addEventListener('blur', onBlur);
+    titleEl.addEventListener('keydown', onKey);
+  }
+
+  function beginBarInlineEdit(task) {
+    const el = timelineBody.querySelector(
+      `.bar[data-task-id="${task.id}"], .group-bar[data-task-id="${task.id}"], .milestone[data-task-id="${task.id}"]`
+    );
+    if (!el || typeof el.getBBox !== 'function') return;
+    const bbox = el.getBBox();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = task.title;
+    input.className = 'bar-edit-input';
+    input.style.left = bbox.x + 'px';
+    input.style.top = bbox.y + 'px';
+    input.style.height = Math.max(bbox.height, 22) + 'px';
+    input.style.width = Math.max(bbox.width, 180) + 'px';
+    if (task.color) {
+      input.style.background = task.color;
+      input.style.color = '#000';
+    } else {
+      input.style.background = getDefaultBar();
+      input.style.color = '#fff';
+    }
+    timelineBody.appendChild(input);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const finish = (commit) => {
+      if (done) return;
+      done = true;
+      input.removeEventListener('blur', onBlur);
+      input.removeEventListener('keydown', onKey);
+      const newTitle = input.value.trim();
+      input.remove();
+      if (commit && newTitle && newTitle !== task.title) {
+        pushUndo();
+        task.title = newTitle;
+        broadcast({ type: 'task-update', id: task.id, patch: { title: newTitle } });
+      }
+      render();
+    };
+    const onBlur = () => finish(true);
+    const onKey = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      e.stopPropagation();
+    };
+    input.addEventListener('blur', onBlur);
+    input.addEventListener('keydown', onKey);
+  }
+
+  function renderTimelineHeader() {
+    timelineHeader.innerHTML = '';
+    const totalW = lastCols.length ? lastCols[lastCols.length - 1].x + lastCols[lastCols.length - 1].width : 0;
+    timelineHeader.style.width = totalW + 'px';
+    const today = todayISO();
+    for (const c of lastCols) {
+      const ch = document.createElement('div');
+      ch.className = 'col-header';
+      if (c.weekend) ch.classList.add('weekend');
+      if (c.collapsed) ch.classList.add('collapsed');
+      if (diffDays(c.startDate, today) >= 0 && diffDays(today, c.endDate) >= 0 && !c.collapsed) ch.classList.add('today');
+      ch.style.width = c.width + 'px';
+      ch.dataset.key = c.key;
+      ch.innerHTML =
+        '<div class="col-label">' + escapeHtml(c.label) + '</div>' +
+        (c.sub ? '<div class="col-sub">' + escapeHtml(c.sub) + '</div>' : '') +
+        '<div class="col-chev">' + (c.collapsed ? '+' : '–') + '</div>' +
+        '<div class="col-collapsed-glyph">‖</div>';
+      ch.addEventListener('click', () => {
+        if (view.zoom === 'custom') {
+          const cc = view.customColumns.find(x => x.id === c.customId);
+          if (cc) {
+            pushUndo();
+            cc.collapsed = !cc.collapsed;
+            broadcast({ type: 'view-update', patch: { customColumns: view.customColumns } });
+          }
+        } else {
+          pushUndo();
+          view.columnCollapse[c.key] = !view.columnCollapse[c.key];
+          if (!view.columnCollapse[c.key]) delete view.columnCollapse[c.key];
+          broadcast({ type: 'view-update', patch: { columnCollapse: view.columnCollapse } });
+        }
+        render();
+      });
+      timelineHeader.appendChild(ch);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderTimelineBody() {
+    timelineBody.innerHTML = '';
+    const totalW = lastCols.length ? lastCols[lastCols.length - 1].x + lastCols[lastCols.length - 1].width : 0;
+    const totalH = Math.max(rightPane.clientHeight - HEADER_HEIGHT, lastRows.length * ROW_HEIGHT + 20);
+    timelineBody.style.width = totalW + 'px';
+    timelineBody.style.height = totalH + 'px';
+
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('class', 'timeline-svg');
+    svg.setAttribute('width', totalW);
+    svg.setAttribute('height', totalH);
+    svg.style.position = 'absolute';
+    svg.style.top = '0'; svg.style.left = '0';
+
+    // Double-click on empty timeline space creates a task at that date.
+    svg.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.bar, .milestone, .group-bar, .resize-handle, .bar-label')) return;
+      const paneRect = timelineBody.getBoundingClientRect();
+      const xLocal = e.clientX - paneRect.left + timelineBody.parentElement.scrollLeft;
+      const start = xToDate(xLocal, lastCols);
+      const end = addDays(start, zoomToDefaultDuration(view.zoom));
+      // Deselect so the task is appended at root rather than under selection.
+      selectedId = null;
+      addNewTask('task', { start, end });
+    });
+
+    // Row backgrounds
+    for (let i = 0; i < lastRows.length; i++) {
+      const r = document.createElementNS(SVG_NS, 'rect');
+      r.setAttribute('class', 'row-bg' + (lastRows[i].task.id === selectedId ? ' selected' : ''));
+      r.setAttribute('x', 0); r.setAttribute('y', i * ROW_HEIGHT);
+      r.setAttribute('width', totalW); r.setAttribute('height', ROW_HEIGHT);
+      r.dataset.taskId = lastRows[i].task.id;
+      r.addEventListener('click', () => { selectedId = lastRows[i].task.id; render(); });
+      r.addEventListener('dblclick', (e) => {
+        // create a new task at clicked position on empty rows? Skip for now.
+      });
+      svg.appendChild(r);
+      // bottom border
+      const ln = document.createElementNS(SVG_NS, 'line');
+      ln.setAttribute('class', 'grid-line');
+      ln.setAttribute('x1', 0); ln.setAttribute('x2', totalW);
+      ln.setAttribute('y1', (i + 1) * ROW_HEIGHT); ln.setAttribute('y2', (i + 1) * ROW_HEIGHT);
+      svg.appendChild(ln);
+    }
+
+    // Column grid lines
+    for (const c of lastCols) {
+      const ln = document.createElementNS(SVG_NS, 'line');
+      ln.setAttribute('class', c.collapsed ? 'grid-strong' : 'grid-line');
+      ln.setAttribute('x1', c.x + c.width); ln.setAttribute('x2', c.x + c.width);
+      ln.setAttribute('y1', 0); ln.setAttribute('y2', totalH);
+      svg.appendChild(ln);
+      if (c.weekend && !c.collapsed) {
+        const wk = document.createElementNS(SVG_NS, 'rect');
+        wk.setAttribute('x', c.x); wk.setAttribute('y', 0);
+        wk.setAttribute('width', c.width); wk.setAttribute('height', totalH);
+        wk.setAttribute('fill', 'var(--row-hover)');
+        wk.setAttribute('pointer-events', 'none');
+        svg.insertBefore(wk, svg.firstChild);
+      }
+    }
+
+    // Today indicator
+    const today = todayISO();
+    const tx = dateToX(today, lastCols);
+    if (tx != null && tx > 0 && tx < totalW) {
+      const tl = document.createElementNS(SVG_NS, 'line');
+      tl.setAttribute('class', 'today-line');
+      tl.setAttribute('x1', tx); tl.setAttribute('x2', tx);
+      tl.setAttribute('y1', 0); tl.setAttribute('y2', totalH);
+      svg.appendChild(tl);
+    }
+
+    // Bars
+    for (let i = 0; i < lastRows.length; i++) {
+      const { task } = lastRows[i];
+      const y = i * ROW_HEIGHT + BAR_PAD;
+
+      if (task.type === 'milestone') {
+        // Center the diamond within the milestone's day-slot rather than on
+        // the column's left grid line.
+        const slot = spanToRect(task.start, task.start, lastCols);
+        const g = document.createElementNS(SVG_NS, 'g');
+        g.setAttribute('class', 'bar-group');
+        const size = BAR_HEIGHT;
+        const dia = document.createElementNS(SVG_NS, 'path');
+        const cx = slot.x + slot.width / 2, cy = y + size / 2;
+        dia.setAttribute('d', `M ${cx} ${cy - size/2} L ${cx + size/2} ${cy} L ${cx} ${cy + size/2} L ${cx - size/2} ${cy} Z`);
+        dia.setAttribute('fill', task.color || getDefaultBar());
+        dia.setAttribute('stroke', task.status === 'done' ? 'var(--status-done)' : 'rgba(0,0,0,0.2)');
+        dia.setAttribute('stroke-width', task.status === 'done' ? 2 : 1);
+        dia.setAttribute('class', 'milestone');
+        dia.dataset.taskId = task.id;
+        dia.addEventListener('mousedown', (e) => startBarDrag(e, task, 'move'));
+        dia.addEventListener('dblclick', (e) => { e.stopPropagation(); selectedId = task.id; setInspectorCollapsed(false); render(); });
+        g.appendChild(dia);
+        const label = document.createElementNS(SVG_NS, 'text');
+        label.setAttribute('class', 'bar-label');
+        label.setAttribute('x', cx + size / 2 + 6);
+        label.setAttribute('y', cy + 4);
+        label.setAttribute('fill', 'var(--muted)');
+        label.textContent = task.title;
+        g.appendChild(label);
+        svg.appendChild(g);
+      } else if (task.type === 'group') {
+        const span = computeGroupSpan(task);
+        const rect = spanToRect(span.start, span.end, lastCols);
+        const g = document.createElementNS(SVG_NS, 'g');
+        g.setAttribute('class', 'bar-group');
+        const bar = document.createElementNS(SVG_NS, 'path');
+        const x = rect.x, w = rect.width, h = 10, by = y + (BAR_HEIGHT - h) / 2;
+        const cap = 4;
+        // brackets shape
+        bar.setAttribute('d', `
+          M ${x} ${by}
+          H ${x + w}
+          V ${by + h}
+          H ${x + w - cap}
+          L ${x + w - cap - cap} ${by + h - cap}
+          H ${x + cap + cap}
+          L ${x + cap} ${by + h}
+          H ${x}
+          Z`);
+        bar.setAttribute('fill', task.color || 'var(--text)');
+        bar.setAttribute('class', 'group-bar');
+        bar.dataset.taskId = task.id;
+        bar.addEventListener('dblclick', (e) => { e.stopPropagation(); selectedId = task.id; setInspectorCollapsed(false); render(); });
+        g.appendChild(bar);
+        const label = document.createElementNS(SVG_NS, 'text');
+        label.setAttribute('class', 'bar-label');
+        label.setAttribute('x', x);
+        label.setAttribute('y', by - 4);
+        label.setAttribute('fill', 'var(--muted)');
+        label.setAttribute('font-weight', '600');
+        label.textContent = task.title;
+        g.appendChild(label);
+        svg.appendChild(g);
+      } else {
+        const rect = spanToRect(task.start, task.end, lastCols);
+        const g = document.createElementNS(SVG_NS, 'g');
+        g.setAttribute('class', 'bar-group');
+        const bar = document.createElementNS(SVG_NS, 'rect');
+        bar.setAttribute('class', 'bar');
+        bar.setAttribute('x', rect.x); bar.setAttribute('y', y);
+        bar.setAttribute('width', rect.width); bar.setAttribute('height', BAR_HEIGHT);
+        bar.setAttribute('rx', 5);
+        bar.setAttribute('fill', task.color || getDefaultBar());
+        bar.dataset.taskId = task.id;
+        bar.addEventListener('mousedown', (e) => startBarDrag(e, task, 'move'));
+        bar.addEventListener('dblclick', (e) => { e.stopPropagation(); selectedId = task.id; setInspectorCollapsed(false); render(); });
+        g.appendChild(bar);
+
+        // Status indicator dot
+        const sd = document.createElementNS(SVG_NS, 'circle');
+        sd.setAttribute('cx', rect.x + 8); sd.setAttribute('cy', y + BAR_HEIGHT / 2);
+        sd.setAttribute('r', 3.5);
+        sd.setAttribute('fill', task.status === 'done' ? 'var(--status-done)' : task.status === 'doing' ? 'var(--status-doing)' : 'rgba(255,255,255,0.6)');
+        sd.setAttribute('pointer-events', 'none');
+        g.appendChild(sd);
+
+        // Title label
+        if (rect.width > 36) {
+          const label = document.createElementNS(SVG_NS, 'text');
+          label.setAttribute('class', 'bar-label');
+          label.setAttribute('x', rect.x + 18);
+          label.setAttribute('y', y + BAR_HEIGHT / 2 + 4);
+          label.setAttribute('fill', task.color ? '#000' : '#fff');
+          label.textContent = task.title.length > 30 ? task.title.slice(0, 27) + '…' : task.title;
+          g.appendChild(label);
+        }
+        // Resize handles
+        if (rect.width > 14) {
+          const lh = document.createElementNS(SVG_NS, 'rect');
+          lh.setAttribute('class', 'resize-handle');
+          lh.setAttribute('x', rect.x); lh.setAttribute('y', y);
+          lh.setAttribute('width', 5); lh.setAttribute('height', BAR_HEIGHT);
+          lh.setAttribute('fill', 'rgba(0,0,0,0.25)');
+          lh.dataset.taskId = task.id;
+          lh.addEventListener('mousedown', (e) => { e.stopPropagation(); startBarDrag(e, task, 'resize-start'); });
+          g.appendChild(lh);
+          const rh = document.createElementNS(SVG_NS, 'rect');
+          rh.setAttribute('class', 'resize-handle');
+          rh.setAttribute('x', rect.x + rect.width - 5); rh.setAttribute('y', y);
+          rh.setAttribute('width', 5); rh.setAttribute('height', BAR_HEIGHT);
+          rh.setAttribute('fill', 'rgba(0,0,0,0.25)');
+          rh.dataset.taskId = task.id;
+          rh.addEventListener('mousedown', (e) => { e.stopPropagation(); startBarDrag(e, task, 'resize-end'); });
+          g.appendChild(rh);
+        }
+        svg.appendChild(g);
+      }
+    }
+
+    timelineBody.appendChild(svg);
+  }
+
+  // ============================================================
+  // Bar dragging (move / resize)
+  // ============================================================
+  function startBarDrag(e, task, mode) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const wasSelected = selectedId === task.id;
+    selectedId = task.id;
+    const startX = e.clientX;
+    const origStart = task.start;
+    const origEnd = task.end;
+    let preStateTaken = false;
+    let moved = false;
+
+    function snapDateOffset(dxPx) {
+      // figure out the date that startX + dxPx maps to vs startX maps to
+      const paneRect = timelineBody.getBoundingClientRect();
+      const xNow = startX - paneRect.left + timelineBody.parentElement.scrollLeft + dxPx;
+      const xRef = startX - paneRect.left + timelineBody.parentElement.scrollLeft;
+      const dRef = xToDate(xRef, lastCols);
+      const dNow = xToDate(xNow, lastCols);
+      return diffDays(dRef, dNow);
+    }
+
+    function onMove(ev) {
+      const dx = ev.clientX - startX;
+      const days = snapDateOffset(dx);
+      if (days === 0 && !moved) return;
+      moved = true;
+      if (!preStateTaken) { pushUndo(); preStateTaken = true; }
+      if (mode === 'move') {
+        task.start = addDays(origStart, days);
+        task.end = addDays(origEnd, days);
+      } else if (mode === 'resize-start') {
+        let ns = addDays(origStart, days);
+        if (diffDays(ns, task.end) < 0) ns = task.end;
+        task.start = ns;
+      } else if (mode === 'resize-end') {
+        let ne = addDays(origEnd, days);
+        if (diffDays(task.start, ne) < 0) ne = task.start;
+        task.end = ne;
+      }
+      render();
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (moved && (task.start !== origStart || task.end !== origEnd)) {
+        broadcast({ type: 'task-update', id: task.id, patch: { start: task.start, end: task.end } });
+        return;
+      }
+      // No drag occurred → treat as a click. Re-render to reflect the new
+      // selection, then if the task was already selected, start an inline
+      // title edit overlaid on the bar itself.
+      render();
+      if (mode === 'move' && wasSelected) {
+        beginBarInlineEdit(task);
+      }
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  // ============================================================
+  // Row drag-to-reorder/reparent
+  // ============================================================
+  // Drag only begins after the cursor moves past this many pixels — under
+  // that, mouseup falls through to the row's click handler (select / edit).
+  const DRAG_THRESHOLD = 4;
+  function armRowDrag(e, taskId) {
+    if (e.button !== 0) return;
+    if (e.target.closest && e.target.closest('.chev')) return;
+    if (e.target.classList && e.target.classList.contains('editing')) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    function onPending(ev) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      window.removeEventListener('mousemove', onPending);
+      window.removeEventListener('mouseup', onCancel);
+      ev.preventDefault();
+      beginRowDrag(taskId, ev);
+    }
+    function onCancel() {
+      window.removeEventListener('mousemove', onPending);
+      window.removeEventListener('mouseup', onCancel);
+    }
+    window.addEventListener('mousemove', onPending);
+    window.addEventListener('mouseup', onCancel);
+  }
+
+  function beginRowDrag(taskId, initialEvent) {
+    const sourceRow = rowList.querySelector(`.row[data-task-id="${taskId}"]`);
+    if (!sourceRow) return;
+    sourceRow.classList.add('drag-source');
+    document.body.classList.add('row-dragging');
+    const sel = window.getSelection();
+    if (sel && sel.removeAllRanges) sel.removeAllRanges();
+    let indicator = null;
+    let plannedDrop = null; // { parentId, orderIndex, mode: 'before'|'after'|'into' }
+
+    function onMove(ev) {
+      const target = document.elementFromPoint(ev.clientX, ev.clientY);
+      const row = target ? target.closest('.row') : null;
+      if (indicator && indicator.parentElement) indicator.parentElement.removeChild(indicator);
+      indicator = null;
+      plannedDrop = null;
+      if (!row || row === sourceRow) return;
+      const targetId = row.dataset.taskId;
+      const targetTask = findTask(targetId);
+      if (!targetTask) return;
+      // Disallow drop into descendants
+      if (isAncestorOf(taskId, targetId)) return;
+
+      const rowRect = row.getBoundingClientRect();
+      const y = ev.clientY - rowRect.top;
+      const rh = rowRect.height;
+      let mode;
+      if (targetTask.type === 'group' && y > rh * 0.30 && y < rh * 0.70) mode = 'into';
+      else if (y < rh / 2) mode = 'before';
+      else mode = 'after';
+
+      indicator = document.createElement('div');
+      indicator.className = 'drop-indicator' + (mode === 'into' ? ' into' : '');
+
+      // Span the indicator from the left edge of the left pane to the right
+      // edge of the last visible date column (clamped to the right pane).
+      const appRect = appEl.getBoundingClientRect();
+      const leftRect = document.querySelector('.left-pane').getBoundingClientRect();
+      const rightRect = rightPane.getBoundingClientRect();
+      const headerRight = timelineHeader.getBoundingClientRect().right;
+      const indLeft = leftRect.left - appRect.left;
+      const indRight = Math.min(headerRight, rightRect.right) - appRect.left;
+      indicator.style.left = indLeft + 'px';
+      indicator.style.width = Math.max(0, indRight - indLeft) + 'px';
+
+      const topInApp = rowRect.top - appRect.top;
+      if (mode === 'before') {
+        indicator.style.top = (topInApp - 1) + 'px';
+      } else if (mode === 'after') {
+        indicator.style.top = (topInApp + rh - 1) + 'px';
+      } else {
+        indicator.style.top = topInApp + 'px';
+        indicator.style.height = rh + 'px';
+      }
+      appEl.appendChild(indicator);
+
+      // figure out drop parent/order
+      if (mode === 'into') {
+        plannedDrop = { parentId: targetId, orderIndex: childrenOf(targetId).length, mode };
+      } else {
+        const parentId = targetTask.parentId;
+        const sibs = childrenOf(parentId);
+        const idx = sibs.findIndex(s => s.id === targetId);
+        const order = mode === 'before' ? idx : idx + 1;
+        plannedDrop = { parentId, orderIndex: order, mode };
+      }
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      sourceRow.classList.remove('drag-source');
+      document.body.classList.remove('row-dragging');
+      if (indicator && indicator.parentElement) indicator.parentElement.removeChild(indicator);
+      if (plannedDrop && (plannedDrop.parentId !== findTask(taskId).parentId || true)) {
+        applyReorder(taskId, plannedDrop.parentId, plannedDrop.orderIndex);
+      }
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    // Show the indicator at the threshold-crossing position immediately.
+    onMove(initialEvent);
+  }
+
+  function applyReorder(taskId, newParentId, newOrderIndex) {
+    const task = findTask(taskId);
+    if (!task) return;
+    if (newParentId === taskId || isAncestorOf(taskId, newParentId)) return;
+    pushUndo();
+    const oldParentId = task.parentId;
+    // Remove from old parent's sibling order
+    const oldSibs = childrenOf(oldParentId).filter(s => s.id !== taskId);
+    oldSibs.forEach((s, i) => s.orderIndex = i);
+    // Insert into new parent's order, excluding the source itself so it doesn't
+    // appear twice in the spread below (same-parent reorders).
+    const newSibsRaw = childrenOf(newParentId);
+    const srcIdxInNew = newSibsRaw.findIndex(s => s.id === taskId);
+    let insertAt = newOrderIndex;
+    if (srcIdxInNew !== -1 && srcIdxInNew < newOrderIndex) insertAt -= 1;
+    const newSibs = newSibsRaw.filter(s => s.id !== taskId);
+    const before = newSibs.slice(0, insertAt);
+    const after = newSibs.slice(insertAt);
+    task.parentId = newParentId;
+    [...before, task, ...after].forEach((s, i) => s.orderIndex = i);
+    broadcast({ type: 'task-reorder', id: taskId, parentId: newParentId, orderIndex: newOrderIndex });
+    render();
+  }
+
+  // ============================================================
+  // Inspector sidebar (replaces detail modal)
+  // ============================================================
+  const INSPECTOR_LS_KEY = 'nibset-gantt-inspector-collapsed';
+
+  function setInspectorCollapsed(collapsed) {
+    appEl.classList.toggle('inspector-collapsed', collapsed);
+    localStorage.setItem(INSPECTOR_LS_KEY, collapsed ? '1' : '0');
+    const btn = document.getElementById('inspectorToggle');
+    if (btn) {
+      btn.classList.toggle('tool-active', !collapsed);
+      btn.setAttribute('aria-pressed', collapsed ? 'false' : 'true');
+    }
+    render();
+  }
+
+  function commitInspectorPatch(task, patch) {
+    const finalPatch = {};
+    for (const k in patch) {
+      if (task[k] !== patch[k]) finalPatch[k] = patch[k];
+    }
+    if (!Object.keys(finalPatch).length) return;
+    pushUndo();
+    Object.assign(task, finalPatch);
+    broadcast({ type: 'task-update', id: task.id, patch: finalPatch });
+    render();
+  }
+
+  function renderInspector() {
+    const insEmpty = document.getElementById('insEmpty');
+    const insFields = document.getElementById('insFields');
+    const insFoot = document.getElementById('insFoot');
+    const insTitleEl = document.getElementById('insTitle');
+
+    const task = selectedId ? findTask(selectedId) : null;
+
+    if (!task) {
+      insEmpty.style.display = '';
+      insFields.style.display = 'none';
+      insFoot.style.display = 'none';
+      insTitleEl.textContent = 'Details';
+      return;
+    }
+
+    insEmpty.style.display = 'none';
+    insFields.style.display = '';
+    insFoot.style.display = '';
+    insTitleEl.textContent = task.type === 'milestone' ? 'Milestone' : task.type === 'group' ? 'Group' : 'Task';
+
+    const active = document.activeElement;
+    const setIfNotFocused = (el, value) => { if (el !== active) el.value = value; };
+
+    const iTitle = document.getElementById('iTitle');
+    const iStart = document.getElementById('iStart');
+    const iEnd = document.getElementById('iEnd');
+    const iEndWrap = document.getElementById('iEndWrap');
+    const iAssignee = document.getElementById('iAssignee');
+    const iNotes = document.getElementById('iNotes');
+
+    setIfNotFocused(iTitle, task.title);
+    setIfNotFocused(iStart, task.start);
+    if (task.type === 'milestone') {
+      iEndWrap.style.display = 'none';
+    } else {
+      iEndWrap.style.display = '';
+      setIfNotFocused(iEnd, task.end);
+    }
+    setIfNotFocused(iAssignee, task.assignee || '');
+    setIfNotFocused(iNotes, task.notes || '');
+
+    document.querySelectorAll('#iSwatches .swatch').forEach(s => {
+      const c = s.dataset.color === '__default__' ? null : s.dataset.color;
+      s.classList.toggle('active', (task.color || null) === c);
+    });
+
+    const cur = task.status || 'todo';
+    document.querySelectorAll('#iStatusPills .status-pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.status === cur);
+    });
+  }
+
+  function setupInspector() {
+    // Build swatches once
+    const iSwatches = document.getElementById('iSwatches');
+    SWATCH_COLORS.forEach(c => {
+      const s = document.createElement('div');
+      s.className = 'swatch' + (c === null ? ' default' : '');
+      if (c) s.style.background = c;
+      s.dataset.color = c === null ? '__default__' : c;
+      s.addEventListener('click', () => {
+        const t = findTask(selectedId);
+        if (!t) return;
+        const newColor = s.dataset.color === '__default__' ? null : s.dataset.color;
+        commitInspectorPatch(t, { color: newColor });
+      });
+      iSwatches.appendChild(s);
+    });
+
+    // Status pills
+    document.querySelectorAll('#iStatusPills .status-pill').forEach(p => {
+      p.addEventListener('click', () => {
+        const t = findTask(selectedId);
+        if (!t) return;
+        commitInspectorPatch(t, { status: p.dataset.status });
+      });
+    });
+
+    // Title input
+    const iTitle = document.getElementById('iTitle');
+    iTitle.addEventListener('blur', () => {
+      const t = findTask(selectedId);
+      if (!t) return;
+      const v = iTitle.value.trim() || t.title;
+      commitInspectorPatch(t, { title: v });
+    });
+    iTitle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); iTitle.blur(); }
+      else if (e.key === 'Escape') {
+        e.preventDefault();
+        const t = findTask(selectedId);
+        if (t) iTitle.value = t.title;
+        iTitle.blur();
+      }
+    });
+
+    // Start date
+    const iStart = document.getElementById('iStart');
+    iStart.addEventListener('change', () => {
+      const t = findTask(selectedId);
+      if (!t || !iStart.value) return;
+      const patch = { start: iStart.value };
+      if (t.type === 'milestone') {
+        patch.end = iStart.value;
+      } else if (diffDays(iStart.value, t.end) < 0) {
+        patch.end = iStart.value;
+      }
+      commitInspectorPatch(t, patch);
+    });
+
+    // End date
+    const iEnd = document.getElementById('iEnd');
+    iEnd.addEventListener('change', () => {
+      const t = findTask(selectedId);
+      if (!t || !iEnd.value || t.type === 'milestone') return;
+      let newEnd = iEnd.value;
+      if (diffDays(t.start, newEnd) < 0) newEnd = t.start;
+      commitInspectorPatch(t, { end: newEnd });
+    });
+
+    // Assignee
+    const iAssignee = document.getElementById('iAssignee');
+    iAssignee.addEventListener('blur', () => {
+      const t = findTask(selectedId);
+      if (!t) return;
+      commitInspectorPatch(t, { assignee: iAssignee.value });
+    });
+
+    // Notes
+    const iNotes = document.getElementById('iNotes');
+    iNotes.addEventListener('blur', () => {
+      const t = findTask(selectedId);
+      if (!t) return;
+      commitInspectorPatch(t, { notes: iNotes.value });
+    });
+
+    // Delete
+    document.getElementById('iDeleteBtn').addEventListener('click', () => {
+      const t = findTask(selectedId);
+      if (!t) return;
+      if (!confirm('Delete "' + (t.title || 'this item') + '"?')) return;
+      deleteTask(t.id);
+    });
+
+    // Collapse / toggle
+    document.getElementById('insCollapseBtn').addEventListener('click', () => setInspectorCollapsed(true));
+    document.getElementById('inspectorToggle').addEventListener('click', () => {
+      setInspectorCollapsed(!appEl.classList.contains('inspector-collapsed'));
+    });
+
+    // Initial collapse state from localStorage
+    const stored = localStorage.getItem(INSPECTOR_LS_KEY);
+    setInspectorCollapsed(stored === '1');
+  }
+
+  setupInspector();
+
+  function deleteTask(id) {
+    const task = findTask(id);
+    if (!task) return;
+    pushUndo();
+    const parentId = task.parentId;
+    // Reparent direct children to the deleted node's parent (they unindent
+    // one level). Insert them at the deleted node's slot, preserving order.
+    const kids = childrenOf(id);
+    const newSibs = childrenOf(parentId).filter(s => s.id !== id);
+    const idx = childrenOf(parentId).findIndex(s => s.id === id);
+    for (const k of kids) k.parentId = parentId;
+    const before = newSibs.slice(0, idx);
+    const after = newSibs.slice(idx);
+    [...before, ...kids, ...after].forEach((s, i) => s.orderIndex = i);
+    tasks = tasks.filter(t => t.id !== id);
+    selectedId = null;
+    broadcast({ type: 'task-delete', id });
+    render();
+  }
+
+  // ============================================================
+  // Custom column editor
+  // ============================================================
+  function renderCustomList() {
+    customList.innerHTML = '';
+    if (!view.customColumns || view.customColumns.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color: var(--muted); font-size: 12px; padding: 10px;';
+      empty.textContent = 'No columns yet. Click "+ Add column" to define a named date range.';
+      customList.appendChild(empty);
+      return;
+    }
+    view.customColumns.forEach((c, idx) => {
+      const item = document.createElement('div');
+      item.className = 'col-item';
+      item.innerHTML = `
+        <div class="ci-row"><input type="text" data-field="name" placeholder="Name" value="${escapeHtml(c.name || '')}"></div>
+        <div class="ci-row">
+          <input type="date" data-field="start" value="${escapeHtml(c.start || '')}">
+          <input type="date" data-field="end" value="${escapeHtml(c.end || '')}">
+        </div>
+        <div class="ci-actions">
+          <button class="icon-btn" title="Move up" data-act="up"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 9l4-4 4 4"/></svg></button>
+          <button class="icon-btn" title="Move down" data-act="down"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5l4 4 4-4"/></svg></button>
+          <button class="icon-btn" title="Delete" data-act="del"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4h8M5 4V3h4v1M5 4v7h4V4"/></svg></button>
+        </div>`;
+      item.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', () => {
+          c[inp.dataset.field] = inp.value;
+          broadcast({ type: 'view-update', patch: { customColumns: view.customColumns } });
+          if (view.zoom === 'custom') render();
+        });
+      });
+      item.querySelectorAll('button[data-act]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const act = btn.dataset.act;
+          if (act === 'up' && idx > 0) {
+            pushUndo();
+            const tmp = view.customColumns[idx - 1];
+            view.customColumns[idx - 1] = view.customColumns[idx];
+            view.customColumns[idx] = tmp;
+          } else if (act === 'down' && idx < view.customColumns.length - 1) {
+            pushUndo();
+            const tmp = view.customColumns[idx + 1];
+            view.customColumns[idx + 1] = view.customColumns[idx];
+            view.customColumns[idx] = tmp;
+          } else if (act === 'del') {
+            pushUndo();
+            view.customColumns.splice(idx, 1);
+          } else return;
+          broadcast({ type: 'view-update', patch: { customColumns: view.customColumns } });
+          renderCustomList();
+          if (view.zoom === 'custom') render();
+        });
+      });
+      customList.appendChild(item);
+    });
+  }
+
+  document.getElementById('addCustomColBtn').addEventListener('click', () => {
+    pushUndo();
+    const today = todayISO();
+    const last = view.customColumns[view.customColumns.length - 1];
+    const start = last ? addDays(last.end || today, 1) : today;
+    view.customColumns.push({
+      id: 'col-' + Math.random().toString(36).slice(2, 8),
+      name: 'Phase ' + (view.customColumns.length + 1),
+      start: start,
+      end: addDays(start, 13),
+      collapsed: false
+    });
+    broadcast({ type: 'view-update', patch: { customColumns: view.customColumns } });
+    renderCustomList();
+    if (view.zoom === 'custom') render();
+  });
+  document.getElementById('editColsBtn').addEventListener('click', () => {
+    const open = customPanel.classList.toggle('open');
+    if (open) renderCustomList();
+  });
+  document.getElementById('closeCustomPanel').addEventListener('click', () => customPanel.classList.remove('open'));
+
+  // ============================================================
+  // Toolbar wiring
+  // ============================================================
+  document.getElementById('undoBtn').addEventListener('click', performUndo);
+  document.getElementById('redoBtn').addEventListener('click', performRedo);
+
+  function addNewTask(type, extra) {
+    pushUndo();
+    // Always append at the root level. The add buttons live at the bottom of
+    // the list (outside any group), so root placement matches their visual
+    // position; users can drag the new task into a group afterward.
+    const parentId = null;
+    const orderIndex = childrenOf(null).length;
+    const t = newTask(Object.assign({ type, parentId }, extra || {}));
+    t.orderIndex = orderIndex;
+    tasks.push(t);
+    selectedId = t.id;
+    broadcast({ type: 'task-add', task: t });
+    render();
+  }
+
+  // Zoom group
+  document.querySelectorAll('#zoomGroup .tool-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#zoomGroup .tool-btn').forEach(x => x.classList.remove('tool-active'));
+      b.classList.add('tool-active');
+      view.zoom = b.dataset.zoom;
+      broadcast({ type: 'view-update', patch: { zoom: view.zoom } });
+      if (view.zoom === 'custom') customPanel.classList.add('open'), renderCustomList();
+      render();
+    });
+  });
+
+  // Export dropdown
+  exportBtn.addEventListener('click', () => {
+    const open = exportDropdown.classList.toggle('open');
+    if (open) {
+      const r = exportBtn.getBoundingClientRect();
+      exportDropdown.style.left = (r.left) + 'px';
+      exportDropdown.style.top = (r.bottom + 6) + 'px';
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!exportBtn.contains(e.target) && !exportDropdown.contains(e.target)) exportDropdown.classList.remove('open');
+  });
+  document.getElementById('exportJsonBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportDropdown.classList.remove('open');
+    const data = JSON.stringify({ version: 1, tasks, view }, null, 2);
+    downloadBlob(new Blob([data], { type: 'application/json' }), 'gantt.json');
+  });
+  document.getElementById('exportPngBtn').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    exportDropdown.classList.remove('open');
+    const blob = await renderToPngBlob();
+    if (!blob) return;
+    const buf = await blob.arrayBuffer();
+    const jsonStr = JSON.stringify({ version: 1, tasks, view });
+    const enhanced = embedPngMetadata(buf, 'GanttTogether', jsonStr);
+    downloadBlob(new Blob([enhanced], { type: 'image/png' }), 'gantt.png');
+  });
+
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Import
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file'; fileInput.accept = '.json,.png'; fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+  importBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { importFile(fileInput.files[0]); fileInput.value = ''; });
+
+  function importFile(file) {
+    if (!file) return;
+    if (file.name.endsWith('.png') || file.type === 'image/png') {
+      const r = new FileReader();
+      r.onload = () => {
+        const meta = extractPngMetadata(r.result, 'GanttTogether');
+        if (!meta) { alert('This PNG does not contain Gantt data'); return; }
+        try { loadStateFromData(JSON.parse(meta)); }
+        catch (err) { alert('Failed to parse embedded data: ' + err.message); }
+      };
+      r.readAsArrayBuffer(file);
+    } else {
+      const r = new FileReader();
+      r.onload = () => {
+        try { loadStateFromData(JSON.parse(r.result)); }
+        catch (err) { alert('Failed to parse file: ' + err.message); }
+      };
+      r.readAsText(file);
+    }
+  }
+
+  function loadStateFromData(data) {
+    if (!data || !Array.isArray(data.tasks)) { alert('Invalid file format'); return; }
+    pushUndo();
+    tasks = data.tasks;
+    if (data.view) view = Object.assign({ zoom: 'week', customColumns: [], columnCollapse: {} }, data.view);
+    selectedId = null;
+    document.querySelectorAll('#zoomGroup .tool-btn').forEach(b => b.classList.toggle('tool-active', b.dataset.zoom === view.zoom));
+    render();
+    if (isHost) {
+      for (const e of connections) if (e.conn.open) e.conn.send({ type: 'sync-state', tasks, view });
+    } else if (hostConn && hostConn.open) {
+      hostConn.send({ type: 'sync-state', tasks, view });
+    }
+  }
+
+  // ============================================================
+  // PNG export rendering — serialize the timeline SVG to canvas
+  // ============================================================
+  async function renderToPngBlob() {
+    if (tasks.length === 0 && (!view.customColumns || view.customColumns.length === 0)) {
+      alert('Nothing to export yet.');
+      return null;
+    }
+    const cols = lastCols;
+    const rows = lastRows;
+    const totalW = cols.length ? cols[cols.length - 1].x + cols[cols.length - 1].width : 600;
+    const leftW = 280;
+    const headerH = 40;
+    const bodyH = Math.max(rows.length * ROW_HEIGHT + 20, 120);
+    const totalH = headerH + bodyH;
+    const fullW = leftW + totalW;
+
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const bg = isLight ? '#f5f5f7' : '#060608';
+    const textColor = isLight ? '#1a1a1e' : '#e8e8ec';
+    const mutedColor = isLight ? '#5a5a64' : '#8b8b95';
+    const borderColor = isLight ? '#dcdce0' : '#1c1c24';
+    const accent = getAccent();
+    const defaultBar = getDefaultBar();
+    const rowHoverColor = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)';
+
+    // Build standalone SVG markup
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${fullW}" height="${totalH}" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-size="12">`;
+    svg += `<rect x="0" y="0" width="${fullW}" height="${totalH}" fill="${bg}"/>`;
+
+    // Left pane: header
+    svg += `<rect x="0" y="0" width="${leftW}" height="${headerH}" fill="${bg}"/>`;
+    svg += `<text x="14" y="${headerH/2+4}" fill="${mutedColor}" font-size="11" font-weight="700" letter-spacing="0.6" style="text-transform:uppercase">Tasks</text>`;
+    svg += `<line x1="0" y1="${headerH}" x2="${fullW}" y2="${headerH}" stroke="${borderColor}"/>`;
+    svg += `<line x1="${leftW}" y1="0" x2="${leftW}" y2="${totalH}" stroke="${borderColor}"/>`;
+
+    // Left pane: rows
+    for (let i = 0; i < rows.length; i++) {
+      const { task, depth } = rows[i];
+      const ty = headerH + i * ROW_HEIGHT;
+      svg += `<line x1="0" x2="${fullW}" y1="${ty + ROW_HEIGHT}" y2="${ty + ROW_HEIGHT}" stroke="${borderColor}"/>`;
+      const indent = 8 + depth * 14;
+      const color = task.color || defaultBar;
+      svg += `<circle cx="${indent + 8}" cy="${ty + ROW_HEIGHT/2}" r="5" fill="${color}"/>`;
+      let glyph = '';
+      if (task.type === 'milestone') glyph = '◆ ';
+      else if (task.type === 'group') glyph = '▸ ';
+      const txt = escapeXml(glyph + task.title);
+      svg += `<text x="${indent + 20}" y="${ty + ROW_HEIGHT/2 + 4}" fill="${textColor}">${txt}</text>`;
+      if (task.assignee) {
+        svg += `<text x="${leftW - 10}" y="${ty + ROW_HEIGHT/2 + 4}" fill="${mutedColor}" font-size="10" text-anchor="end">${escapeXml(task.assignee)}</text>`;
+      }
+    }
+
+    // Right pane: header
+    for (const c of cols) {
+      const cx = leftW + c.x;
+      svg += `<rect x="${cx}" y="0" width="${c.width}" height="${headerH}" fill="${c.weekend ? rowHoverColor : 'none'}"/>`;
+      svg += `<line x1="${cx + c.width}" y1="0" x2="${cx + c.width}" y2="${totalH}" stroke="${borderColor}"/>`;
+      if (!c.collapsed) {
+        svg += `<text x="${cx + c.width/2}" y="${headerH/2 - 2}" fill="${mutedColor}" font-size="11" font-weight="600" text-anchor="middle">${escapeXml(c.label)}</text>`;
+        if (c.sub) svg += `<text x="${cx + c.width/2}" y="${headerH/2 + 12}" fill="${mutedColor}" font-size="9" text-anchor="middle">${escapeXml(c.sub)}</text>`;
+      } else {
+        svg += `<rect x="${cx}" y="0" width="${c.width}" height="${totalH}" fill="${borderColor}" opacity="0.5"/>`;
+      }
+    }
+
+    // Weekend stripes in body
+    for (const c of cols) {
+      if (c.weekend && !c.collapsed) {
+        const cx = leftW + c.x;
+        svg += `<rect x="${cx}" y="${headerH}" width="${c.width}" height="${bodyH}" fill="${rowHoverColor}"/>`;
+      }
+    }
+
+    // Today line
+    const today = todayISO();
+    const tx = dateToX(today, cols);
+    if (tx != null && tx > 0 && tx < totalW) {
+      svg += `<line x1="${leftW + tx}" y1="${headerH}" x2="${leftW + tx}" y2="${totalH}" stroke="${accent}" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+    }
+
+    // Bars
+    for (let i = 0; i < rows.length; i++) {
+      const { task } = rows[i];
+      const y = headerH + i * ROW_HEIGHT + BAR_PAD;
+      if (task.type === 'milestone') {
+        const x = leftW + dateToX(task.start, cols);
+        const s = BAR_HEIGHT;
+        const cx = x, cy = y + s/2;
+        svg += `<path d="M ${cx} ${cy - s/2} L ${cx + s/2} ${cy} L ${cx} ${cy + s/2} L ${cx - s/2} ${cy} Z" fill="${task.color || defaultBar}" stroke="${task.status === 'done' ? '#22c55e' : 'rgba(0,0,0,0.2)'}" stroke-width="${task.status === 'done' ? 2 : 1}"/>`;
+        svg += `<text x="${cx + s/2 + 6}" y="${cy + 4}" fill="${mutedColor}" font-size="11">${escapeXml(task.title)}</text>`;
+      } else if (task.type === 'group') {
+        const span = computeGroupSpan(task);
+        const rect = spanToRect(span.start, span.end, cols);
+        const x = leftW + rect.x, w = rect.width, h = 10, by = y + (BAR_HEIGHT - h)/2;
+        const cap = 4;
+        const d = `M ${x} ${by} H ${x + w} V ${by + h} H ${x + w - cap} L ${x + w - cap - cap} ${by + h - cap} H ${x + cap + cap} L ${x + cap} ${by + h} H ${x} Z`;
+        svg += `<path d="${d}" fill="${task.color || textColor}"/>`;
+        svg += `<text x="${x}" y="${by - 4}" fill="${mutedColor}" font-size="11" font-weight="600">${escapeXml(task.title)}</text>`;
+      } else {
+        const rect = spanToRect(task.start, task.end, cols);
+        const x = leftW + rect.x, w = rect.width;
+        const color = task.color || defaultBar;
+        svg += `<rect x="${x}" y="${y}" width="${w}" height="${BAR_HEIGHT}" rx="5" fill="${color}"/>`;
+        const statusFill = task.status === 'done' ? '#22c55e' : task.status === 'doing' ? '#f59e0b' : 'rgba(255,255,255,0.6)';
+        svg += `<circle cx="${x + 8}" cy="${y + BAR_HEIGHT/2}" r="3.5" fill="${statusFill}"/>`;
+        if (w > 36) {
+          const labelColor = task.color ? '#000' : '#fff';
+          const trimmed = task.title.length > 30 ? task.title.slice(0, 27) + '…' : task.title;
+          svg += `<text x="${x + 18}" y="${y + BAR_HEIGHT/2 + 4}" fill="${labelColor}" font-size="11">${escapeXml(trimmed)}</text>`;
+        }
+      }
+    }
+
+    svg += '</svg>';
+
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = fullW; canvas.height = totalH;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(b => resolve(b), 'image/png');
+      };
+      img.onerror = () => resolve(null);
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    });
+  }
+  function escapeXml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+  }
+
+  // ============================================================
+  // PNG metadata (tEXt chunk) — adapted verbatim from draw tool
+  // ============================================================
+  function crc32(buf) {
+    let crc = -1;
+    for (let i = 0; i < buf.length; i++) {
+      crc ^= buf[i];
+      for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (crc & 1 ? 0xEDB88320 : 0);
+    }
+    return (crc ^ -1) >>> 0;
+  }
+  function embedPngMetadata(pngBuf, key, value) {
+    const png = new Uint8Array(pngBuf);
+    let iendPos = -1;
+    for (let i = png.length - 12; i >= 8; i--) {
+      if (png[i+4] === 0x49 && png[i+5] === 0x45 && png[i+6] === 0x4E && png[i+7] === 0x44) {
+        iendPos = i; break;
+      }
+    }
+    if (iendPos < 0) return pngBuf;
+    const enc = new TextEncoder();
+    const keyBytes = enc.encode(key);
+    const valBytes = enc.encode(value);
+    const dataLen = keyBytes.length + 1 + valBytes.length;
+    const chunk = new Uint8Array(12 + dataLen);
+    const dv = new DataView(chunk.buffer);
+    dv.setUint32(0, dataLen);
+    chunk[4] = 0x74; chunk[5] = 0x45; chunk[6] = 0x58; chunk[7] = 0x74;
+    chunk.set(keyBytes, 8);
+    chunk[8 + keyBytes.length] = 0;
+    chunk.set(valBytes, 9 + keyBytes.length);
+    const crcData = chunk.slice(4, 8 + dataLen);
+    dv.setUint32(8 + dataLen, crc32(crcData));
+    const result = new Uint8Array(png.length + chunk.length);
+    result.set(png.slice(0, iendPos));
+    result.set(chunk, iendPos);
+    result.set(png.slice(iendPos), iendPos + chunk.length);
+    return result.buffer;
+  }
+  function extractPngMetadata(pngBuf, key) {
+    const png = new Uint8Array(pngBuf);
+    const enc = new TextEncoder();
+    const keyBytes = enc.encode(key);
+    let pos = 8;
+    while (pos < png.length - 8) {
+      const dv = new DataView(png.buffer, pos);
+      const len = dv.getUint32(0);
+      const type = String.fromCharCode(png[pos+4], png[pos+5], png[pos+6], png[pos+7]);
+      if (type === 'tEXt') {
+        let match = keyBytes.length < len;
+        for (let i = 0; match && i < keyBytes.length; i++) {
+          if (png[pos + 8 + i] !== keyBytes[i]) match = false;
+        }
+        if (match && png[pos + 8 + keyBytes.length] === 0) {
+          const valStart = pos + 9 + keyBytes.length;
+          const valEnd = pos + 8 + len;
+          return new TextDecoder().decode(png.slice(valStart, valEnd));
+        }
+      }
+      if (type === 'IEND') break;
+      pos += 12 + len;
+    }
+    return null;
+  }
+
+  // ============================================================
+  // PeerJS collaboration — host/guest, adapted from draw tool
+  // ============================================================
+  function broadcast(msg) {
+    if (isHost) {
+      for (const entry of connections) if (entry.conn.open) entry.conn.send(msg);
+    } else if (hostConn && hostConn.open) {
+      hostConn.send(msg);
+    }
+  }
+  function broadcastExcept(msg, excludeConn) {
+    for (const entry of connections) {
+      if (entry.conn !== excludeConn && entry.conn.open) entry.conn.send(msg);
+    }
+  }
+
+  function applyTaskPatch(task, patch) {
+    Object.assign(task, patch);
+  }
+
+  function handleMessage(msg, fromConn) {
+    if (msg.type === 'sync-state') {
+      tasks = msg.tasks || [];
+      if (msg.view) view = Object.assign({ zoom: 'week', customColumns: [], columnCollapse: {} }, msg.view);
+      selectedId = null;
+      document.querySelectorAll('#zoomGroup .tool-btn').forEach(b => b.classList.toggle('tool-active', b.dataset.zoom === view.zoom));
+      render();
+      return;
+    }
+    if (msg.type === 'user-count') {
+      userCount = msg.count;
+      updateStatusCount();
+      return;
+    }
+    if (msg.type === 'task-add') {
+      if (!findTask(msg.task.id)) tasks.push(msg.task);
+      render();
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+    if (msg.type === 'task-update') {
+      const t = findTask(msg.id);
+      if (t) applyTaskPatch(t, msg.patch);
+      render();
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+    if (msg.type === 'task-delete') {
+      const task = findTask(msg.id);
+      if (task) {
+        const parentId = task.parentId;
+        const kids = childrenOf(msg.id);
+        const newSibs = childrenOf(parentId).filter(s => s.id !== msg.id);
+        const idx = childrenOf(parentId).findIndex(s => s.id === msg.id);
+        for (const k of kids) k.parentId = parentId;
+        const before = newSibs.slice(0, idx);
+        const after = newSibs.slice(idx);
+        [...before, ...kids, ...after].forEach((s, i) => s.orderIndex = i);
+        tasks = tasks.filter(t => t.id !== msg.id);
+      }
+      render();
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+    if (msg.type === 'task-reorder') {
+      const t = findTask(msg.id);
+      if (t) {
+        const oldParentId = t.parentId;
+        t.parentId = msg.parentId;
+        // Re-pack old parent siblings (excluding t)
+        if (oldParentId !== msg.parentId) {
+          childrenOf(oldParentId).filter(s => s.id !== msg.id).forEach((s, i) => s.orderIndex = i);
+        }
+        // Re-pack new parent siblings around t at the requested index
+        const others = childrenOf(msg.parentId).filter(s => s.id !== msg.id);
+        others.forEach((s, i) => s.orderIndex = i < msg.orderIndex ? i : i + 1);
+        t.orderIndex = msg.orderIndex;
+      }
+      render();
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+    if (msg.type === 'view-update') {
+      Object.assign(view, msg.patch);
+      document.querySelectorAll('#zoomGroup .tool-btn').forEach(b => b.classList.toggle('tool-active', b.dataset.zoom === view.zoom));
+      render();
+      if (isHost && fromConn) broadcastExcept(msg, fromConn);
+      return;
+    }
+  }
+
+  function getUserCount() { return connections.length + 1; }
+  function broadcastUserCount() {
+    const count = getUserCount();
+    for (const entry of connections) if (entry.conn.open) entry.conn.send({ type: 'user-count', count });
+    updateStatusCount();
+  }
+
+  function startHosting() {
+    appState = 'room';
+    isHost = true;
+    setStatus('Initializing...', 'waiting');
+    const peer = new Peer();
+    peer.on('open', (id) => {
+      myId = id;
+      const inviteLink = window.location.origin + window.location.pathname + '#room=' + id;
+      setStatus('Waiting for guests', 'waiting');
+      copyLinkBtn.classList.remove('hidden');
+      copyLinkBtn.onclick = () => {
+        navigator.clipboard.writeText(inviteLink).then(() => {
+          copyLinkBtn.title = 'Copied!';
+          setTimeout(() => { copyLinkBtn.title = 'Copy Link'; }, 2000);
+        });
+      };
+    });
+    peer.on('connection', (c) => {
+      if (connections.length >= MAX_USERS - 1) {
+        c.on('open', () => {
+          c.send({ type: 'error', message: 'Room is full (max ' + MAX_USERS + ' users)' });
+          setTimeout(() => c.close(), 500);
+        });
+        return;
+      }
+      const entry = { conn: c };
+      connections.push(entry);
+      c.on('open', () => {
+        c.send({ type: 'user-count', count: getUserCount() });
+        c.send({ type: 'sync-state', tasks, view });
+        updateStatusCount();
+        broadcastUserCount();
+      });
+      c.on('data', (msg) => handleMessage(msg, c));
+      c.on('close', () => {
+        connections = connections.filter(e => e.conn !== c);
+        broadcastUserCount();
+        if (connections.length === 0) setStatus('Waiting for guests', 'waiting');
+      });
+    });
+    peer.on('error', (err) => setStatus('Error: ' + err.type, 'disconnected'));
+  }
+
+  function handleJoin() {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#room=')) return;
+    guestRoomId = hash.substring(6);
+    connectAsGuest(guestRoomId);
+  }
+
+  function connectAsGuest(roomId) {
+    appState = 'room';
+    isHost = false;
+    setStatus('Connecting...', 'waiting');
+    const peer = new Peer();
+    guestPeer = peer;
+    peer.on('open', (id) => {
+      myId = id;
+      const c = peer.connect(roomId, { reliable: true, serialization: 'json' });
+      hostConn = c;
+      c.on('open', () => {
+        reconnectAttempts = 0;
+        hideConnectionBanner();
+        setStatus('Connected!', 'connected');
+        history.replaceState(null, '', window.location.pathname);
+      });
+      c.on('data', (msg) => {
+        if (msg.type === 'error') {
+          setStatus(msg.message, 'disconnected');
+          c.close();
+          return;
+        }
+        handleMessage(msg, null);
+      });
+      c.on('close', () => {
+        setStatus('Disconnected', 'disconnected');
+        hostConn = null;
+        attemptReconnect();
+      });
+    });
+    peer.on('error', (err) => {
+      if (err.type === 'peer-unavailable') setStatus('Room not found or expired', 'disconnected');
+      else { setStatus('Error: ' + err.type, 'disconnected'); attemptReconnect(); }
+    });
+  }
+
+  function attemptReconnect() {
+    if (!guestRoomId || reconnectAttempts >= MAX_RECONNECT) {
+      showConnectionBanner('Disconnected. Could not reconnect.');
+      return;
+    }
+    reconnectAttempts++;
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 10000);
+    showConnectionBanner('Reconnecting... (attempt ' + reconnectAttempts + '/' + MAX_RECONNECT + ')');
+    setStatus('Reconnecting...', 'reconnecting');
+    setTimeout(() => {
+      if (guestPeer) { try { guestPeer.destroy(); } catch (e) {} guestPeer = null; }
+      connectAsGuest(guestRoomId);
+    }, delay);
+  }
+
+  // ============================================================
+  // Theme toggle
+  // ============================================================
+  (function setupTheme() {
+    let mode = localStorage.getItem('nibset-theme') || 'dark';
+    const btn = document.getElementById('themeToggle');
+    function apply(m) {
+      mode = m;
+      document.documentElement.setAttribute('data-theme', m);
+      localStorage.setItem('nibset-theme', m);
+      btn.querySelector('.icon-sun').style.display = (m === 'light') ? 'block' : 'none';
+      btn.querySelector('.icon-moon').style.display = (m === 'dark') ? 'block' : 'none';
+      render();
+    }
+    btn.addEventListener('click', () => apply(mode === 'light' ? 'dark' : 'light'));
+    apply(mode);
+  })();
+
+  // ============================================================
+  // Keyboard shortcuts
+  // ============================================================
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    const editing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable);
+    if (editing) return;
+    if (e.key === 'Escape') {
+      customPanel.classList.remove('open');
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); performUndo(); return; }
+    if ((e.ctrlKey || e.metaKey) && ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y')) { e.preventDefault(); performRedo(); return; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) { e.preventDefault(); deleteTask(selectedId); return; }
+    if (e.key === 'Enter' && selectedId) {
+      e.preventDefault();
+      setInspectorCollapsed(false);
+      const iTitle = document.getElementById('iTitle');
+      if (iTitle) { iTitle.focus(); iTitle.select(); }
+    }
+  });
+
+  // ============================================================
+  // Init
+  // ============================================================
+  function ensureDemoState() {
+    if (tasks.length > 0) return;
+    // Seed with a small example so the empty state isn't blank.
+    const t = todayISO();
+    const groupId = uuid();
+    const g = { id: groupId, type: 'group', parentId: null, orderIndex: 0, collapsed: false,
+      title: 'Project kickoff', start: t, end: addDays(t, 14),
+      color: null, assignee: '', notes: '', status: 'doing', authorId: myId };
+    const child1 = { id: uuid(), type: 'task', parentId: groupId, orderIndex: 0, collapsed: false,
+      title: 'Research & discovery', start: t, end: addDays(t, 4),
+      color: '#3b82f6', assignee: 'Alex', notes: '', status: 'doing', authorId: myId };
+    const child2 = { id: uuid(), type: 'task', parentId: groupId, orderIndex: 1, collapsed: false,
+      title: 'Draft proposal', start: addDays(t, 3), end: addDays(t, 8),
+      color: '#c9f270', assignee: '', notes: '', status: 'todo', authorId: myId };
+    const ms = { id: uuid(), type: 'milestone', parentId: groupId, orderIndex: 2, collapsed: false,
+      title: 'Kickoff meeting', start: addDays(t, 10), end: addDays(t, 10),
+      color: '#ef4444', assignee: '', notes: '', status: 'todo', authorId: myId };
+    tasks = [g, child1, child2, ms];
+  }
+
+  if (window.location.hash.startsWith('#room=')) {
+    handleJoin();
+  } else {
+    ensureDemoState();
+    startHosting();
+  }
+  render();
+
+  window.addEventListener('resize', render);
+})();
+</script>
+</body>
+</html>

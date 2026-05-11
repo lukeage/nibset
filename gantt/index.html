@@ -132,9 +132,21 @@
   }
   .right-pane {
     grid-area: right;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .timeline-header-wrap {
+    height: 44px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .timeline-scroll {
+    flex: 1;
     overflow: auto;
     position: relative;
-    background: var(--bg);
   }
   .inspector {
     grid-area: inspector;
@@ -262,11 +274,10 @@
 
   /* Right pane: timeline */
   .timeline-header {
-    position: sticky; top: 0; z-index: 5;
     background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    height: 40px;
+    height: 44px;
     display: flex;
+    width: max-content;
   }
   .col-header {
     height: 100%;
@@ -492,8 +503,12 @@
     <div class="left-scroll" id="rowList"></div>
   </div>
   <div class="right-pane" id="rightPane">
-    <div class="timeline-header" id="timelineHeader"></div>
-    <div class="timeline-body" id="timelineBody"></div>
+    <div class="timeline-header-wrap" id="timelineHeaderWrap">
+      <div class="timeline-header" id="timelineHeader"></div>
+    </div>
+    <div class="timeline-scroll" id="timelineScroll">
+      <div class="timeline-body" id="timelineBody"></div>
+    </div>
   </div>
   <div class="inspector" id="inspector">
     <div class="ins-head">
@@ -645,7 +660,7 @@
   const MAX_USERS = 10;
   const MAX_RECONNECT = 5;
   const ROW_HEIGHT = 36;
-  const HEADER_HEIGHT = 40;
+  const HEADER_HEIGHT = 44;
   const BAR_HEIGHT = 22;
   const BAR_PAD = (ROW_HEIGHT - BAR_HEIGHT) / 2;
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -763,6 +778,31 @@
   // ============================================================
   const rowList = document.getElementById('rowList');
   const rightPane = document.getElementById('rightPane');
+  const timelineScroll = document.getElementById('timelineScroll');
+  const timelineHeaderWrap = document.getElementById('timelineHeaderWrap');
+  // Keep the task list and the timeline vertically aligned: when one scrolls,
+  // mirror the scrollTop on the other. Both containers hold only rows (the
+  // headers live outside their scroll boxes), so scrollTop maps 1:1. We clear
+  // the guard on the next frame so the lock can't stick if the target clamps.
+  let syncingScroll = false;
+  const releaseSyncLock = () => { syncingScroll = false; };
+  rowList.addEventListener('scroll', () => {
+    if (syncingScroll) return;
+    syncingScroll = true;
+    timelineScroll.scrollTop = rowList.scrollTop;
+    requestAnimationFrame(releaseSyncLock);
+  }, { passive: true });
+  timelineScroll.addEventListener('scroll', () => {
+    if (syncingScroll) return;
+    syncingScroll = true;
+    rowList.scrollTop = timelineScroll.scrollTop;
+    requestAnimationFrame(releaseSyncLock);
+  }, { passive: true });
+  // Mirror horizontal scroll from the body to the header wrap so columns stay
+  // aligned with the bars beneath them (replaces the old sticky-header trick).
+  timelineScroll.addEventListener('scroll', () => {
+    timelineHeaderWrap.scrollLeft = timelineScroll.scrollLeft;
+  }, { passive: true });
   const timelineHeader = document.getElementById('timelineHeader');
   const timelineBody = document.getElementById('timelineBody');
   const statusDot = document.querySelector('#status .dot');
@@ -1049,7 +1089,7 @@
   // scale non-collapsed columns up so the timeline fills the available space.
   function fitColumnsToPane(cols) {
     if (!cols.length) return;
-    const available = rightPane.clientWidth;
+    const available = timelineScroll.clientWidth;
     if (!available) return;
     const naturalTotal = cols[cols.length - 1].x + cols[cols.length - 1].width;
     if (naturalTotal >= available) return;
@@ -1388,9 +1428,31 @@
   function renderTimelineBody() {
     timelineBody.innerHTML = '';
     const totalW = lastCols.length ? lastCols[lastCols.length - 1].x + lastCols[lastCols.length - 1].width : 0;
-    const totalH = Math.max(rightPane.clientHeight - HEADER_HEIGHT, lastRows.length * ROW_HEIGHT + 20);
     timelineBody.style.width = totalW + 'px';
+
+    // Pin the task-list scroll height to match the timeline (and vice versa)
+    // so both panes have an identical scroll range. Without this, one can
+    // scroll further than the other and the rows drift out of alignment.
+    let spacer = rowList.querySelector(':scope > .row-list-spacer');
+    if (!spacer) {
+      spacer = document.createElement('div');
+      spacer.className = 'row-list-spacer';
+      spacer.style.flexShrink = '0';
+      spacer.style.pointerEvents = 'none';
+      rowList.appendChild(spacer);
+    } else if (spacer !== rowList.lastElementChild) {
+      rowList.appendChild(spacer);
+    }
+    spacer.style.height = '0px';
+    const naturalRowsH = rowList.scrollHeight;
+    const totalH = Math.max(
+      timelineScroll.clientHeight,
+      lastRows.length * ROW_HEIGHT + 20,
+      naturalRowsH
+    );
     timelineBody.style.height = totalH + 'px';
+    const deficit = totalH - naturalRowsH;
+    if (deficit > 0) spacer.style.height = deficit + 'px';
 
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('class', 'timeline-svg');

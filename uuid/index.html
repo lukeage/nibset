@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UUID / Hashes — NibSet</title>
+    <link rel="icon" type="image/png" href="../assets/logo.png">
+    <meta name="description" content="Generate UUIDs, ULIDs, and NanoIDs, compute SHA hashes, and sign HMACs — all client-side.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+    (function(){
+        var t = localStorage.getItem('nibset-theme');
+        if (!t) { t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; localStorage.setItem('nibset-theme', t); }
+        document.documentElement.setAttribute('data-theme', t);
+    })();
+    </script>
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #060608;
+            --bg-secondary: #111115;
+            --bg-tertiary: #1c1c24;
+            --bg-hover: #16161c;
+            --text-primary: #e8e8ec;
+            --text-secondary: #8b8b95;
+            --text-muted: #55555e;
+            --accent: #c9f270;
+            --accent-hover: #b8e35f;
+            --accent-text: #060608;
+            --border: rgba(255,255,255,0.06);
+            --header-bg: rgba(6,6,8,0.85);
+            --header-border: rgba(255,255,255,0.05);
+            --success: #c9f270;
+            --danger: #ef4444;
+            --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            --header-height: 56px;
+            --toolbar-height: 44px;
+            --statusbar-height: 28px;
+            --radius: 8px;
+            --radius-sm: 4px;
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #eaeaee;
+            --bg-tertiary: #dcdce0;
+            --bg-hover: #f0f0f4;
+            --text-primary: #1a1a1e;
+            --text-secondary: #5a5a64;
+            --text-muted: #8b8b95;
+            --accent: #5a8a1a;
+            --accent-hover: #4a7515;
+            --accent-text: #ffffff;
+            --border: rgba(0,0,0,0.08);
+            --header-bg: rgba(245,245,247,0.85);
+            --header-border: rgba(0,0,0,0.08);
+            --success: #5a8a1a;
+            --danger: #c0392b;
+        }
+
+        html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
+        .app { display: flex; flex-direction: column; height: 100dvh; }
+
+        /* ===== Header ===== */
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            height: var(--header-height); padding: 0 16px;
+            background: var(--header-bg); backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--header-border); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-home { display: flex; align-items: center; opacity: 0.7; transition: opacity 0.2s; flex-shrink: 0; }
+        .header-home:hover { opacity: 1; }
+        .header-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; color: var(--text-primary); }
+        .header-title i { color: var(--accent); }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* ===== Theme Toggle ===== */
+        .theme-toggle { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+        .theme-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .theme-toggle svg { width: 18px; height: 18px; }
+        [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+        [data-theme="light"] .theme-toggle .icon-moon { display: none; }
+
+        /* ===== Toolbar ===== */
+        .toolbar { display: flex; align-items: center; gap: 4px; padding: 0 16px; height: var(--toolbar-height); border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; overflow-x: auto; }
+        .toolbar-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); font-family: var(--font-ui); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .toolbar-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .toolbar-btn i { font-size: 11px; }
+        .toolbar-btn.mode-btn.active { background: var(--accent); color: var(--accent-text); }
+        .toolbar-btn.mode-btn.active:hover { background: var(--accent-hover); }
+        .toolbar-btn.hidden { display: none; }
+        .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+        .toolbar-spacer { flex: 1; }
+
+        /* ===== Main ===== */
+        .main { display: flex; flex: 1; min-height: 0; }
+        .main.hidden { display: none; }
+
+        /* ===== Panes ===== */
+        .pane { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .pane.hidden { display: none; }
+        .pane-label {
+            min-height: 28px; padding: 4px 16px;
+            background: var(--bg-secondary); border-bottom: 1px solid var(--border);
+            font-size: 12px; font-weight: 600; color: var(--text-muted);
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            flex-shrink: 0;
+        }
+        .pane-body { position: relative; flex: 1; overflow: hidden; background: var(--bg-primary); }
+
+        .pane-ta {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            padding: 16px;
+            border: none; outline: none; resize: none;
+            background: transparent; color: var(--text-primary);
+            font-family: var(--font-mono); font-size: 13px; line-height: 21px;
+            tab-size: 4; overflow: auto;
+            caret-color: var(--accent);
+        }
+        .pane-ta::placeholder { color: var(--text-muted); }
+        .pane-ta::selection { background: rgba(201,242,112,0.2); }
+        [data-theme="light"] .pane-ta::selection { background: rgba(90,138,26,0.15); }
+
+        /* ===== Pane Divider ===== */
+        .pane-divider { width: 6px; background: var(--bg-secondary); border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: col-resize; transition: background 0.15s; flex-shrink: 0; }
+        .pane-divider:hover, .pane-divider.dragging { background: var(--accent); }
+        .pane-divider.hidden { display: none; }
+
+        /* ===== Result list (hashes / ids) ===== */
+        .result-pane { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .result-pane.hidden { display: none; }
+        .result-scroll { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg-primary); }
+        .result-row {
+            display: flex; flex-direction: column; gap: 6px;
+            padding: 10px 12px;
+            border: 1px solid var(--border); border-radius: var(--radius);
+            background: var(--bg-secondary);
+        }
+        .result-row-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .result-algo { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+        .result-value {
+            font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
+            word-break: break-all; line-height: 1.6;
+        }
+        .result-value.empty { color: var(--text-muted); font-style: italic; font-family: var(--font-ui); }
+        .result-value.error { color: var(--danger); font-family: var(--font-ui); }
+
+        /* ===== Copy Button ===== */
+        .copy-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 8px;
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-secondary);
+            font-family: var(--font-ui); font-size: 11px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s; white-space: nowrap;
+        }
+        .copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: rgba(255,255,255,0.12); }
+        [data-theme="light"] .copy-btn:hover { border-color: rgba(0,0,0,0.15); }
+
+        /* ===== Controls (inputs, selects, checks) ===== */
+        .field-label { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+        .ctl-input, .ctl-select {
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-primary);
+            font-family: var(--font-ui); font-size: 12px; padding: 5px 8px; outline: none;
+        }
+        .ctl-input:focus, .ctl-select:focus { border-color: var(--accent); }
+        .ctl-input.mono { font-family: var(--font-mono); }
+        .ctl-number { width: 64px; }
+
+        .id-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+        .id-formats { display: flex; flex-wrap: wrap; gap: 6px; }
+        .fmt-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-secondary);
+            font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; user-select: none;
+        }
+        .fmt-chip:hover { color: var(--text-primary); }
+        .fmt-chip.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+        .ctl-group { display: flex; align-items: center; gap: 6px; }
+        .btn-primary {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border: none; border-radius: var(--radius-sm);
+            background: var(--accent); color: var(--accent-text);
+            font-family: var(--font-ui); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+
+        /* ===== HMAC layout ===== */
+        .hmac-pane { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .hmac-pane.hidden { display: none; }
+        .hmac-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+
+        /* ===== Status Bar ===== */
+        .statusbar { display: flex; align-items: center; justify-content: space-between; height: var(--statusbar-height); padding: 0 16px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+        .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+
+        /* ===== Toast ===== */
+        .toast-container { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
+        .toast { padding: 8px 16px; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.3); opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; white-space: nowrap; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <a href="../index.html" class="header-home" title="Back to NibSet">
+                <svg viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="22">
+                    <path d="M16 0L20 12L16 10L12 12L16 0Z" fill="var(--accent)" />
+                    <path d="M10 12L16 10L22 12L24 22L20 26H12L8 22L10 12Z" fill="url(#nhg)" stroke="var(--border)" stroke-width="0.5"/>
+                    <rect x="12" y="26" width="8" height="4" rx="1" fill="url(#nhg)" />
+                    <line x1="16" y1="0" x2="16" y2="10" stroke="var(--accent)" stroke-opacity="0.3" stroke-width="0.5"/>
+                    <circle cx="16" cy="14" r="1.5" fill="var(--accent)" opacity="0.9"/>
+                    <path d="M4 8C1 8 0 10 0 13V25C0 28 1 30 4 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M28 8C31 8 32 10 32 13V25C32 28 31 30 28 30" stroke="url(#nhg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <line x1="10" y1="33" x2="22" y2="33" stroke="url(#nhg)" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="11" y1="35.5" x2="21" y2="35.5" stroke="url(#nhg)" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+                    <defs><linearGradient id="nhg" x1="0" y1="0" x2="32" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="var(--text-primary)"/><stop offset="100%" stop-color="var(--text-muted)"/></linearGradient></defs>
+                </svg>
+            </a>
+            <div class="header-title">
+                <i class="fa-solid fa-fingerprint"></i>
+                UUID / Hashes
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <button class="toolbar-btn mode-btn active" data-mode="id"><i class="fa-solid fa-id-card"></i> UUID / ID</button>
+        <button class="toolbar-btn mode-btn" data-mode="hash"><i class="fa-solid fa-fingerprint"></i> Hashes</button>
+        <button class="toolbar-btn mode-btn" data-mode="hmac"><i class="fa-solid fa-key"></i> HMAC</button>
+        <div class="toolbar-spacer"></div>
+        <button class="toolbar-btn" id="clearBtn"><i class="fas fa-eraser"></i> Clear</button>
+    </div>
+
+    <!-- ===== UUID / ID mode ===== -->
+    <div class="result-pane" id="idPane">
+        <div class="id-controls">
+            <div class="ctl-group">
+                <span class="field-label">Formats</span>
+                <div class="id-formats" id="idFormats">
+                    <span class="fmt-chip active" data-fmt="v4">UUID v4</span>
+                    <span class="fmt-chip" data-fmt="v7">UUID v7</span>
+                    <span class="fmt-chip" data-fmt="ulid">ULID</span>
+                    <span class="fmt-chip" data-fmt="nano">NanoID</span>
+                </div>
+            </div>
+            <div class="ctl-group">
+                <span class="field-label">Count</span>
+                <input type="number" class="ctl-input ctl-number" id="idCount" value="5" min="1" max="1000">
+            </div>
+            <div class="ctl-group" id="nanoLenGroup">
+                <span class="field-label">NanoID len</span>
+                <input type="number" class="ctl-input ctl-number" id="nanoLen" value="21" min="2" max="256">
+            </div>
+            <div class="ctl-group">
+                <button class="btn-primary" id="genBtn"><i class="fa-solid fa-rotate"></i> Generate</button>
+                <button class="copy-btn" id="copyAllBtn"><i class="fas fa-copy"></i> Copy all</button>
+            </div>
+        </div>
+        <div class="result-scroll" id="idResults"></div>
+    </div>
+
+    <!-- ===== Hash mode ===== -->
+    <div class="main hidden" id="hashMain">
+        <!-- Input Pane -->
+        <div class="pane" id="hashInputPane">
+            <div class="pane-label">Input</div>
+            <div class="pane-body">
+                <textarea class="pane-ta" id="hashInputTA" spellcheck="false" placeholder="Type or paste text to hash…"></textarea>
+            </div>
+        </div>
+        <div class="pane-divider" id="paneDivider"></div>
+        <!-- Hash Results -->
+        <div class="result-pane" id="hashResultPane">
+            <div class="pane-label">SHA Digests</div>
+            <div class="result-scroll" id="hashResults"></div>
+        </div>
+    </div>
+
+    <!-- ===== HMAC mode ===== -->
+    <div class="hmac-pane hidden" id="hmacPane">
+        <div class="hmac-controls">
+            <div class="ctl-group">
+                <span class="field-label">Algorithm</span>
+                <select class="ctl-select" id="hmacAlgo">
+                    <option value="SHA-256">HMAC-SHA256</option>
+                    <option value="SHA-1">HMAC-SHA1</option>
+                    <option value="SHA-384">HMAC-SHA384</option>
+                    <option value="SHA-512">HMAC-SHA512</option>
+                </select>
+            </div>
+            <div class="ctl-group" style="flex:1; min-width:220px;">
+                <span class="field-label">Secret</span>
+                <input type="text" class="ctl-input mono" id="hmacSecret" placeholder="shared secret key" style="flex:1;">
+            </div>
+        </div>
+        <div class="main" style="flex:1;">
+            <div class="pane">
+                <div class="pane-label">Message</div>
+                <div class="pane-body">
+                    <textarea class="pane-ta" id="hmacMsgTA" spellcheck="false" placeholder="Type or paste the message to sign…"></textarea>
+                </div>
+            </div>
+            <div class="pane-divider" id="hmacDivider"></div>
+            <div class="pane">
+                <div class="pane-label">
+                    <span>Signature (hex)</span>
+                    <button class="copy-btn" id="copyHmacBtn"><i class="fas fa-copy"></i> Copy</button>
+                </div>
+                <div class="pane-body">
+                    <textarea class="pane-ta" id="hmacOutTA" spellcheck="false" readonly placeholder="HMAC will appear here…"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="statusbar">
+        <div class="statusbar-left">
+            <span id="statusMsg">Pick formats and generate</span>
+        </div>
+        <div class="statusbar-right">
+            <span id="countMsg"></span>
+        </div>
+    </div>
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const $ = id => document.getElementById(id);
+
+    // ===== DOM refs =====
+    const toastContainer = $('toastContainer');
+    const statusMsg = $('statusMsg');
+    const countMsg  = $('countMsg');
+
+    let currentMode = 'id';
+
+    // ===== Toast =====
+    function toast(msg) {
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = msg;
+        toastContainer.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('show'));
+        setTimeout(() => {
+            el.classList.remove('show');
+            setTimeout(() => el.remove(), 300);
+        }, 2000);
+    }
+
+    // ===== Clipboard =====
+    function copyText(text, label) {
+        if (!text) { toast('Nothing to copy'); return; }
+        navigator.clipboard.writeText(text)
+            .then(() => toast(label ? `${label} copied!` : 'Copied!'))
+            .catch(() => toast('Copy failed'));
+    }
+
+    const toHex = buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // ============================================================
+    // UUID / ID generators (crypto.* only)
+    // ============================================================
+    function uuidV4() {
+        if (crypto.randomUUID) return crypto.randomUUID();
+        const b = crypto.getRandomValues(new Uint8Array(16));
+        b[6] = (b[6] & 0x0f) | 0x40;
+        b[8] = (b[8] & 0x3f) | 0x80;
+        const h = Array.from(b).map(x => x.toString(16).padStart(2, '0'));
+        return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
+    }
+
+    function uuidV7() {
+        const b = crypto.getRandomValues(new Uint8Array(16));
+        const ms = Date.now();
+        // 48-bit timestamp (big-endian) into the first 6 bytes
+        b[0] = (ms / 2 ** 40) & 0xff;
+        b[1] = (ms / 2 ** 32) & 0xff;
+        b[2] = (ms / 2 ** 24) & 0xff;
+        b[3] = (ms / 2 ** 16) & 0xff;
+        b[4] = (ms / 2 ** 8) & 0xff;
+        b[5] = ms & 0xff;
+        b[6] = (b[6] & 0x0f) | 0x70; // version 7
+        b[8] = (b[8] & 0x3f) | 0x80; // variant
+        const h = Array.from(b).map(x => x.toString(16).padStart(2, '0'));
+        return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
+    }
+
+    const ULID_ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford base32
+    function ulid() {
+        let time = Date.now();
+        let timeChars = '';
+        for (let i = 0; i < 10; i++) { // 48-bit time → 10 base32 chars
+            timeChars = ULID_ALPHA[time % 32] + timeChars;
+            time = Math.floor(time / 32);
+        }
+        const rnd = crypto.getRandomValues(new Uint8Array(16));
+        let randChars = '';
+        for (let i = 0; i < 16; i++) randChars += ULID_ALPHA[rnd[i] % 32]; // 16 chars of randomness
+        return timeChars + randChars;
+    }
+
+    const NANO_ALPHA = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict';
+    function nanoid(size) {
+        size = size || 21;
+        const bytes = crypto.getRandomValues(new Uint8Array(size));
+        let id = '';
+        for (let i = 0; i < size; i++) id += NANO_ALPHA[bytes[i] & 63];
+        return id;
+    }
+
+    const ID_GENERATORS = {
+        v4:   { label: 'UUID v4',  gen: () => uuidV4() },
+        v7:   { label: 'UUID v7',  gen: () => uuidV7() },
+        ulid: { label: 'ULID',     gen: () => ulid() },
+        nano: { label: 'NanoID',   gen: () => nanoid(parseInt($('nanoLen').value, 10) || 21) },
+    };
+
+    let lastIds = [];
+
+    function activeFormats() {
+        return Array.from($('idFormats').querySelectorAll('.fmt-chip.active')).map(c => c.dataset.fmt);
+    }
+
+    function generateIds() {
+        const fmts = activeFormats();
+        if (fmts.length === 0) { toast('Select at least one format'); return; }
+        const count = Math.max(1, Math.min(1000, parseInt($('idCount').value, 10) || 1));
+        const results = $('idResults');
+        lastIds = [];
+        results.innerHTML = '';
+        for (let i = 0; i < count; i++) {
+            for (const f of fmts) {
+                const value = ID_GENERATORS[f].gen();
+                lastIds.push(value);
+                const row = document.createElement('div');
+                row.className = 'result-row';
+                row.innerHTML = `
+                    <div class="result-row-header">
+                        <span class="result-algo">${ID_GENERATORS[f].label}</span>
+                        <button class="copy-btn"><i class="fas fa-copy"></i> Copy</button>
+                    </div>
+                    <div class="result-value">${value}</div>`;
+                row.querySelector('.copy-btn').addEventListener('click', () => copyText(value, ID_GENERATORS[f].label));
+                results.appendChild(row);
+            }
+        }
+        statusMsg.textContent = `Generated ${lastIds.length} ID${lastIds.length !== 1 ? 's' : ''}`;
+        countMsg.textContent = `${count} × ${fmts.length} format${fmts.length !== 1 ? 's' : ''}`;
+    }
+
+    // ============================================================
+    // SHA hashes
+    // ============================================================
+    const HASH_ALGOS = [
+        { name: 'SHA-1',   algo: 'SHA-1',   id: 'hash-sha1'   },
+        { name: 'SHA-256', algo: 'SHA-256', id: 'hash-sha256' },
+        { name: 'SHA-384', algo: 'SHA-384', id: 'hash-sha384' },
+        { name: 'SHA-512', algo: 'SHA-512', id: 'hash-sha512' },
+    ];
+
+    async function computeHash(algo, s) {
+        const bytes = new TextEncoder().encode(s);
+        const buf = await crypto.subtle.digest(algo, bytes);
+        return toHex(buf);
+    }
+
+    function buildHashUI() {
+        $('hashResults').innerHTML = HASH_ALGOS.map(a => `
+            <div class="result-row">
+                <div class="result-row-header">
+                    <span class="result-algo">${a.name}</span>
+                    <button class="copy-btn" data-hash-id="${a.id}"><i class="fas fa-copy"></i> Copy</button>
+                </div>
+                <div class="result-value empty" id="${a.id}">—</div>
+            </div>
+        `).join('');
+        $('hashResults').querySelectorAll('[data-hash-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const el = $(btn.dataset.hashId);
+                if (el && !el.classList.contains('empty') && !el.classList.contains('error')) {
+                    copyText(el.textContent, btn.closest('.result-row').querySelector('.result-algo').textContent);
+                }
+            });
+        });
+    }
+
+    async function runHashes(input) {
+        if (!input) {
+            HASH_ALGOS.forEach(a => { const el = $(a.id); el.textContent = '—'; el.className = 'result-value empty'; });
+            statusMsg.textContent = 'Type or paste text to hash';
+            countMsg.textContent = '';
+            return;
+        }
+        statusMsg.textContent = 'Hashing…';
+        const len = input.length;
+        countMsg.textContent = `${len.toLocaleString()} char${len !== 1 ? 's' : ''}`;
+        await Promise.all(HASH_ALGOS.map(async a => {
+            const el = $(a.id);
+            el.textContent = 'computing…'; el.className = 'result-value empty';
+            try { el.textContent = await computeHash(a.algo, input); el.className = 'result-value'; }
+            catch { el.textContent = 'Error'; el.className = 'result-value error'; }
+        }));
+        statusMsg.textContent = 'Hashes computed';
+    }
+
+    // ============================================================
+    // HMAC
+    // ============================================================
+    async function runHmac() {
+        const secret = $('hmacSecret').value;
+        const msg = $('hmacMsgTA').value;
+        const algo = $('hmacAlgo').value;
+        const out = $('hmacOutTA');
+        if (!secret || !msg) {
+            out.value = '';
+            statusMsg.textContent = !secret ? 'Enter a secret key' : 'Enter a message';
+            return;
+        }
+        try {
+            const enc = new TextEncoder();
+            const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: algo }, false, ['sign']);
+            const sig = await crypto.subtle.sign('HMAC', key, enc.encode(msg));
+            out.value = toHex(sig);
+            statusMsg.textContent = `HMAC-${algo.replace('-', '')} signed`;
+        } catch (err) {
+            out.value = `Error: ${err.message}`;
+            statusMsg.textContent = `Failed: ${err.message}`;
+        }
+    }
+
+    // ============================================================
+    // Mode switching
+    // ============================================================
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+        $('idPane').classList.toggle('hidden', mode !== 'id');
+        $('hashMain').classList.toggle('hidden', mode !== 'hash');
+        $('hmacPane').classList.toggle('hidden', mode !== 'hmac');
+        countMsg.textContent = '';
+        if (mode === 'id') {
+            statusMsg.textContent = 'Pick formats and generate';
+            if (lastIds.length === 0) generateIds();
+        } else if (mode === 'hash') {
+            runHashes($('hashInputTA').value);
+        } else if (mode === 'hmac') {
+            runHmac();
+        }
+    }
+
+    // ============================================================
+    // Pane divider (shared helper)
+    // ============================================================
+    function initDivider(dividerId, leftPaneSel, rightPaneSel) {
+        const divider = $(dividerId);
+        if (!divider) return;
+        const container = divider.parentElement;
+        let dragging = false, startX = 0, startLeft = 0;
+        divider.addEventListener('mousedown', e => {
+            dragging = true; startX = e.clientX;
+            startLeft = container.querySelector(leftPaneSel).getBoundingClientRect().width;
+            divider.classList.add('dragging');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'col-resize';
+        });
+        document.addEventListener('mousemove', e => {
+            if (!dragging) return;
+            const containerWidth = container.getBoundingClientRect().width - divider.offsetWidth;
+            const newLeft = Math.max(120, Math.min(containerWidth - 120, startLeft + (e.clientX - startX)));
+            const leftPct = (newLeft / containerWidth) * 100;
+            container.querySelector(leftPaneSel).style.flex = `0 0 ${leftPct}%`;
+            container.querySelector(rightPaneSel).style.flex = `0 0 ${100 - leftPct}%`;
+        });
+        document.addEventListener('mouseup', () => {
+            if (!dragging) return;
+            dragging = false;
+            divider.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+        });
+    }
+
+    // ============================================================
+    // Event bindings
+    // ============================================================
+    document.querySelectorAll('.mode-btn').forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
+
+    $('idFormats').querySelectorAll('.fmt-chip').forEach(chip => {
+        chip.addEventListener('click', () => { chip.classList.toggle('active'); generateIds(); });
+    });
+    $('genBtn').addEventListener('click', generateIds);
+    $('idCount').addEventListener('change', generateIds);
+    $('nanoLen').addEventListener('change', () => { if (activeFormats().includes('nano')) generateIds(); });
+    $('copyAllBtn').addEventListener('click', () => copyText(lastIds.join('\n'), `${lastIds.length} ID${lastIds.length !== 1 ? 's' : ''}`));
+
+    let hashTimer = null;
+    $('hashInputTA').addEventListener('input', () => {
+        clearTimeout(hashTimer);
+        hashTimer = setTimeout(() => runHashes($('hashInputTA').value), 150);
+    });
+
+    let hmacTimer = null;
+    const hmacDebounced = () => { clearTimeout(hmacTimer); hmacTimer = setTimeout(runHmac, 150); };
+    $('hmacSecret').addEventListener('input', hmacDebounced);
+    $('hmacMsgTA').addEventListener('input', hmacDebounced);
+    $('hmacAlgo').addEventListener('change', runHmac);
+    $('copyHmacBtn').addEventListener('click', () => {
+        const v = $('hmacOutTA').value;
+        if (!v || v.startsWith('Error:')) { toast('Nothing to copy'); return; }
+        copyText(v, 'Signature');
+    });
+
+    $('clearBtn').addEventListener('click', () => {
+        if (currentMode === 'id') { lastIds = []; $('idResults').innerHTML = ''; statusMsg.textContent = 'Pick formats and generate'; countMsg.textContent = ''; }
+        else if (currentMode === 'hash') { $('hashInputTA').value = ''; runHashes(''); }
+        else if (currentMode === 'hmac') { $('hmacSecret').value = ''; $('hmacMsgTA').value = ''; $('hmacOutTA').value = ''; statusMsg.textContent = 'Enter a secret key'; }
+    });
+
+    $('themeToggle').addEventListener('click', () => {
+        const t = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+        localStorage.setItem('nibset-theme', t);
+    });
+
+    // ===== Init =====
+    buildHashUI();
+    initDivider('paneDivider', '#hashInputPane', '#hashResultPane');
+    initDivider('hmacDivider', '.pane', '.pane:last-child');
+    setMode('id');
+});
+</script>
+</body>
+</html>

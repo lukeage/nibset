@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Encode / Decode — NibSet</title>
     <link rel="icon" type="image/png" href="../assets/logo.png">
-    <meta name="description" content="Base64, URL encoding, hash generation, and other common text transformations in one place.">
+    <meta name="description" content="Convert text between character encodings (UTF-8, CP1252, Latin-1, Shift-JIS…), debug mojibake, and transform Base64 / URL / Hex.">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,6 +38,7 @@
             --header-border: rgba(255,255,255,0.05);
             --success: #c9f270;
             --danger: #ef4444;
+            --warn-bg: rgba(239,68,68,0.10);
             --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
             --header-height: 56px;
@@ -63,6 +64,7 @@
             --header-border: rgba(0,0,0,0.08);
             --success: #5a8a1a;
             --danger: #c0392b;
+            --warn-bg: rgba(192,57,43,0.08);
         }
 
         html, body { height: 100dvh; overflow: hidden; font-family: var(--font-ui); background: var(--bg-primary); color: var(--text-primary); }
@@ -96,7 +98,8 @@
         .toolbar-btn i { font-size: 11px; }
         .toolbar-btn.mode-btn.active { background: var(--accent); color: var(--accent-text); }
         .toolbar-btn.mode-btn.active:hover { background: var(--accent-hover); }
-.toolbar-btn.hidden { display: none; }
+        .toolbar-btn.toggle-on { color: var(--accent); }
+        .toolbar-btn.hidden { display: none; }
         .tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
         .toolbar-spacer { flex: 1; }
 
@@ -106,12 +109,14 @@
         /* ===== Panes ===== */
         .pane { display: flex; flex-direction: column; flex: 1; min-width: 0; }
         .pane-label {
-            height: 28px; padding: 0 16px;
+            min-height: 32px; padding: 4px 12px;
             background: var(--bg-secondary); border-bottom: 1px solid var(--border);
             font-size: 12px; font-weight: 600; color: var(--text-muted);
-            display: flex; align-items: center; justify-content: space-between;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
             flex-shrink: 0;
         }
+        .pane-label-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .pane-title { white-space: nowrap; }
         .pane-body { position: relative; flex: 1; overflow: hidden; background: var(--bg-primary); }
 
         .pane-ta {
@@ -126,16 +131,31 @@
         .pane-ta::placeholder { color: var(--text-muted); }
         .pane-ta::selection { background: rgba(201,242,112,0.2); }
         [data-theme="light"] .pane-ta::selection { background: rgba(90,138,26,0.15); }
-.pane-ta.error { color: var(--danger) !important; }
+        .pane-ta.error { color: var(--danger) !important; }
 
-        /* ===== Copy Button (in pane label) ===== */
+        /* ===== Encoding select + view toggle (Encodings mode) ===== */
+        .enc-select {
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--bg-tertiary); color: var(--text-primary);
+            font-family: var(--font-ui); font-size: 11px; font-weight: 600;
+            padding: 3px 6px; outline: none; max-width: 170px;
+        }
+        .enc-select:focus { border-color: var(--accent); }
+        .view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+        .vt-btn { border: none; background: var(--bg-tertiary); color: var(--text-secondary); font-family: var(--font-ui); font-size: 11px; font-weight: 600; padding: 3px 8px; cursor: pointer; transition: all 0.15s; }
+        .vt-btn:hover { color: var(--text-primary); }
+        .vt-btn.active { background: var(--accent); color: var(--accent-text); }
+        .enc-only { display: none; }
+        .mode-enc .enc-only { display: inline-flex; }
+
+        /* ===== Copy Button ===== */
         .copy-btn {
             display: inline-flex; align-items: center; gap: 4px;
             padding: 3px 8px;
             border: 1px solid var(--border); border-radius: var(--radius-sm);
             background: var(--bg-tertiary); color: var(--text-secondary);
             font-family: var(--font-ui); font-size: 11px; font-weight: 500;
-            cursor: pointer; transition: all 0.15s;
+            cursor: pointer; transition: all 0.15s; white-space: nowrap;
         }
         .copy-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: rgba(255,255,255,0.12); }
         [data-theme="light"] .copy-btn:hover { border-color: rgba(0,0,0,0.15); }
@@ -144,27 +164,22 @@
         .pane-divider { width: 6px; background: var(--bg-secondary); border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: col-resize; transition: background 0.15s; flex-shrink: 0; }
         .pane-divider:hover, .pane-divider.dragging { background: var(--accent); }
 
-        /* ===== Hash Pane ===== */
-        .hash-pane { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-        .hash-scroll { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; background: var(--bg-primary); }
-        .hash-row {
-            display: flex; flex-direction: column; gap: 6px;
-            padding: 10px 12px;
-            border: 1px solid var(--border); border-radius: var(--radius);
-            background: var(--bg-secondary);
-        }
-        .hash-row-header { display: flex; align-items: center; justify-content: space-between; }
-        .hash-algo { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
-        .hash-value {
-            font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
-            word-break: break-all; line-height: 1.6;
-        }
-        .hash-value.empty { color: var(--text-muted); font-style: italic; font-family: var(--font-ui); }
-        .hash-value.error { color: var(--danger); font-family: var(--font-ui); }
+        /* ===== Codepoint drawer (Encodings mode) ===== */
+        .cp-drawer { height: 168px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg-secondary); display: none; flex-direction: column; }
+        .mode-enc .cp-drawer.open { display: flex; }
+        .cp-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        .cp-scroll { flex: 1; overflow: auto; }
+        table.cp-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; }
+        table.cp-table th { position: sticky; top: 0; background: var(--bg-secondary); text-align: left; padding: 5px 12px; color: var(--text-muted); font-weight: 600; font-family: var(--font-ui); font-size: 11px; border-bottom: 1px solid var(--border); }
+        table.cp-table td { padding: 4px 12px; border-bottom: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+        table.cp-table td.glyph { color: var(--text-primary); font-family: var(--font-ui); }
+        table.cp-table tr.bad td { background: var(--warn-bg); }
+        table.cp-table tr.bad td.target { color: var(--danger); }
 
         /* ===== Status Bar ===== */
         .statusbar { display: flex; align-items: center; justify-content: space-between; height: var(--statusbar-height); padding: 0 16px; background: var(--bg-secondary); border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
         .statusbar-left, .statusbar-right { display: flex; align-items: center; gap: 12px; }
+        .statusbar .warn { color: var(--danger); font-weight: 600; }
 
         /* ===== Toast ===== */
         .toast-container { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; }
@@ -173,7 +188,7 @@
     </style>
 </head>
 <body>
-<div class="app">
+<div class="app mode-enc" id="app">
 
     <!-- Header -->
     <header class="header">
@@ -193,7 +208,7 @@
                 </svg>
             </a>
             <div class="header-title">
-                <i class="fa-solid fa-shuffle"></i>
+                <i class="fa-solid fa-language"></i>
                 Encode / Decode
             </div>
         </div>
@@ -207,50 +222,77 @@
 
     <!-- Toolbar -->
     <div class="toolbar">
-        <button class="toolbar-btn mode-btn active" data-mode="base64"><i class="fa-solid fa-font"></i> Base64</button>
+        <button class="toolbar-btn mode-btn active" data-mode="enc"><i class="fa-solid fa-language"></i> Encodings</button>
+        <button class="toolbar-btn mode-btn" data-mode="base64"><i class="fa-solid fa-font"></i> Base64</button>
         <button class="toolbar-btn mode-btn" data-mode="url"><i class="fa-solid fa-link"></i> URL</button>
         <button class="toolbar-btn mode-btn" data-mode="hex"><i class="fa-solid fa-hashtag"></i> Hex</button>
-        <button class="toolbar-btn mode-btn" data-mode="hash"><i class="fa-solid fa-fingerprint"></i> Hash</button>
         <div class="toolbar-spacer"></div>
+        <button class="toolbar-btn enc-only toggle-on" id="swapBtn"><i class="fa-solid fa-right-left"></i> Swap</button>
+        <button class="toolbar-btn enc-only toggle-on" id="cpToggle"><i class="fa-solid fa-table-list"></i> Codepoints</button>
         <button class="toolbar-btn" id="clearBtn"><i class="fas fa-eraser"></i> Clear</button>
     </div>
 
     <!-- Main -->
     <div class="main">
 
-        <!-- Input Pane -->
+        <!-- Left / Source Pane -->
         <div class="pane" id="inputPane">
-            <div class="pane-label">Plain</div>
+            <div class="pane-label">
+                <div class="pane-label-left">
+                    <span class="pane-title" id="leftTitle">Source</span>
+                    <select class="enc-select enc-only" id="leftEnc"></select>
+                    <span class="view-toggle enc-only" data-pane="left">
+                        <button class="vt-btn active" data-view="text">Text</button>
+                        <button class="vt-btn" data-view="hex">Hex</button>
+                    </span>
+                </div>
+                <button class="copy-btn" id="copyLeftBtn"><i class="fas fa-copy"></i> Copy</button>
+            </div>
             <div class="pane-body">
-                <textarea class="pane-ta" id="inputTA" spellcheck="false" placeholder="Type or paste text to encode…"></textarea>
+                <textarea class="pane-ta" id="inputTA" spellcheck="false" placeholder="Type or paste text…"></textarea>
             </div>
         </div>
 
         <div class="pane-divider" id="paneDivider"></div>
 
-        <!-- Output Pane (all modes except hash) -->
+        <!-- Right / Target Pane -->
         <div class="pane" id="outputPane">
             <div class="pane-label">
-                <span>Encoded</span>
-                <button class="copy-btn" id="copyOutputBtn"><i class="fas fa-copy"></i> Copy</button>
+                <div class="pane-label-left">
+                    <span class="pane-title" id="rightTitle">Target</span>
+                    <select class="enc-select enc-only" id="rightEnc"></select>
+                    <span class="view-toggle enc-only" data-pane="right">
+                        <button class="vt-btn" data-view="text">Text</button>
+                        <button class="vt-btn active" data-view="hex">Hex</button>
+                    </span>
+                </div>
+                <button class="copy-btn" id="copyRightBtn"><i class="fas fa-copy"></i> Copy</button>
             </div>
             <div class="pane-body">
-                <textarea class="pane-ta" id="outputTA" spellcheck="false" placeholder="Result will appear here…"></textarea>
+                <textarea class="pane-ta" id="outputTA" spellcheck="false" placeholder="Result…"></textarea>
             </div>
         </div>
 
-        <!-- Hash Pane (hash mode only) -->
-        <div class="hash-pane" id="hashPane" style="display:none">
-            <div class="pane-label">Hash Results</div>
-            <div class="hash-scroll" id="hashResults"></div>
-        </div>
+    </div>
 
+    <!-- Codepoint drawer -->
+    <div class="cp-drawer open" id="cpDrawer">
+        <div class="cp-drawer-head">
+            <span>Per-character breakdown</span>
+            <span id="cpSummary"></span>
+        </div>
+        <div class="cp-scroll">
+            <table class="cp-table">
+                <thead><tr><th>Char</th><th>Codepoint</th><th id="cpSrcHead">Source bytes</th><th id="cpTgtHead">Target bytes</th></tr></thead>
+                <tbody id="cpBody"></tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Status Bar -->
     <div class="statusbar">
         <div class="statusbar-left">
-            <span id="statusMsg">Select a mode and type to transform</span>
+            <span id="statusMsg">Convert text between character encodings</span>
         </div>
         <div class="statusbar-right">
             <span id="charCountMsg"></span>
@@ -266,20 +308,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
 
     // ===== DOM refs =====
+    const app            = $('app');
     const inputTA        = $('inputTA');
     const outputTA       = $('outputTA');
-    const outputPane     = $('outputPane');
-    const hashPane       = $('hashPane');
-    const hashResults    = $('hashResults');
+    const leftEncSel     = $('leftEnc');
+    const rightEncSel    = $('rightEnc');
     const statusMsg      = $('statusMsg');
     const charCountMsg   = $('charCountMsg');
     const toastContainer = $('toastContainer');
+    const cpDrawer       = $('cpDrawer');
+    const cpBody         = $('cpBody');
 
     // ===== State =====
-    let currentMode = 'base64';
+    let currentMode = 'enc';
     let syncing     = false;
     let leftTimer   = null;
     let rightTimer  = null;
+    let S = '';                 // canonical Unicode text (Encodings mode)
+    let leftView  = 'text';
+    let rightView = 'hex';
 
     // ===== Toast =====
     function toast(msg) {
@@ -288,10 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
         el.textContent = msg;
         toastContainer.appendChild(el);
         requestAnimationFrame(() => el.classList.add('show'));
-        setTimeout(() => {
-            el.classList.remove('show');
-            setTimeout(() => el.remove(), 300);
-        }, 2000);
+        setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, 2000);
     }
 
     // ===== Clipboard =====
@@ -302,15 +346,230 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => toast('Copy failed'));
     }
 
-    // ===== Transformations =====
-
-    function base64Encode(s) {
-        const bytes = new TextEncoder().encode(s);
-        let bin = '';
-        bytes.forEach(b => bin += String.fromCharCode(b));
-        return btoa(bin);
+    // ===== Hex helpers (shared) =====
+    function bytesToHex(arr) {
+        return Array.from(arr).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+    }
+    function parseHex(s) {
+        const clean = s.replace(/0x/gi, '').replace(/[^0-9a-fA-F]/g, '');
+        const out = [];
+        for (let i = 0; i + 2 <= clean.length; i += 2) out.push(parseInt(clean.substr(i, 2), 16));
+        return out;
     }
 
+    // ============================================================
+    // Character-encoding engine
+    // ============================================================
+    const ENCODINGS = [
+        { label: 'UTF-8',               group: 'Unicode',  kind: 'utf8'    },
+        { label: 'UTF-16 LE',           group: 'Unicode',  kind: 'utf16le' },
+        { label: 'UTF-16 BE',           group: 'Unicode',  kind: 'utf16be' },
+        { label: 'ASCII (7-bit)',       group: 'Basic',    kind: 'ascii'   },
+        { label: 'ISO-8859-1 (Latin-1)',group: 'Basic',    kind: 'latin1'  },
+        { label: 'ISO-8859-2',          group: 'European', kind: 'sbcs', td: 'iso-8859-2'   },
+        { label: 'ISO-8859-15',         group: 'European', kind: 'sbcs', td: 'iso-8859-15'  },
+        { label: 'Windows-1250',        group: 'European', kind: 'sbcs', td: 'windows-1250' },
+        { label: 'Windows-1252',        group: 'European', kind: 'sbcs', td: 'windows-1252' },
+        { label: 'Windows-1254 (Turk.)',group: 'European', kind: 'sbcs', td: 'windows-1254' },
+        { label: 'Windows-1251 (Cyr.)', group: 'Cyrillic', kind: 'sbcs', td: 'windows-1251' },
+        { label: 'KOI8-R',              group: 'Cyrillic', kind: 'sbcs', td: 'koi8-r'       },
+        { label: 'Shift_JIS',           group: 'CJK',      kind: 'dbcs', td: 'shift_jis'    },
+        { label: 'EUC-JP',              group: 'CJK',      kind: 'dbcs', td: 'euc-jp'       },
+        { label: 'GBK',                 group: 'CJK',      kind: 'dbcs', td: 'gbk'          },
+        { label: 'Big5',                group: 'CJK',      kind: 'dbcs', td: 'big5'         },
+        { label: 'EUC-KR',              group: 'CJK',      kind: 'dbcs', td: 'euc-kr'       },
+    ];
+    const encByLabel = Object.fromEntries(ENCODINGS.map(e => [e.label, e]));
+
+    function getDecoder(td) {
+        if (!getDecoder._c) getDecoder._c = {};
+        return getDecoder._c[td] || (getDecoder._c[td] = new TextDecoder(td, { fatal: false }));
+    }
+
+    // Lazily build reverse codepoint -> byte(s) maps from TextDecoder.
+    function buildSbcsMap(enc) {
+        if (enc._map) return enc._map;
+        const dec = getDecoder(enc.td);
+        const m = new Map();
+        for (let b = 0; b < 256; b++) {
+            const ch = dec.decode(new Uint8Array([b]));
+            if (ch.length !== 1) continue;
+            const cp = ch.codePointAt(0);
+            if (cp === 0xFFFD) continue;
+            if (!m.has(cp)) m.set(cp, [b]);
+        }
+        return (enc._map = m);
+    }
+    function buildDbcsMap(enc) {
+        if (enc._map) return enc._map;
+        const dec = getDecoder(enc.td);
+        const m = new Map();
+        for (let b = 0; b < 256; b++) {
+            const ch = dec.decode(new Uint8Array([b]));
+            if (ch.length !== 1) continue;
+            const cp = ch.codePointAt(0);
+            if (cp === 0xFFFD) continue;
+            if (!m.has(cp)) m.set(cp, [b]);
+        }
+        for (let b1 = 0x81; b1 < 256; b1++) {
+            for (let b2 = 0x21; b2 < 256; b2++) {
+                const ch = dec.decode(new Uint8Array([b1, b2]));
+                if (ch.length !== 1) continue;
+                const cp = ch.codePointAt(0);
+                if (cp === 0xFFFD) continue;
+                if (!m.has(cp)) m.set(cp, [b1, b2]);
+            }
+        }
+        return (enc._map = m);
+    }
+
+    // Decode bytes -> string
+    function decodeBytes(bytes, enc) {
+        const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        switch (enc.kind) {
+            case 'utf8':    return getDecoder('utf-8').decode(u8);
+            case 'utf16le': return getDecoder('utf-16le').decode(u8);
+            case 'utf16be': return getDecoder('utf-16be').decode(u8);
+            case 'ascii':   return Array.from(u8).map(b => b <= 0x7f ? String.fromCharCode(b) : '�').join('');
+            case 'latin1':  return Array.from(u8).map(b => String.fromCharCode(b)).join('');
+            default:        return getDecoder(enc.td).decode(u8); // sbcs / dbcs
+        }
+    }
+
+    // Encode a single codepoint -> array of bytes, or null if unrepresentable
+    function encodeCodepoint(cp, enc) {
+        switch (enc.kind) {
+            case 'utf8':    return Array.from(new TextEncoder().encode(String.fromCodePoint(cp)));
+            case 'utf16le': {
+                const s = String.fromCodePoint(cp); const out = [];
+                for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); out.push(c & 0xff, c >> 8); }
+                return out;
+            }
+            case 'utf16be': {
+                const s = String.fromCodePoint(cp); const out = [];
+                for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); out.push(c >> 8, c & 0xff); }
+                return out;
+            }
+            case 'ascii':   return cp <= 0x7f ? [cp] : null;
+            case 'latin1':  return cp <= 0xff ? [cp] : null;
+            case 'sbcs':    { const m = buildSbcsMap(enc); return m.get(cp) || null; }
+            case 'dbcs':    { const m = buildDbcsMap(enc); return m.get(cp) || null; }
+        }
+        return null;
+    }
+
+    // Encode whole string -> { bytes:[], bad:[{i,cp}] }
+    function encodeText(str, enc) {
+        const bytes = [];
+        const bad = [];
+        let i = 0;
+        for (const ch of str) {
+            const cp = ch.codePointAt(0);
+            const b = encodeCodepoint(cp, enc);
+            if (b === null) bad.push({ i, cp });
+            else for (const x of b) bytes.push(x);
+            i++;
+        }
+        return { bytes, bad };
+    }
+
+    // ============================================================
+    // Encodings mode rendering
+    // ============================================================
+    function paneRefs(which) {
+        return which === 'left'
+            ? { ta: inputTA,  enc: encByLabel[leftEncSel.value],  view: leftView  }
+            : { ta: outputTA, enc: encByLabel[rightEncSel.value], view: rightView };
+    }
+
+    // Make a pane the source of truth -> recompute S
+    function setSFromPane(which) {
+        const { ta, enc, view } = paneRefs(which);
+        if (view === 'text') S = ta.value;
+        else S = decodeBytes(parseHex(ta.value), enc);
+    }
+
+    // Render one pane's textarea from canonical S
+    function renderPane(which) {
+        const { ta, enc, view } = paneRefs(which);
+        ta.classList.remove('error');
+        if (view === 'text') { ta.value = S; return; }
+        const { bytes, bad } = encodeText(S, enc);
+        ta.value = bytesToHex(bytes);
+        if (bad.length) ta.classList.add('error');
+    }
+
+    const CP_LIMIT = 600;
+    function cpName(cp, ch) {
+        if (cp === 0x20) return '␠';
+        if (cp === 0x09) return '⇥';
+        if (cp === 0x0a) return '␊';
+        if (cp === 0x0d) return '␍';
+        if (cp < 0x20 || cp === 0x7f) return '·';
+        return ch;
+    }
+    function renderTable() {
+        if (!cpDrawer.classList.contains('open')) return;
+        const lEnc = encByLabel[leftEncSel.value];
+        const rEnc = encByLabel[rightEncSel.value];
+        $('cpSrcHead').textContent = lEnc.label + ' bytes';
+        $('cpTgtHead').textContent = rEnc.label + ' bytes';
+        const chars = Array.from(S);
+        let rows = '';
+        let badCount = 0;
+        const shown = Math.min(chars.length, CP_LIMIT);
+        for (let i = 0; i < shown; i++) {
+            const ch = chars[i];
+            const cp = ch.codePointAt(0);
+            const sb = encodeCodepoint(cp, lEnc);
+            const tb = encodeCodepoint(cp, rEnc);
+            const bad = tb === null;
+            if (bad) badCount++;
+            rows += `<tr class="${bad ? 'bad' : ''}">`
+                + `<td class="glyph">${escapeHtml(cpName(cp, ch))}</td>`
+                + `<td>U+${cp.toString(16).toUpperCase().padStart(4, '0')}</td>`
+                + `<td>${sb ? bytesToHex(sb) : '—'}</td>`
+                + `<td class="target">${tb ? bytesToHex(tb) : '✕ unrepresentable'}</td>`
+                + `</tr>`;
+        }
+        cpBody.innerHTML = rows;
+        const more = chars.length > shown ? ` (showing first ${shown})` : '';
+        $('cpSummary').textContent = `${chars.length} char${chars.length !== 1 ? 's' : ''}${badCount ? ` · ${badCount} unrepresentable` : ''}${more}`;
+    }
+    function escapeHtml(s) {
+        return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    }
+
+    function updateEncStatus() {
+        const lEnc = encByLabel[leftEncSel.value];
+        const rEnc = encByLabel[rightEncSel.value];
+        const { bad } = encodeText(S, rEnc);
+        const chars = Array.from(S).length;
+        charCountMsg.textContent = chars ? `${chars.toLocaleString()} char${chars !== 1 ? 's' : ''}` : '';
+        if (!S) { statusMsg.textContent = 'Convert text between character encodings'; return; }
+        if (bad.length) {
+            statusMsg.innerHTML = `${lEnc.label} → ${rEnc.label} · <span class="warn">${bad.length} char${bad.length !== 1 ? 's' : ''} not representable in ${rEnc.label}</span>`;
+        } else {
+            statusMsg.textContent = `${lEnc.label} → ${rEnc.label} · all characters representable`;
+        }
+    }
+
+    // Full refresh of the non-authoritative side + table + status
+    function refreshEnc(authoritative) {
+        const other = authoritative === 'left' ? 'right' : 'left';
+        renderPane(other);
+        renderTable();
+        updateEncStatus();
+    }
+
+    // ============================================================
+    // Base64 / URL / Hex transforms (legacy modes)
+    // ============================================================
+    function base64Encode(s) {
+        const bytes = new TextEncoder().encode(s);
+        let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+        return btoa(bin);
+    }
     function base64Decode(s) {
         const clean = s.trim().replace(/\s/g, '');
         const bin = atob(clean);
@@ -318,14 +577,10 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         return new TextDecoder().decode(bytes);
     }
-
     function urlEncode(s) { return encodeURIComponent(s); }
     function urlDecode(s) { return decodeURIComponent(s); }
-
     function hexEncode(s) {
-        return Array.from(new TextEncoder().encode(s))
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join(' ');
+        return Array.from(new TextEncoder().encode(s)).map(b => b.toString(16).padStart(2, '0')).join(' ');
     }
     function hexDecode(s) {
         const hex = s.trim().replace(/\s+/g, '');
@@ -337,172 +592,94 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         return new TextDecoder().decode(new Uint8Array(bytes));
     }
-
-    async function computeHash(algo, s) {
-        const bytes = new TextEncoder().encode(s);
-        const buf = await crypto.subtle.digest(algo, bytes);
-        return Array.from(new Uint8Array(buf))
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
-    }
-
-    // ===== Hash UI =====
-    const HASH_ALGOS = [
-        { name: 'SHA-1',   algo: 'SHA-1',   id: 'hash-sha1'   },
-        { name: 'SHA-256', algo: 'SHA-256', id: 'hash-sha256' },
-        { name: 'SHA-384', algo: 'SHA-384', id: 'hash-sha384' },
-        { name: 'SHA-512', algo: 'SHA-512', id: 'hash-sha512' },
-    ];
-
-    function buildHashUI() {
-        hashResults.innerHTML = HASH_ALGOS.map(a => `
-            <div class="hash-row">
-                <div class="hash-row-header">
-                    <span class="hash-algo">${a.name}</span>
-                    <button class="copy-btn" data-hash-id="${a.id}"><i class="fas fa-copy"></i> Copy</button>
-                </div>
-                <div class="hash-value empty" id="${a.id}">—</div>
-            </div>
-        `).join('');
-        hashResults.querySelectorAll('[data-hash-id]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const el = $(btn.dataset.hashId);
-                if (el && !el.classList.contains('empty') && !el.classList.contains('error')) {
-                    copyText(el.textContent, btn.closest('.hash-row').querySelector('.hash-algo').textContent);
-                }
-            });
-        });
-    }
-
-    async function runHashes(input) {
-        if (!input) {
-            HASH_ALGOS.forEach(a => {
-                const el = $(a.id);
-                el.textContent = '—';
-                el.className = 'hash-value empty';
-            });
-            statusMsg.textContent = 'Type or paste text to hash';
-            return;
-        }
-        statusMsg.textContent = 'Hashing…';
-        await Promise.all(HASH_ALGOS.map(async a => {
-            const el = $(a.id);
-            el.textContent = 'computing…';
-            el.className = 'hash-value empty';
-            try {
-                el.textContent = await computeHash(a.algo, input);
-                el.className = 'hash-value';
-            } catch {
-                el.textContent = 'Error';
-                el.className = 'hash-value error';
-            }
-        }));
-        statusMsg.textContent = 'Hash · Computed';
-    }
-
-    // ===== Encode / Decode helpers =====
-    function encodeValue(s) {
+    const LEGACY_LABEL = { base64: 'Base64', url: 'URL', hex: 'Hex' };
+    function legacyEncode(s) {
         if (currentMode === 'base64') return base64Encode(s);
         if (currentMode === 'url')    return urlEncode(s);
         if (currentMode === 'hex')    return hexEncode(s);
     }
-    function decodeValue(s) {
+    function legacyDecode(s) {
         if (currentMode === 'base64') return base64Decode(s);
         if (currentMode === 'url')    return urlDecode(s);
         if (currentMode === 'hex')    return hexDecode(s);
     }
-
-    // ===== Bidirectional sync =====
     function syncLeftToRight() {
         const input = inputTA.value;
         const len = input.length;
         charCountMsg.textContent = len > 0 ? `${len.toLocaleString()} char${len !== 1 ? 's' : ''}` : '';
-        if (!input) {
-            outputTA.value = '';
-            outputTA.classList.remove('error');
-            statusMsg.textContent = 'Type or paste plain text…';
-            return;
-        }
+        if (!input) { outputTA.value = ''; outputTA.classList.remove('error'); statusMsg.textContent = 'Type or paste plain text…'; return; }
         try {
-            outputTA.value = encodeValue(input);
+            outputTA.value = legacyEncode(input);
             outputTA.classList.remove('error');
-            statusMsg.textContent = `${{ base64: 'Base64', url: 'URL', hex: 'Hex' }[currentMode]} · Encoded`;
+            statusMsg.textContent = `${LEGACY_LABEL[currentMode]} · Encoded`;
         } catch (err) {
             outputTA.value = `Error: ${err.message}`;
             outputTA.classList.add('error');
             statusMsg.textContent = `Failed: ${err.message}`;
         }
     }
-
     function syncRightToLeft() {
         const input = outputTA.value;
-        if (!input) {
-            inputTA.value = '';
-            outputTA.classList.remove('error');
-            charCountMsg.textContent = '';
-            statusMsg.textContent = 'Type or paste encoded text…';
-            return;
-        }
+        if (!input) { inputTA.value = ''; outputTA.classList.remove('error'); charCountMsg.textContent = ''; statusMsg.textContent = 'Type or paste encoded text…'; return; }
         try {
-            const decoded = decodeValue(input);
+            const decoded = legacyDecode(input);
             inputTA.value = decoded;
             outputTA.classList.remove('error');
             const len = decoded.length;
             charCountMsg.textContent = len > 0 ? `${len.toLocaleString()} char${len !== 1 ? 's' : ''}` : '';
-            statusMsg.textContent = `${{ base64: 'Base64', url: 'URL', hex: 'Hex' }[currentMode]} · Decoded`;
+            statusMsg.textContent = `${LEGACY_LABEL[currentMode]} · Decoded`;
         } catch (err) {
             outputTA.classList.add('error');
             statusMsg.textContent = `Failed: ${err.message}`;
         }
     }
 
-    // ===== Mode switching =====
+    // ============================================================
+    // Mode switching
+    // ============================================================
     function setMode(mode) {
         currentMode = mode;
-        document.querySelectorAll('.mode-btn').forEach(b =>
-            b.classList.toggle('active', b.dataset.mode === mode)
-        );
-        const isHash = mode === 'hash';
-        outputPane.style.display = isHash ? 'none' : '';
-        hashPane.style.display   = isHash ? ''     : 'none';
-        inputTA.placeholder  = isHash ? 'Type or paste text to hash…'    : 'Type or paste plain text…';
-        outputTA.placeholder = isHash ? '' : 'Encoded result will appear here…';
-        if (isHash) {
-            runHashes(inputTA.value);
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+        app.classList.toggle('mode-enc', mode === 'enc');
+        if (mode === 'enc') {
+            $('leftTitle').textContent = 'Source';
+            $('rightTitle').textContent = 'Target';
+            outputTA.readOnly = false;
+            outputTA.placeholder = 'Edit either side — text or hex…';
+            setSFromPane('left');
+            renderPane('left'); renderPane('right');
+            renderTable(); updateEncStatus();
         } else {
+            $('leftTitle').textContent = 'Plain';
+            $('rightTitle').textContent = 'Encoded';
+            outputTA.placeholder = 'Encoded result will appear here…';
+            outputTA.classList.remove('error');
             syncLeftToRight();
         }
     }
 
-    // ===== Pane Divider =====
+    // ============================================================
+    // Pane divider
+    // ============================================================
     function initDivider() {
         const divider = $('paneDivider');
         const container = divider.parentElement;
-        let dragging = false;
-        let startX = 0;
-        let startLeftFlex = 0;
-
+        let dragging = false, startX = 0, startLeft = 0;
         divider.addEventListener('mousedown', e => {
-            dragging = true;
-            startX = e.clientX;
-            const leftPane = $('inputPane');
-            startLeftFlex = leftPane.getBoundingClientRect().width;
+            dragging = true; startX = e.clientX;
+            startLeft = $('inputPane').getBoundingClientRect().width;
             divider.classList.add('dragging');
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'col-resize';
         });
-
         document.addEventListener('mousemove', e => {
             if (!dragging) return;
             const containerWidth = container.getBoundingClientRect().width - divider.offsetWidth;
-            const delta = e.clientX - startX;
-            const newLeft = Math.max(120, Math.min(containerWidth - 120, startLeftFlex + delta));
+            const newLeft = Math.max(120, Math.min(containerWidth - 120, startLeft + (e.clientX - startX)));
             const leftPct = (newLeft / containerWidth) * 100;
             $('inputPane').style.flex = `0 0 ${leftPct}%`;
-            const rightPane = currentMode === 'hash' ? $('hashPane') : $('outputPane');
-            rightPane.style.flex = `0 0 ${100 - leftPct}%`;
+            $('outputPane').style.flex = `0 0 ${100 - leftPct}%`;
         });
-
         document.addEventListener('mouseup', () => {
             if (!dragging) return;
             dragging = false;
@@ -512,47 +689,104 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ===== Event bindings =====
+    // ============================================================
+    // Build encoding selects
+    // ============================================================
+    function buildEncSelects() {
+        const groups = {};
+        ENCODINGS.forEach(e => { (groups[e.group] = groups[e.group] || []).push(e); });
+        const html = Object.entries(groups).map(([g, list]) =>
+            `<optgroup label="${g}">` + list.map(e => `<option value="${e.label}">${e.label}</option>`).join('') + `</optgroup>`
+        ).join('');
+        leftEncSel.innerHTML = html;
+        rightEncSel.innerHTML = html;
+        leftEncSel.value = 'UTF-8';
+        rightEncSel.value = 'Windows-1252';
+    }
+
+    // ============================================================
+    // Event bindings
+    // ============================================================
     inputTA.addEventListener('input', () => {
         if (syncing) return;
         clearTimeout(leftTimer);
         leftTimer = setTimeout(() => {
             syncing = true;
-            if (currentMode === 'hash') runHashes(inputTA.value);
+            if (currentMode === 'enc') { setSFromPane('left'); refreshEnc('left'); }
             else syncLeftToRight();
             syncing = false;
         }, 150);
     });
-
     outputTA.addEventListener('input', () => {
         if (syncing) return;
         clearTimeout(rightTimer);
         rightTimer = setTimeout(() => {
             syncing = true;
-            syncRightToLeft();
+            if (currentMode === 'enc') { setSFromPane('right'); refreshEnc('right'); }
+            else syncRightToLeft();
             syncing = false;
         }, 150);
     });
 
-    document.querySelectorAll('.mode-btn').forEach(btn =>
-        btn.addEventListener('click', () => setMode(btn.dataset.mode))
-    );
-
-    $('clearBtn').addEventListener('click', () => {
-        inputTA.value = '';
-        outputTA.value = '';
-        outputTA.classList.remove('error');
-        HASH_ALGOS.forEach(a => {
-            const el = $(a.id);
-            if (el) { el.textContent = '—'; el.className = 'hash-value empty'; }
+    // View toggles
+    document.querySelectorAll('.view-toggle').forEach(vt => {
+        const which = vt.dataset.pane;
+        vt.querySelectorAll('.vt-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                vt.querySelectorAll('.vt-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (which === 'left') leftView = btn.dataset.view; else rightView = btn.dataset.view;
+                renderPane(which);          // show current S in the new view
+            });
         });
-        charCountMsg.textContent = '';
-        statusMsg.textContent = 'Type or paste text to transform';
     });
 
-    $('copyOutputBtn').addEventListener('click', () => {
-        if (outputTA.classList.contains('error')) { toast('Nothing to copy'); return; }
-        copyText(outputTA.value, 'Output');
+    // Encoding dropdowns
+    leftEncSel.addEventListener('change', () => {
+        // In hex view the bytes are authoritative -> reinterpret them (mojibake debugging)
+        if (leftView === 'hex') { setSFromPane('left'); refreshEnc('left'); }
+        else { renderTable(); updateEncStatus(); }
+    });
+    rightEncSel.addEventListener('change', () => {
+        if (rightView === 'hex') { setSFromPane('right'); refreshEnc('right'); }
+        else { renderTable(); updateEncStatus(); }
+    });
+
+    // Swap source/target encodings
+    $('swapBtn').addEventListener('click', () => {
+        const l = leftEncSel.value, r = rightEncSel.value;
+        leftEncSel.value = r; rightEncSel.value = l;
+        const lv = leftView; leftView = rightView; rightView = lv;
+        document.querySelectorAll('.view-toggle').forEach(vt => {
+            const v = vt.dataset.pane === 'left' ? leftView : rightView;
+            vt.querySelectorAll('.vt-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+        });
+        renderPane('left'); renderPane('right'); renderTable(); updateEncStatus();
+    });
+
+    // Codepoint drawer toggle
+    $('cpToggle').addEventListener('click', () => {
+        const open = cpDrawer.classList.toggle('open');
+        $('cpToggle').classList.toggle('toggle-on', open);
+        if (open) renderTable();
+    });
+
+    // Mode buttons
+    document.querySelectorAll('.mode-btn').forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
+
+    // Copy buttons
+    $('copyLeftBtn').addEventListener('click', () => copyText(inputTA.value, currentMode === 'enc' ? 'Source' : 'Input'));
+    $('copyRightBtn').addEventListener('click', () => {
+        if (currentMode !== 'enc' && outputTA.classList.contains('error')) { toast('Nothing to copy'); return; }
+        copyText(outputTA.value, currentMode === 'enc' ? 'Target' : 'Output');
+    });
+
+    $('clearBtn').addEventListener('click', () => {
+        inputTA.value = ''; outputTA.value = '';
+        inputTA.classList.remove('error'); outputTA.classList.remove('error');
+        charCountMsg.textContent = '';
+        if (currentMode === 'enc') { S = ''; renderTable(); statusMsg.textContent = 'Convert text between character encodings'; }
+        else statusMsg.textContent = 'Type or paste text to transform';
     });
 
     $('themeToggle').addEventListener('click', () => {
@@ -562,9 +796,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ===== Init =====
-    buildHashUI();
-    setMode('base64');
+    buildEncSelects();
     initDivider();
+    inputTA.value = 'Héllo, café — €5';
+    setMode('enc');
 });
 </script>
 </body>

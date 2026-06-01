@@ -876,7 +876,7 @@
         </div>
       </div>
 
-      <div class="tool-card available" data-tags="developer,encoding,text" data-name="Encode / Decode" onclick="window.location.href='encode/index.html'">
+      <div class="tool-card available" data-tags="developer,encoding,charset,unicode,utf-8,cp1252,latin-1,mojibake,base64,url,hex,text" data-name="Encode / Decode" onclick="window.location.href='encode/index.html'">
         <div class="tool-card-top">
           <div class="tool-icon-wrap">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/><polyline points="17 7 21 7 21 3"/></svg>
@@ -884,10 +884,28 @@
           <span class="tool-status ready">Live</span>
         </div>
         <h3>Encode / Decode</h3>
-        <p>Base64, URL encoding, hash generation, and other common text transformations in one place.</p>
+        <p>Convert text between character encodings (UTF-8, CP1252, Latin-1, Shift-JIS…), debug mojibake byte-by-byte, plus Base64, URL, and Hex.</p>
         <div class="tool-card-footer">
           <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
           <a class="tool-dl" href="encode/index.html" download="encode.html" onclick="event.stopPropagation()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            .html
+          </a>
+        </div>
+      </div>
+
+      <div class="tool-card available" data-tags="developer,uuid,ulid,nanoid,guid,id,hash,sha,sha256,hmac,checksum" data-name="UUID / Hashes" onclick="window.location.href='uuid/index.html'">
+        <div class="tool-card-top">
+          <div class="tool-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+          </div>
+          <span class="tool-status ready">Live</span>
+        </div>
+        <h3>UUID / Hashes</h3>
+        <p>Generate UUID v4/v7, ULID, and NanoID in bulk, compute SHA digests, and sign HMACs &mdash; all client-side.</p>
+        <div class="tool-card-footer">
+          <span class="tool-open">Open tool <span class="tool-arrow">&rarr;</span></span>
+          <a class="tool-dl" href="uuid/index.html" download="uuid.html" onclick="event.stopPropagation()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             .html
           </a>

@@ -91,7 +91,10 @@
     }
   }
 
-  #shareBtn { padding: 0 8px; font-size: 12px; font-weight: 600; }
+  #shareBtn { padding: 0 10px; font-size: 12px; font-weight: 600; background: var(--accent-bg); color: var(--accent); border-color: var(--accent-ring); }
+  #shareBtn:hover { background: var(--accent-ring); color: var(--accent); }
+  #shareBtn svg { width: 16px; height: 16px; }
+  .net-count:empty { display: none; }
   .net-dot { width: 8px; height: 8px; border-radius: 50%; display: none; }
   .net-dot.ok { display: block; background: #22c55e; }
   .net-dot.wait { display: block; background: #f59e0b; }
@@ -1576,8 +1579,8 @@
     undoBtn = iconBtn(toolbar, 'tool-btn', 'Undo — Ctrl+Z', svg('<path d="M4 8l4-4M4 8l4 4M5 8h8a4 4 0 010 8H9"/>'), undo);
     redoBtn = iconBtn(toolbar, 'tool-btn', 'Redo — Ctrl+Shift+Z', svg('<path d="M16 8l-4-4M16 8l-4 4M15 8H7a4 4 0 000 8h4"/>'), redo);
     sep();
-    shareBtn = iconBtn(toolbar, 'tool-btn', 'Share', svg('<path d="M8 12l4-4M6.5 10.5l-1 1a2.83 2.83 0 004 4l1-1M13.5 9.5l1-1a2.83 2.83 0 00-4-4l-1 1"/>') +
-      '<span class="net-dot"></span><span class="net-count"></span>', onShare);
+    shareBtn = iconBtn(toolbar, 'tool-btn', 'Invite', svg('<path d="M8 12l4-4M6.5 10.5l-1 1a2.83 2.83 0 004 4l1-1M13.5 9.5l1-1a2.83 2.83 0 00-4-4l-1 1"/>') +
+      '<span>Invite</span><span class="net-dot"></span><span class="net-count"></span>', onShare);
     shareBtn.id = 'shareBtn';
     shareDot = shareBtn.querySelector('.net-dot'); shareCount = shareBtn.querySelector('.net-count');
     moreBtn = iconBtn(toolbar, 'tool-btn', 'Menu', svg('<circle cx="4.5" cy="10" r="1.2"/><circle cx="10" cy="10" r="1.2"/><circle cx="15.5" cy="10" r="1.2"/>', 'style="fill:currentColor"'), () => togglePop(menu, moreBtn));
@@ -1679,7 +1682,7 @@
     const state = { off: '', starting: 'wait pulse', hosting: conns.length ? 'ok' : 'wait', connecting: 'wait pulse', connected: 'ok', reconnecting: 'wait pulse', error: 'bad' }[net];
     shareDot.className = 'net-dot ' + state;
     shareCount.textContent = state === 'ok' ? n : '';
-    const label = { off: 'Share', starting: 'Starting…', hosting: conns.length ? n + ' people connected' : 'Waiting for guests', connecting: 'Connecting…', connected: 'Connected · ' + n, reconnecting: 'Reconnecting…', error: 'Not connected' }[net];
+    const label = { off: 'Draw together — copy an invite link', starting: 'Starting…', hosting: conns.length ? n + ' people connected' : 'Waiting for guests', connecting: 'Connecting…', connected: 'Connected · ' + n, reconnecting: 'Reconnecting…', error: 'Not connected' }[net];
     shareBtn.dataset.tip = label;
     $('shareStatus').textContent = net === 'error' ? (isGuest ? 'Not connected.' : 'Could not start sharing. Check your connection and try again.')
       : net === 'off' || net === 'starting' ? 'Creating link…'

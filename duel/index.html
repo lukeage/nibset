@@ -79,6 +79,9 @@
   input[type=text]:focus { border-color: var(--accent-ring); }
   .row { display: flex; gap: 8px; } .row > * { flex: 1; min-width: 0; }
   #invite .row button { flex: 0 0 auto; }
+  .opt { display: flex; align-items: flex-start; gap: 9px; text-align: left; font-size: 12.5px; color: var(--muted); cursor: pointer; padding: 2px 2px; }
+  .opt b { color: var(--text); font-weight: 600; }
+  .opt input { width: 16px; height: 16px; margin-top: 1px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
   .status { font-size: 13px; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 20px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); animation: pulse 1.2s ease-in-out infinite; flex-shrink: 0; }
   .dot.ok { background: #22c55e; animation: none; } .dot.bad { background: var(--danger); animation: none; }
@@ -161,6 +164,10 @@
   .result-box .note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
   .result-box .btn-row { margin-top: 14px; }
 
+  .hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 6px 12px; border-radius: 999px; white-space: nowrap;
+    background: var(--panel); border: 1px solid var(--border-light); font-size: 12px; color: var(--muted); transition: opacity 0.12s; }
+  .hint kbd { font: inherit; font-weight: 700; color: var(--text); padding: 1px 7px; border-radius: 6px; border: 1px solid var(--border-light); background: var(--border); margin-right: 3px; }
+  .hint.cd { opacity: 0.35; }
   #banner { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 9px 16px; background: rgba(239,68,68,0.94); color: #fff;
     border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 40; display: none; max-width: calc(100vw - 24px); text-align: center; }
   #banner.visible { display: block; }
@@ -219,6 +226,7 @@
     <p class="tagline">Draw a weapon. Watch it fight. Regret your art skills.</p>
     <div class="lobby-box">
       <input type="text" id="nameInput" maxlength="14" placeholder="Your name (optional)" autocomplete="off">
+      <label class="opt" id="bounceRow"><input type="checkbox" id="bounceOpt" checked><span><b>Bounce button</b> — players can press Space (or tap) to make their fighter jump</span></label>
       <div class="row" id="lobbyBtns">
         <button class="primary big" id="createBtn">Create duel</button>
         <button class="big" id="botBtn">Practice vs Bot</button>
@@ -270,6 +278,7 @@
     <div class="hud-mid"><div id="fightTimer">30</div><div class="pips" id="fightPips"></div><div id="fightMod"></div></div>
     <div class="hp-side right"><div class="hp-name"><b id="n1"></b><span id="w1"></span></div><div class="hp-bar" id="hpb1"><i id="hp1"></i><em id="hpn1">100</em></div></div>
   </div>
+  <div class="hint hidden" id="bounceHint"><kbd>Space</kbd> or tap to bounce</div>
   <div class="overlay hidden" id="reveal"><div class="card" id="card0"></div><div class="vs">VS</div><div class="card" id="card1"></div></div>
   <div class="overlay hidden" id="result">
     <div class="result-box">
@@ -298,7 +307,7 @@
   const SCALE = 0.8, CORE_R = 22, PEN_R = 4.2, SPACING = 8, MAX_PTS = 110;
   const CORE_M = 3, INK_M = 0.05, M_REF = 5;
   const DT = 1 / 180, FRAME_EVERY = 6, FPS = 30, MAX_T = 30, SUDDEN_T = 20, HP_MAX = 100;
-  const K_DMG = 0.019, EDGE_MAX = 3.5, J_MIN = 70, GUARD_R = CORE_R * 2.6, CHIP = 0.7, SWING_MIN = 0.6, SWING_A = 0.85, REST = 0.4, SPIN_W = 5.5, T_MAX = 200000;
+  const K_DMG = 0.019, BOUNCE_CD = 0.8, EDGE_MAX = 3.5, J_MIN = 70, GUARD_R = CORE_R * 2.6, CHIP = 0.7, SWING_MIN = 0.6, SWING_A = 0.85, REST = 0.4, SPIN_W = 5.5, T_MAX = 200000;
 
   const MODS = {
     classic: { name: 'Classic', desc: 'No funny business.' },
@@ -463,7 +472,8 @@
   }
   function windAt(t, seed) { const ph = (seed % 628) / 100; return Math.sin(t * 1.1 + ph) * Math.sin(t * 0.37 + ph * 2); }
 
-  function simulate(drawA, drawB, seed, modId) {
+  // A fight that can be stepped in real time. hop(i) asks fighter i for a manual bounce (cooldown-limited).
+  function createSim(drawA, drawB, seed, modId) {
     const mod = MODS[modId] || MODS.classic, rnd = mulberry32(seed);
     const g = 1500 * (mod.g || 1), floorE = mod.floorE || 0.22, mu = mod.mu == null ? 0.75 : mod.mu;
     const w0 = wallsAt(0, mod), events = [], frames = [];
@@ -474,7 +484,7 @@
       const X = i ? w0[1] - (w0[1] - w0[0]) * 0.24 : w0[0] + (w0[1] - w0[0]) * 0.24;
       return {
         b, i, x: X - b.cs[0].x, y: 320 - b.cs[0].y, a: 0, vx: 0, vy: 0, w: 0, hp: HP_MAX, inv: 0, ground: 0, air: 0,
-        hopT: 0.45 + rnd() * 0.3, sw: rnd() * 6.28, swF: 5.5 + rnd() * 2.5, spinT: 0, thud: -999,
+        hopT: 0.45 + rnd() * 0.3, sw: rnd() * 6.28, swF: 5.5 + rnd() * 2.5, spinT: 0, thud: -999, cool: 0, want: false,
         wx: new Float64Array(b.cs.length), wy: new Float64Array(b.cs.length)
       };
     });
@@ -601,7 +611,7 @@
     const record = () => { for (const f of F) frames.push(Math.round(f.x * 10), Math.round(f.y * 10), Math.round(f.a * 1000)); };
     place(F[0]); place(F[1]);
 
-    for (; step < endAt; step++) {
+    function tick() {
       const t = step * DT, wl = wallsAt(t, mod);
       dmgMul = t < SUDDEN_T ? 1 : 1 + 2 * (t - SUDDEN_T) / (MAX_T - SUDDEN_T);
       if (!suddenSaid && t >= SUDDEN_T && loser < 0) { suddenSaid = true; events.push({ s: step, k: 'sudden' }); }
@@ -613,6 +623,16 @@
           f.hopT -= DT; f.sw += f.swF * DT;
           const dx = o.wx[0] - f.wx[0], won = loser >= 0;
           const face = dx >= 0 ? 1 : -1;
+          f.cool -= DT;
+          if (f.want) {                              // player-triggered bounce: works mid-air too
+            f.want = false;
+            if (f.cool <= 0 && !won) {
+              const sp = Math.pow(M_REF / f.b.m, 0.75);
+              f.vy = Math.min(f.vy, 0) - 560 * sp; f.vx += face * 90 * sp;
+              f.cool = BOUNCE_CD; f.hopT = Math.max(f.hopT, 0.3); f.air = 0;
+              events.push({ s: step, k: 'hop', v: f.i, m: 1 });
+            }
+          }
           if (f.hopT <= 0 && (f.ground > 0 || f.air > 1.1)) {
             const lunge = rnd() < 0.25, back = !lunge && rnd() < 0.12, sp = Math.pow(M_REF / f.b.m, 0.75), jit = 0.85 + rnd() * 0.3;
             if (!won) f.vx += face * (back ? -200 : lunge ? 430 : 240) * sp * (Math.abs(dx) < 110 && !back ? 0.5 : 1);
@@ -651,8 +671,24 @@
         endAt = step + Math.round(1.2 / DT);
       }
     }
-    record();
-    return { frames, events, winner: 1 - loser, hp: [F[0].hp, F[1].hp], steps: step };
+    const sim = {
+      frames, events, done: false, winner: -1, hp: [HP_MAX, HP_MAX], time: 0,
+      hop(i) { if (F[i]) F[i].want = true; },
+      advance(until) {
+        while (!sim.done && step * DT < until) {
+          tick(); step++;
+          if (step >= endAt) { record(); sim.done = true; sim.winner = 1 - loser; }
+        }
+        sim.hp = [F[0].hp, F[1].hp]; sim.time = step * DT;
+        return sim;
+      }
+    };
+    return sim;
+  }
+  // Whole fight in one go, nobody pressing anything (bots, lobby demo, tests).
+  function simulate(drawA, drawB, seed, modId) {
+    const s = createSim(drawA, drawB, seed, modId).advance(1e9);
+    return { frames: s.frames, events: s.events, winner: s.winner, hp: s.hp, steps: Math.round(s.time / DT) };
   }
 
   // Bot weapons (also the lobby demo and the balance tests).
@@ -734,7 +770,7 @@
   // 2. State & helpers
   // ===================================================================
   const $ = id => document.getElementById(id);
-  const TAU = Math.PI * 2, WIN = 2, REVEAL_MS = 3600, DRAW_SECS = 40, MAX_RECONNECT = 5;
+  const TAU = Math.PI * 2, LEAD = 0.08, WIN = 2, REVEAL_MS = 3600, DRAW_SECS = 40, MAX_RECONNECT = 5;
   const PEERJS_URL = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
   const FACE = '#16161a';
   const PROMPTS = ['Draw something pointy', 'Draw something heavy', 'Draw the worst sword ever', 'Draw a kitchen utensil', 'Draw a vegetable of war',
@@ -750,7 +786,7 @@
   let state = 'lobby', role = 'none', me = 0, gen = 0;
   let names = ['You', 'Opponent'], score = [0, 0], shownScore = [0, 0], roundN = 0, round = null, matchOver = false;
   let strokes = [], cur = null, locked = false, deadline = 0, lastSec = -1, inkSent = 0;
-  let myDrawing = null, oppDrawing = null, forceTimer = null, nextTimer = null, drawTimer = null, fightBuf = null;
+  let myDrawing = null, oppDrawing = null, forceTimer = null, nextTimer = null, drawTimer = null, live = null, fightRes = null, allowBounce = false;
   let peer = null, conn = null, hosting = null, inviteLink = '', roomId = null, reconnects = 0, reconnectTimer = null, heartbeat = null, peerLib = null;
   let C = {};
 
@@ -761,6 +797,7 @@
   function show(id) {
     for (const s of ['lobby', 'draw', 'fight']) $(s).classList.toggle('hidden', s !== id);
     state = id; gen++;
+    if (id !== 'fight') live = null;
   }
   function banner(text) { const b = $('banner'); b.textContent = text || ''; b.classList.toggle('visible', !!text); }
   function lobbyStatus(text, kind) {
@@ -820,6 +857,7 @@
       hit(d) { noise(0.13, Math.min(1, 0.4 + d / 40), 700 + d * 50); tone(150 - d, 0.2, 'sine', 0.6, 45); },
       clang(p) { tone(1700 + Math.random() * 700, 0.28, 'triangle', 0.08 + 0.16 * p, 1100); tone(2900 + Math.random() * 500, 0.12, 'square', 0.03 + 0.04 * p); },
       hop() { tone(300, 0.08, 'sine', 0.05, 520); },
+      bounce() { tone(240, 0.16, 'sine', 0.16, 720); },
       thud(p) { noise(0.1, 0.12 + 0.25 * p, 260); },
       ko() { tone(420, 0.9, 'sawtooth', 0.22, 40); noise(0.5, 0.7, 500); },
       tick() { tone(880, 0.05, 'square', 0.07); },
@@ -844,7 +882,7 @@
   const V = { s: 1, ox: 0, oy: 0, dpr: 1 };
   const scene = { bodies: null, frames: null, events: null, n: 0, dur: 0, t: 0, ei: 0, playing: false, ended: false, speed: 1, slow: 0, freeze: 0,
     hp: [100, 100], pose: [{ x: 0, y: 0, a: 0, vx: 0, vy: 0 }, { x: 0, y: 0, a: 0, vx: 0, vy: 0 }], flash: [0, 0], hurtT: [0, 0],
-    ko: -1, winner: -1, mod: MODS.classic, seed: 0, demo: false, shake: 0, windX: 0, onEnd: null };
+    ko: -1, done: true, cool: 0, mod: MODS.classic, seed: 0, demo: false, shake: 0, windX: 0, onEnd: null };
   let parts = [], texts = [], boil = 0;
 
   function resize() {
@@ -875,9 +913,9 @@
 
   function loadScene(drawings, rep, modId, seed, demo) {
     scene.bodies = [buildBody(drawings[0], 0), buildBody(drawings[1], 1)];
-    scene.frames = rep.frames; scene.events = rep.events; scene.n = rep.frames.length / 6; scene.dur = (scene.n - 1) / FPS;
+    scene.frames = rep.frames; scene.events = rep.events; scene.n = rep.frames.length / 6; scene.done = !!demo; scene.cool = 0;
     scene.t = 0; scene.ei = 0; scene.playing = false; scene.ended = false; scene.speed = 1; scene.slow = 0; scene.freeze = 0;
-    scene.hp = [HP_MAX, HP_MAX]; scene.flash = [0, 0]; scene.hurtT = [0, 0]; scene.ko = -1; scene.winner = rep.winner;
+    scene.hp = [HP_MAX, HP_MAX]; scene.flash = [0, 0]; scene.hurtT = [0, 0]; scene.ko = -1;
     scene.mod = MODS[modId] || MODS.classic; scene.seed = seed; scene.demo = !!demo; scene.shake = 0; scene.onEnd = null;
     parts = []; texts = [];
     setPoses(0.016);
@@ -940,8 +978,9 @@
       dust(e.x, FLOOR, 2 + Math.round(e.p * 6));
       if (!demo) sfx.thud(e.p);
     } else if (e.k === 'hop') {
-      const c = corePos(e.v); if (c[1] > FLOOR - 70) dust(c[0], FLOOR, 2);
-      if (!demo) sfx.hop();
+      const c = corePos(e.v); if (c[1] > FLOOR - 70) dust(c[0], FLOOR, e.m ? 7 : 2);
+      if (e.m) { sparks(c[0], c[1] + CORE_R, 5); if (e.v === me) scene.cool = BOUNCE_CD; }
+      if (!demo) { if (e.m) sfx.bounce(); else sfx.hop(); }
     } else if (e.k === 'sudden') {
       if (!demo) { announce('SUDDEN DEATH!', 76, C.danger, 1.6); sfx.sudden(); }
     } else if (e.k === 'ko') {
@@ -953,24 +992,39 @@
       if (!demo) { announce("TIME'S UP!", 84, C.gold, 1.5); sfx.sudden(); }
     }
   }
-  // How long the playback takes on a wall clock, including hit-stop and K.O. slow-mo.
-  function playbackMs(d) {
-    let ms = ((d.frames.length / 6 - 1) / FPS) * 1000 + 600;
-    for (const e of d.events) { if (e.k === 'hit' && e.d >= 8) ms += 40 + e.d * 4; else if (e.k === 'ko') ms += 700; }
-    return ms;
+  // Host/solo: run the real fight just ahead of what is on screen and stream it to the guest.
+  function hostStep() {
+    const sim = live.sim;
+    if (!sim.done) sim.advance(scene.t + LEAD);
+    const nf = sim.frames.length, ne = sim.events.length;
+    if (nf > live.f || ne > live.e) { send({ type: 'live', frames: sim.frames.slice(live.f), events: sim.events.slice(live.e) }); live.f = nf; live.e = ne; }
+    if (sim.done) {
+      score[sim.winner]++;
+      fightRes = { winner: sim.winner, hp: sim.hp, score: score.slice() };
+      send({ type: 'end', res: fightRes });
+      scene.done = true; live = null;
+    }
+  }
+  function bounce() {
+    if (!allowBounce || state !== 'fight' || !scene.playing || scene.ko >= 0) return;
+    if (role === 'guest') send({ type: 'hop' }); else if (live) live.sim.hop(me);
   }
 
   function updateScene(dt) {
     boil = Math.floor(performance.now() / 130);
     if (scene.bodies && scene.playing) {
+      if (live) hostStep();
+      scene.n = scene.frames.length / 6;
+      const avail = Math.max(0, (scene.n - 1) / FPS);    // the guest can only play what has arrived
       if (scene.freeze > 0) scene.freeze -= dt;
       else {
-        const adv = dt * scene.speed;
-        scene.t += adv;
+        let adv = dt * scene.speed * (!scene.done && avail - scene.t > 0.3 ? 1.25 : 1);
+        if (scene.t + adv > avail) adv = Math.max(0, avail - scene.t);
+        scene.t += adv; scene.cool -= adv;
         if (scene.slow > 0) { scene.slow -= dt; if (scene.slow <= 0) scene.speed = 1; }
         const stepNow = scene.t / DT, ev = scene.events;
         while (scene.ei < ev.length && ev[scene.ei].s <= stepNow) fire(ev[scene.ei++]);
-        if (scene.t >= scene.dur) { scene.t = scene.dur; scene.playing = false; scene.ended = true; if (scene.onEnd) { const f = scene.onEnd; scene.onEnd = null; f(); } }
+        if (scene.done && scene.t >= avail - 1e-6) { scene.t = avail; scene.playing = false; scene.ended = true; if (scene.onEnd) { const f = scene.onEnd; scene.onEnd = null; f(); } }
         setPoses(adv);
         if (scene.mod.wind) scene.windX += windAt(scene.t, scene.seed) * adv * 900;
       }
@@ -1211,6 +1265,8 @@
   // ===================================================================
   function startMatch() {
     score = [0, 0]; shownScore = [0, 0]; roundN = 0; matchOver = false; clearStains(); banner('');
+    allowBounce = $('bounceOpt').checked;
+    try { localStorage.setItem('nibset-duel-bounce', allowBounce ? '1' : '0'); } catch (e) { /* private mode */ }
     nextRound();
   }
   function nextRound() {
@@ -1218,7 +1274,7 @@
     const mods = Object.keys(MODS);
     const r = { type: 'round', n: ++roundN, prompt: Math.floor(Math.random() * PROMPTS.length),
       mod: roundN === 1 ? 'classic' : mods[1 + Math.floor(Math.random() * (mods.length - 1))],
-      seed: Math.floor(Math.random() * 4294967296) >>> 0, duration: DRAW_SECS, score: score.slice() };
+      seed: Math.floor(Math.random() * 4294967296) >>> 0, duration: DRAW_SECS, score: score.slice(), bounce: allowBounce };
     myDrawing = null;
     oppDrawing = role === 'solo' ? botDrawing(r.seed) : null;
     send(r); enterDraw(r);
@@ -1228,14 +1284,14 @@
     }, r.duration * 1000 + 3500);
   }
   function enterDraw(r) {
-    round = r; score = r.score.slice(); shownScore = score.slice(); matchOver = false;
+    round = r; score = r.score.slice(); shownScore = score.slice(); matchOver = false; allowBounce = !!r.bounce;
     strokes = []; cur = null; locked = false; lastSec = -1; scene.bodies = null; scene.playing = false; parts = []; texts = [];
     show('draw');
     deadline = performance.now() + r.duration * 1000;
     clearTimeout(drawTimer);                              // wall-clock auto-submit, so a hidden tab still hands in its drawing
     drawTimer = setTimeout(() => { if (round === r) submit(); }, r.duration * 1000);
     const mod = MODS[r.mod] || MODS.classic;
-    $('roundLabel').textContent = 'Round ' + r.n;
+    $('roundLabel').textContent = 'Round ' + r.n + (allowBounce ? ' · bounce on' : '');
     $('drawPips').innerHTML = pipsHtml(score);
     $('promptText').textContent = PROMPTS[r.prompt % PROMPTS.length];
     $('modChip').innerHTML = '<b>' + esc(mod.name) + '</b><span>' + esc(mod.desc) + '</span>';
@@ -1265,24 +1321,20 @@
     if (state !== 'draw' || !myDrawing || !oppDrawing) return;
     clearTimeout(forceTimer);
     const A = cleanDrawing(myDrawing), B = cleanDrawing(oppDrawing);
-    const rep = simulate(A, B, round.seed, round.mod);
-    score[rep.winner]++;
-    const d = { round: round.n, seed: round.seed, mod: round.mod, drawings: [{ strokes: A.strokes }, { strokes: B.strokes }],
-      events: rep.events, winner: rep.winner, hp: rep.hp, score: score.slice() };
-    if (conn && conn.open) {
-      const CH = 1800, n = Math.max(1, Math.ceil(rep.frames.length / CH));
-      for (let i = 0; i < n; i++) conn.send({ type: 'fight', i, n, head: i ? null : d, frames: rep.frames.slice(i * CH, (i + 1) * CH) });
-    }
-    enterFight(Object.assign({ frames: rep.frames }, d));
+    const sim = createSim(A, B, round.seed, round.mod).advance(DT);      // first frame: the starting poses
+    const d = { round: round.n, seed: round.seed, mod: round.mod, drawings: [{ strokes: A.strokes }, { strokes: B.strokes }] };
+    send({ type: 'fight', head: Object.assign({ frames: sim.frames.slice() }, d) });
+    enterFight(Object.assign({ frames: sim.frames, events: sim.events }, d));
+    live = { sim, f: sim.frames.length, e: 0 };
   }
 
+  // The fight runs live on the host from here; both sides play it as it streams in.
   function enterFight(d) {
     const drawings = d.drawings.map(cleanDrawing), stats = drawings.map(deriveStats), wnames = drawings.map((x, i) => nameWeapon(x, stats[i]));
-    score = d.score.slice(); matchOver = Math.max(score[0], score[1]) >= WIN;
-    shownScore = score.slice(); shownScore[d.winner]--;
+    fightRes = null; matchOver = false; shownScore = score.slice();
     show('fight');
     const g = gen, mod = MODS[d.mod] || MODS.classic;
-    loadScene(drawings, d, d.mod, d.seed, false);
+    loadScene(drawings, { frames: d.frames, events: d.events || [] }, d.mod, d.seed, false);
     for (const i of [0, 1]) { $('n' + i).innerHTML = label(i); $('w' + i).textContent = wnames[i]; }
     $('fightMod').textContent = mod.name;
     $('fightPips').innerHTML = pipsHtml(shownScore);
@@ -1299,20 +1351,19 @@
       if (g !== gen) return;
       $('reveal').classList.add('hidden');
       announce('FIGHT!', 120, C.gold, 1); sfx.go();
-      scene.onEnd = () => setTimeout(() => { if (g === gen) showResult(d, wnames); }, 650);
+      scene.onEnd = () => setTimeout(() => { if (g === gen) showResult(wnames); }, 650);
       scene.playing = true;
     }, REVEAL_MS);
-    if (role !== 'guest') {
-      clearTimeout(nextTimer);
-      nextTimer = setTimeout(() => { if (g === gen && !matchOver) nextRound(); }, REVEAL_MS + playbackMs(d) + 5200);
-    }
   }
   function updateHud() {
     for (const i of [0, 1]) { $('hp' + i).style.width = scene.hp[i] + '%'; $('hpn' + i).textContent = scene.hp[i]; }
   }
-  function showResult(d, wnames) {
-    const w = d.winner, mine = w === me, ko = d.hp[1 - w] <= 0;
-    shownScore = d.score.slice();
+  function showResult(wnames) {
+    const d = fightRes;
+    if (!d) return;
+    const g = gen, w = d.winner, mine = w === me, ko = d.hp[1 - w] <= 0;
+    score = d.score.slice(); shownScore = score.slice(); matchOver = Math.max(score[0], score[1]) >= WIN;
+    if (role !== 'guest' && !matchOver) { clearTimeout(nextTimer); nextTimer = setTimeout(() => { if (g === gen) nextRound(); }, 4200); }
     $('fightPips').innerHTML = pipsHtml(shownScore);
     $('resultPips').innerHTML = pipsHtml(shownScore);
     const how = ko ? 'knocked them out with ' + d.hp[w] + ' HP left' : 'won on points, ' + d.hp[w] + ' HP to ' + d.hp[1 - w];
@@ -1405,7 +1456,8 @@
       oppDrawing = cleanDrawing({ strokes: msg.strokes });
       oppStatus({ ready: true });
       tryResolve();
-    } else if (msg.type === 'rematch') { if (matchOver && state === 'fight') startMatch(); }
+    } else if (msg.type === 'hop') { if (allowBounce && live && state === 'fight' && scene.playing) live.sim.hop(1); }
+    else if (msg.type === 'rematch') { if (matchOver && state === 'fight') startMatch(); }
   }
   function dropOpponent(c) {
     if (conn !== c) return;
@@ -1455,14 +1507,14 @@
   function onGuestMsg(msg, c) {
     if (msg.type === 'error') { roomId = null; c.close(); guestFailed(msg.message); }
     else if (msg.type === 'hello') { names = [String(msg.name || 'Host').slice(0, 14), myName()]; }
-    else if (msg.type === 'round') { fightBuf = null; enterDraw(msg); }
+    else if (msg.type === 'round') enterDraw(msg);
     else if (msg.type === 'ink') { if (state === 'draw') oppStatus({ used: +msg.used || 0, ready: !!msg.ready }); }
-    else if (msg.type === 'fight') {
-      if (msg.i === 0) fightBuf = { head: msg.head, frames: [] };
-      if (!fightBuf) return;
-      for (const v of msg.frames) fightBuf.frames.push(v);
-      if (msg.i === msg.n - 1) { const d = fightBuf.head; d.frames = fightBuf.frames; fightBuf = null; enterFight(d); }
-    }
+    else if (msg.type === 'fight') { if (msg.head && Array.isArray(msg.head.frames)) enterFight(msg.head); }
+    else if (msg.type === 'live') {
+      if (state !== 'fight' || scene.demo || scene.done || !scene.frames) return;
+      for (const v of msg.frames || []) scene.frames.push(v);
+      for (const e of msg.events || []) scene.events.push(e);
+    } else if (msg.type === 'end') { if (state === 'fight' && msg.res) { fightRes = msg.res; scene.done = true; } }
   }
   function guestFailed(text) {
     roomId = null; role = 'none'; me = 0;
@@ -1472,7 +1524,7 @@
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file:// */ }
     if (state !== 'lobby') { show('lobby'); setTimeout(startDemo, 50); }
     banner('');
-    $('lobbyBtns').classList.remove('hidden');
+    $('lobbyBtns').classList.remove('hidden'); $('bounceRow').classList.remove('hidden');
     lobbyStatus(text, 'bad');
   }
   function attemptReconnect() {
@@ -1534,6 +1586,16 @@
     readColors(); drawPad();
   };
 
+  // Optional: Space (or a tap on the arena) makes your fighter bounce. The fight still runs itself.
+  window.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || !allowBounce || state !== 'fight' || !scene.playing) return;
+    e.preventDefault();
+    if (!e.repeat) bounce();
+  });
+  cv.addEventListener('pointerdown', () => { sfx.unlock(); bounce(); });
+  // A hidden tab gets no animation frames; keep the fight moving anyway so the other player is not left waiting.
+  setInterval(() => { if (document.hidden && state === 'fight') updateScene(0.25); }, 250);
+
   // ===================================================================
   // 9. Main loop & init
   // ===================================================================
@@ -1556,6 +1618,9 @@
       if (state === 'fight') {
         const s = Math.max(0, Math.ceil(MAX_T - scene.t)), el = $('fightTimer');
         if (el.textContent !== String(s)) { el.textContent = s; el.classList.toggle('low', s <= MAX_T - SUDDEN_T); }
+        const hint = $('bounceHint'), on = allowBounce && scene.playing && scene.ko < 0;
+        if (hint.classList.contains('hidden') === on) hint.classList.toggle('hidden', !on);
+        if (hint.classList.contains('cd') !== (scene.cool > 0)) hint.classList.toggle('cd', scene.cool > 0);
       }
     }
     requestAnimationFrame(frame);
@@ -1563,12 +1628,12 @@
 
   readColors(); setMuteIcon(); resize();
   window.addEventListener('resize', resize);
-  try { $('nameInput').value = localStorage.getItem('nibset-duel-name') || ''; } catch (e) { /* private mode */ }
+  try { $('nameInput').value = localStorage.getItem('nibset-duel-name') || ''; $('bounceOpt').checked = localStorage.getItem('nibset-duel-bounce') !== '0'; } catch (e) { /* private mode */ }
   if (document.fonts && document.fonts.load) document.fonts.load('700 40px Caveat').then(drawPad, () => {});
   const room = location.hash.match(/^#room=(.+)/);
   if (room) {
     role = 'guest'; me = 1; roomId = room[1];
-    $('lobbyBtns').classList.add('hidden');
+    $('lobbyBtns').classList.add('hidden'); $('bounceRow').classList.add('hidden');
     connectAsGuest();
   }
   setTimeout(startDemo, 80);
